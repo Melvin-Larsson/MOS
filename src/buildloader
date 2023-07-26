@@ -1,0 +1,4 @@
+cd boot && nasm -f elf program.s -o boot.o && mv boot.o .. && cd ..
+$HOME/opt/cross2/bin/i686-elf-gcc -T linker.ld -o myos.elf -ffreestanding -O2 -nostdlib boot.o main.o -lgcc &&
+objcopy -O binary myos.elf myos.bin &&
+dd if=myos.bin of=/dev/sdd
