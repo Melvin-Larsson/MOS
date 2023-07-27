@@ -11,13 +11,21 @@ LINK_FLAGS?= -nostdlib -lgcc -ffreestanding -O2
 OBJS?= ${KERNEL}/build/kernel.out \
        ${LIBS}/build/lib.out
 
-${BUILD}/os.bin : ${OBJS} 
+.PHONY: all
+all:
+	$(MAKE) kernel
+	$(MAKE) lib
 	${COMPILER} -T ${PREFIX}/linker.ld ${OBJS} ${LINK_FLAGS}  -o ${BUILD}/os.elf
 	objcopy -O binary ${BUILD}/os.elf ${BUILD}/os.bin
 
-${KERNEL}/build/kernel.out :
+.PHONY: kernel
+kernel :
 	make -C ${KERNEL} 
-${LIBS}/build/lib.out :
+.PHONY: lib
+lib	:
 	make -C ${LIBS}
 
-
+clean :
+	rm -f ${BUILD}/*
+	$(MAKE) -C ${KERNEL} clean
+	$(MAKE) -C ${LIBS} clean

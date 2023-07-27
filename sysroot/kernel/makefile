@@ -14,10 +14,10 @@ OBJS?= ${BUILD}/boot.o \
 ${BUILD}/kernel.o : ${OBJS} 
 	${COMPILER} -T linker.ld ${LINK_FLAGS} ${OBJS} -o ${BUILD}/kernel.out
 
-${BUILD}/kernel1.o :
+${BUILD}/kernel1.o : main.c
 	${COMPILER} ${CFLAGS} -c main.c -o ${BUILD}/kernel1.o
 
-${BUILD}/interrupt.o :
+${BUILD}/interrupt.o : interrupt.c include/kernel/interrupt.h
 	${COMPILER} ${CFLAGS} -c interrupt.c -o ${BUILD}/interrupt.o
 
 ${BUILD}/boot.o :
@@ -27,6 +27,4 @@ ${BUILD}/boot.o :
 	cd -
 
 clean :
-	cd ${BUILD}
-	rm *
-	cd - 
+	rm -f ${BUILD}/*

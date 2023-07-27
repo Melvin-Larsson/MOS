@@ -6,11 +6,20 @@ BUILD?=${PREFIX}/build
 
 LINK_FLAGS?= -nostdlib -lgcc -ffreestanding -O2 -r
 
-OBJS?= ${BUILD}/stdio.o
+OBJS?= ${BUILD}/stdio.o \
+       ${BUILD}/stdlib.o \
+	   ${BUILD}/string.o
+
 
 ${BUILD}/lib.out : ${OBJS} 
 	${COMPILER} ${LINK_FLAGS} ${OBJS} -o ${BUILD}/lib.out
 
-${BUILD}/stdio.o :
+${BUILD}/stdio.o : stdio/stdio.c include/stdio.h
 	${COMPILER} ${CFLAGS} -c stdio/stdio.c -o ${BUILD}/stdio.o
+${BUILD}/stdlib.o : stdlib/stdlib.c include/stdlib.h
+	${COMPILER} ${CFLAGS} -c stdlib/stdlib.c -o ${BUILD}/stdlib.o
+${BUILD}/string.o : string/string.c include/string.h
+	${COMPILER} ${CFLAGS} -c string/string.c -o ${BUILD}/string.o
 
+clean :
+	rm -f ${BUILD}/*

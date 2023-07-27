@@ -1,1 +1,66 @@
-[]
+[
+  {
+    "arguments": [
+      "/home/melvin/opt/cross2/bin/i686-elf-gcc",
+      "-O2",
+      "-std=gnu99",
+      "-ffreestanding",
+      "-mno-red-zone",
+      "-Wall",
+      "-Wextra",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/kernel/include",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/lib/include",
+      "-c",
+      "-o",
+      "/home/melvin/Programmering/OS/sysroot/kernel/build/kernel1.o",
+      "main.c"
+    ],
+    "directory": "/home/melvin/Programmering/OS/sysroot/kernel",
+    "file": "/home/melvin/Programmering/OS/sysroot/kernel/main.c",
+    "output": "/home/melvin/Programmering/OS/sysroot/kernel/build/kernel1.o"
+  },
+  {
+    "arguments": [
+      "/home/melvin/opt/cross2/bin/i686-elf-gcc",
+      "-O2",
+      "-std=gnu99",
+      "-ffreestanding",
+      "-mno-red-zone",
+      "-Wall",
+      "-Wextra",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/kernel/include",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/lib/include",
+      "-c",
+      "-o",
+      "/home/melvin/Programmering/OS/sysroot/kernel/build/interrupt.o",
+      "interrupt.c"
+    ],
+    "directory": "/home/melvin/Programmering/OS/sysroot/kernel",
+    "file": "/home/melvin/Programmering/OS/sysroot/kernel/interrupt.c",
+    "output": "/home/melvin/Programmering/OS/sysroot/kernel/build/interrupt.o"
+  },
+  {
+    "arguments": [
+      "/home/melvin/opt/cross2/bin/i686-elf-gcc",
+      "-O2",
+      "-std=gnu99",
+      "-ffreestanding",
+      "-mno-red-zone",
+      "-Wall",
+      "-Wextra",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/lib/include",
+      "-c",
+      "-o",
+      "/home/melvin/Programmering/OS/sysroot/lib/build/stdio.o",
+      "stdio/stdio.c"
+    ],
+    "directory": "/home/melvin/Programmering/OS/sysroot/lib",
+    "file": "/home/melvin/Programmering/OS/sysroot/lib/stdio/stdio.c",
+    "output": "/home/melvin/Programmering/OS/sysroot/lib/build/stdio.o"
+  }
+]
