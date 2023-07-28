@@ -1,6 +1,9 @@
 #ifndef PCI_H_INCLUDED
 #define PCI_H_INCLUDED
 
+#define PCI_CLASS_SERIAL_BUS_CONTROLLER 0xC
+#define PCI_SUBCLASS_USB_CONTROLLER 0x3
+
 #include "stdint.h"
 typedef struct{
    union{
@@ -37,5 +40,8 @@ uint32_t pci_configReadDevice(uint8_t busNr, uint8_t deviceNr,
          uint8_t funcNr, uint8_t registerOffset);
 void pci_printVendorIds();
 int pci_getDevices(PciHeader* output, int maxHeadersInOutput);
+void pci_getClassName(PciHeader* pci, char* output);
+void pci_getSubclassName(PciHeader* pci, char* output);
+void pci_getProgIfName(PciHeader* pci, char* output);
 
 #endif

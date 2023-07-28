@@ -8,6 +8,7 @@
 
 
 stuff that might cause trouble:
+printf, what happens if str contains %, what happens if arg string contains %?
 on other hardware:
     A-20 line might not get enabled corectly
     Currently assumes that an apic is present

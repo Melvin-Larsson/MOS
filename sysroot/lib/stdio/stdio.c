@@ -59,6 +59,20 @@ void printf(const char* str, ...){
                 strReadInt(nr, buff);
                 printf(buff);
             }
+            if(*str == 's'){
+                str++;
+                char *str = va_arg(args, char *);
+                printf(str);
+            }
+            if(*str == 'b'){
+                str++;
+                if(va_arg(args, int)){
+                    printf("true");
+                }
+                else{
+                    printf("false");
+                }
+            }
         }
         else{
             printChar(*str);

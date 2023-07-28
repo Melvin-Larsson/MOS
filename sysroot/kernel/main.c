@@ -2,6 +2,7 @@
 #include "kernel/interrupt.h"
 #include "kernel/apic.h"
 #include "kernel/pci.h"
+#include "string.h"
 
 char message[] = "Kernel started!\n";
 void kernel_main(){
@@ -9,14 +10,21 @@ void kernel_main(){
     printf(message);
     interruptDescriptorTableInit(); 
 
-    printf("APIC present: %d\n", apic_isPresent());
+    printf("APIC present: %b\n", apic_isPresent());
     //pci_printVendorIds();
 
     PciHeader devices[20];
     int count = pci_getDevices(devices, 10);
-    printf("%d devices connected\n", count);
+    printf("%d devices connected:\n", count);
     for(int i = 0; i < count; i++){
-        printf("%d\n", devices[i].classCode);
+        char className[50];
+        char subclassName[50];
+        char progIfName[50];
+        
+        pci_getClassName(&devices[i], className);
+        pci_getSubclassName(&devices[i], subclassName);
+        pci_getProgIfName(&devices[i], progIfName);
+        printf("%d: %s - %s - %s\n", i, className, subclassName, progIfName);
     }
 
     printf("end\n");
