@@ -1,6 +1,8 @@
 #include "stdio.h"
-
+#include "stdarg.h"
 #include "stdint.h"
+#include "string.h"
+
 #define TERM_WIDTH 80
 #define TERM_HEIGHT 25
 #define VIDEO_MEMORY ((uint16_t*)0xb8000)
@@ -43,11 +45,27 @@ static void printChar(char c){
         newLine();
     }
 }
-void printf(const char* str){
+void printf(const char* str, ...){
+    va_list args;
+    va_start(args, str);
+    
     while(*str){
-        printChar(*str);
-        str++;
+        if(*str == '%'){
+            str++;
+            if(*str == 'd'){
+                str++;
+                char buff[10];
+                int nr = va_arg(args, int);
+                strReadInt(nr, buff);
+                printf(buff);
+            }
+        }
+        else{
+            printChar(*str);
+            str++;
+        }
     }
+    va_end(args);
 }
 void printc(char c, int x, int y){
     uint16_t charInfo = 0x0F00 | c;

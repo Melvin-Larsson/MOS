@@ -9,7 +9,10 @@ LINK_FLAGS?= -nostdlib -lgcc -ffreestanding -O2 -r
 
 OBJS?= ${BUILD}/boot.o \
        ${BUILD}/kernel1.o \
-	   ${BUILD}/interrupt.o
+	   ${BUILD}/interrupt.o \
+	   ${BUILD}/registers.o \
+	   ${BUILD}/apic.o \
+	   ${BUILD}/pci.o
 
 ${BUILD}/kernel.o : ${OBJS} 
 	${COMPILER} -T linker.ld ${LINK_FLAGS} ${OBJS} -o ${BUILD}/kernel.out
@@ -19,6 +22,15 @@ ${BUILD}/kernel1.o : main.c
 
 ${BUILD}/interrupt.o : interrupt.c include/kernel/interrupt.h
 	${COMPILER} ${CFLAGS} -c interrupt.c -o ${BUILD}/interrupt.o
+	
+${BUILD}/registers.o : registers.c include/kernel/registers.h
+	${COMPILER} ${CFLAGS} -c registers.c -o ${BUILD}/registers.o
+	
+${BUILD}/apic.o : apic.c include/kernel/apic.h
+	${COMPILER} ${CFLAGS} -c apic.c -o ${BUILD}/apic.o
+
+${BUILD}/pci.o : pci.c include/kernel/pci.h
+	${COMPILER} ${CFLAGS} -c pci.c -o ${BUILD}/pci.o
 
 ${BUILD}/boot.o :
 	cd ${PREFIX}/i686 && \

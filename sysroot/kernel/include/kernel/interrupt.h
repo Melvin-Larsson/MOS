@@ -17,6 +17,22 @@ typedef struct{
     uint32_t base;
 }__attribute__((packed)) InterruptTableDescriptor;
 
+typedef struct{
+    uint32_t codeSegment;
+    uint32_t instructionOffset;
+    union{
+        uint32_t errorCode;
+        struct{
+            char EXT : 1;
+            char IDT : 1;
+            char TI : 1;
+            short segmentSelectorIndex : 13;
+            uint16_t reserved;
+            
+        };
+    };
+}ExceptionInfo;
+
 //__attribute__((packed)) 
 
 void interruptDescriptorTableInit();

@@ -1,1 +1,32 @@
-Must specify both .c and .h files as prerequisits in make.
+-Must specify both .c and .h files as prerequisits in make.
+-Dissable the pic if not used, otherwise it might generate df (vector 8) interrupts
+-__attribute__((packed)) could be important if creating structs to match memory locations (e.g. descriptors)
+-returning from an interrupt can not be done in C (at least not without the right attributes) because the stack will get fucked
+-very important with clobbeered registers, i.e. telling the compiler which register you have used in an __asm__ statement
+
+
+
+
+stuff that might cause trouble:
+on other hardware:
+    A-20 line might not get enabled corectly
+    Currently assumes that an apic is present
+SERIOUS: interrupts 0-31 are all assumed to be caused by exceptions that generate error codes (stack will get fucked otherwise)
+
+   __asm__ volatile ("mov 0x8(%%ebp), %0" : "=r"(v3));*/
+   
+
+APIC:
+Registers start at: FEE00000H. and uses 4KB of space. (Strong uncachable?)
+can relocate, on MP (multiprocessor system) all are located at the same place to begin with
+register allignade till 128, finns 32,64,,256 bitar breda register
+cpuid to se if it exists, 
+on systems with 3 wire buss it can not be enabled on the fly. When enabling prevent interupts. When dissabling config state could be lost
+also has a software enable/dissable flag, when dissabled don't try to change the mask. THE APIC does some stuff even when dissabled: IPI
+(INIT Reset is a thing)
+when low double word of ICR is written to, APIC creates IPI message in ICR register.
+Skriva till EOI(ENd or interrupt) när man är klar
+
+
+
+=r betyder använd vilket register som helst(r), och skit i startvärdet (=)

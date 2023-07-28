@@ -1,12 +1,18 @@
 [BITS 32]
 %macro interrupt_handler_m 1
-interrupt_handler_%+%1:
-    push ebp
-    mov ebp, esp
-    push %+%1
+interrupt_handler_%1:
+    push eax
+    mov eax, esp 
+    add eax, 12
+    pushad
+    push eax
+    push %1
+    cld
     call exception_handler
-    mov esp, ebp
-    pop ebp
+    add esp, 8
+    popad
+    pop eax
+    add esp, 4
     iret
 %endmacro
 

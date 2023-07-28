@@ -17,6 +17,11 @@ pmode_main:
     mov gs, ax
     mov ss, ax
     mov esp, 0x90000
+
+    mov al, 0xff
+    out 0xa1, al
+    out 0x21, al
+
     mov si, str;
 
     call printp_str
