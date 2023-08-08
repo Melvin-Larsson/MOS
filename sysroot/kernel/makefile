@@ -12,7 +12,9 @@ OBJS?= ${BUILD}/boot.o \
 	   ${BUILD}/interrupt.o \
 	   ${BUILD}/registers.o \
 	   ${BUILD}/apic.o \
-	   ${BUILD}/pci.o
+	   ${BUILD}/pci.o \
+	   ${BUILD}/xhcd.o \
+	   ${BUILD}/xhcd-ring.o \
 
 ${BUILD}/kernel.o : ${OBJS} 
 	${COMPILER} -T linker.ld ${LINK_FLAGS} ${OBJS} -o ${BUILD}/kernel.out
@@ -31,6 +33,12 @@ ${BUILD}/apic.o : apic.c include/kernel/apic.h
 
 ${BUILD}/pci.o : pci.c include/kernel/pci.h
 	${COMPILER} ${CFLAGS} -c pci.c -o ${BUILD}/pci.o
+
+${BUILD}/xhcd.o : xhcd.c include/kernel/xhcd.h
+	${COMPILER} ${CFLAGS} -c xhcd.c -o ${BUILD}/xhcd.o
+
+${BUILD}/xhcd-ring.o : xhcd-ring.c include/kernel/xhcd-ring.h
+	${COMPILER} ${CFLAGS} -c xhcd-ring.c -o ${BUILD}/xhcd-ring.o
 
 ${BUILD}/boot.o :
 	cd ${PREFIX}/i686 && \

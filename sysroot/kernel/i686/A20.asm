@@ -1,6 +1,5 @@
 [BITS 16]
 check_a20:
-    pushf
     push es
     push di
     push ds
@@ -42,7 +41,6 @@ check_a20_ret:
    pop ds
    pop di
    pop es
-   popf
 
    ret
 

@@ -26,7 +26,7 @@ void strReadInt(int x, char * output){
         output++;
         x = -x;
     }
-    char buff[10];
+    char buff[12];
     int i = 0;
     for(; x > 0; i++){
         buff[i] = '0' + x % 10; 
@@ -34,6 +34,29 @@ void strReadInt(int x, char * output){
     }
     for(int j = 0; j < i; j++){
        output[i - j - 1] = buff[j];  
+    }
+    output[i] = 0;
+}
+void strReadIntHex(unsigned int x, char* output){
+    output = strcpy(output, "0x");
+    if(x == 0){
+        strcpy(output, "0");
+        return;
+    }
+    
+    char buff[32];
+    int i = 0;
+    for(; x; i++){
+        char quad = x & 0xF;
+        if(quad >= 10){
+            buff[i] = 'A' + (quad - 10);
+        }else{
+            buff[i] = '0' + quad;
+        }
+        x >>= 4;
+    }
+    for(int j = 0; j < i; j++){
+        output[i - 1 - j] = buff[j];
     }
     output[i] = 0;
 }

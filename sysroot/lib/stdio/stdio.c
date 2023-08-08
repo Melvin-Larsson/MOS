@@ -54,7 +54,7 @@ void printf(const char* str, ...){
             str++;
             if(*str == 'd'){
                 str++;
-                char buff[10];
+                char buff[12];
                 int nr = va_arg(args, int);
                 strReadInt(nr, buff);
                 printf(buff);
@@ -72,6 +72,12 @@ void printf(const char* str, ...){
                 else{
                     printf("false");
                 }
+            }
+            if(*str == 'X'){
+                str++;
+                char buff[32];
+                strReadIntHex(va_arg(args, unsigned int), buff);
+                printf(buff);
             }
         }
         else{

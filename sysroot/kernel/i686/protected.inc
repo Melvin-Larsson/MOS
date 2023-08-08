@@ -1,12 +1,12 @@
-[BITS 32]
-%include "A20.asm"
+[BITS 16]
+;%include "A20.asm"
 enter_protected:
-    call enable_a20
-    cmp al, 1
-    je enter_protected_if_a20_activated
-    mov si, err_a20_not_activated
-    call print_str
-    jmp enter_protected_halt
+;    call enable_a20
+;    cmp al, 1
+;    je enter_protected_if_a20_activated
+;    mov si, err_a20_not_activated
+;    call print_str
+;    jmp enter_protected_halt
 
 enter_protected_if_a20_activated:
     cli

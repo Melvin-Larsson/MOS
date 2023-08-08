@@ -1,1 +1,2 @@
-make && dd if=build/os.bin of=/dev/sdd
+make &&
+dd if=build/os.bin of=/dev/sdd

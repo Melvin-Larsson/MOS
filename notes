@@ -31,3 +31,16 @@ Skriva till EOI(ENd or interrupt) när man är klar
 
 
 =r betyder använd vilket register som helst(r), och skit i startvärdet (=)
+
+xhc:
+little endian, lower addresses contain least significant
+
+The following struct is taking 5 bytes of space
+but if uint16_t other is replaced with uint16_t other : 16
+the struct only takes 4 bytes of space
+typedef volatile struct{
+   uint8_t CCS : 1;
+   uint16_t other;
+   uint8_t CSC : 1;
+   uint16_t other2 : 14;
+}__attribute__((packed))PortStatusAndControll;

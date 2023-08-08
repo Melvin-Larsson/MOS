@@ -2,7 +2,6 @@
 extern kernel_main
 s2:
     jmp main
-    %include "print.inc"
     %include "protected.inc"
 main:
    call enter_protected
