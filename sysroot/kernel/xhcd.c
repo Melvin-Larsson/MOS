@@ -75,11 +75,13 @@ XhcdRing transferRingDescriptor;
 XhcEventRing eventRingDescriptor;
 
 int xhcd_init(PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
-   while(1);
    int errorCode = 0;
    if((errorCode = initBasePointers(pciHeader, xhci)) != 0){
       return errorCode;
    }
+   xhci->operation->USBCommand &= ~1;
+   while(!(xhci->operation->USBStatus & 1));
+   xhci->operation->USBCommand |= 1 << 1;
    waitForControllerReady(xhci);
    setMaxEnabledDeviceSlots(xhci);
    initDCAddressArray(xhci);
@@ -146,9 +148,10 @@ int xhcd_initPort(Xhci *xhci, int portIndex){
    xhcd_putTRB(TRB_ENABLE_SLOT(getSlotType(xhci)), &commandRingDescriptor);
    ringCommandDoorbell(xhci);
    XhcEventTRB trb;
-   while(!xhcd_readEvent(&eventRingDescriptor, &trb, 1));
+   //FIXME: hack
+   while(!xhcd_readEvent(&eventRingDescriptor, &trb, 1) || trb.trbType == PortStatusChangeEvent);
    if(trb.trbType != CommandCompletionEvent){
-      printf("[xhc] unknown event\n");
+      printf("[xhc] unknown event %X %X %X %X (event %d)\n", trb, trb.trbType);
       return -1;
    }
    if(trb.completionCode == NoSlotsAvailiableError){
@@ -159,9 +162,8 @@ int xhcd_initPort(Xhci *xhci, int portIndex){
       printf("[xhc] something went wrong (initPort)");
       return -1;
    }
-   printf("event trb : %X %X %X %X\n", trb);
    printf("[xhc] TRB slot id: %X\n", trb.slotId);
-   int slotId = trb.slotId - 1; //FIXME: why -1? seems like qemu enables devices itself (bios?)
+   int slotId = trb.slotId; //FIXME: why -1? seems like qemu enables devices itself (bios?)
    memset((void*)&inputContext[slotId], 0, sizeof(XhcInputContext));
    inputContext[slotId].inputControlContext.addContextFlags |= INPUT_CONTEXT_A0A1_MASK;
    
@@ -198,23 +200,20 @@ int xhcd_initPort(Xhci *xhci, int portIndex){
    while(xhcd_readEvent(&eventRingDescriptor, &result, 1) == 0);
    if(result.completionCode != Success){
       printf("[xhc] failed to addres device (Event: %X %X %X %X, code: %d)\n", result, result.completionCode);
-      if(result.completionCode == TrbError){
-         printf("(trb error)\n");
-
-      }
       return 0;
    }
    printf("[xhc] successfully addressed device: (Event: %X %X %X %X)\n", result);
-   while(1);
-   
+
    return 1;
 }
 static void test(Xhci *xhci){
 
    xhcd_putTRB(TRB_NOOP(), &commandRingDescriptor);
    ringCommandDoorbell(xhci);
-   uint32_t status = xhci->operation->USBStatus;
-   printf("Error? %d\n", status & (1 << 12));
+   for(int i = 0; i < 2; i++){
+      uint32_t status = xhci->operation->USBStatus;
+      printf("Error? %d\n", status & (1 << 12));
+   }
 
    XhcEventTRB result;
    printf("Waiting for interruptor\n");
