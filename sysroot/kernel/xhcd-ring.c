@@ -8,13 +8,22 @@
 
 #define TRB_TYPE_LINK 6
 #define TRB_TYPE_NOOP 23
+#define TRB_TYPE_ENABLE_SLOT 9
+#define TRB_TYPE_ADDRESS_DEVICE 11
+
+#define TRB_SLOT_TYPE_POS 16
+#define TRB_SLOT_ID_POS 24
+#define TRB_TYPE_POS 10
+
+#define ADDRESS_TRB_BSR_POS 9
 
 static void initSegment(Segment segment, Segment nextSegment, int isLast);
 
 XhcdRing xhcd_newRing(Segment* segments, int count){
    XhcdRing ring;
    ring.pcs = DEFAULT_PCS;
-   ring.dequeue = (TRB2*)segments[0].address;
+   uint64_t startAddress = segments[0].address;
+   ring.dequeue = (TRB2 *)startAddress;
    for(int i = 0; i < count - 1; i++){
       initSegment(segments[i], segments[i+1], 0);
    }
@@ -22,17 +31,19 @@ XhcdRing xhcd_newRing(Segment* segments, int count){
    return ring;
 }
 int xhcd_attachCommandRing(uint32_t* operationalBase, XhcdRing *ring){
-   uint32_t *commandRingControll = operationalBase + CRCR_OFFSET;
-   *commandRingControll  = ((uint32_t)ring->dequeue | ring->pcs);
-   *(commandRingControll + 1) = (uint32_t)((uint64_t)ring->dequeue >> 32);
+   uint32_t *commandRingControll = operationalBase + CRCR_OFFSET / 4;
+   uint64_t address = (uint64_t)ring->dequeue;
+   *commandRingControll  = ((uint32_t)address | ring->pcs);
+   *(commandRingControll + 1) = (uint32_t)(address >> 32);
    return 1;
 }
-void xhcd_putTRB(TRB2* trb, XhcdRing *ring){
-   trb->cycleBit = ring->pcs;
-   ring->dequeue = trb; 
+void xhcd_putTRB(TRB2 trb, XhcdRing *ring){
+   trb.cycleBit = ring->pcs;
+   *ring->dequeue = trb; 
    ring->dequeue++;
    if(ring->dequeue->trbType == TRB_TYPE_LINK){
       LinkTRB2 *link = (LinkTRB2*)ring->dequeue;
+      link->cycleBit = ring->pcs;
       uint64_t low = (uint64_t)link->ringSegmentLow;
       uint64_t high = (uint64_t)link->ringSegmentHigh;
       ring->dequeue = (TRB2*)(low | (high << 32));
@@ -41,9 +52,24 @@ void xhcd_putTRB(TRB2* trb, XhcdRing *ring){
 }
 TRB2 TRB_NOOP(){
    TRB2 trb = {{{0,0,0,0}}};
-   trb.trbType = TRB_TYPE_NOOP;
+   trb.r3 = TRB_TYPE_NOOP << TRB_TYPE_POS;
    return trb;
-
+}
+TRB2 TRB_ENABLE_SLOT(int slotType){
+   TRB2 trb = {{{0,0,0,0}}};
+   trb.r3 = TRB_TYPE_ENABLE_SLOT << TRB_TYPE_POS |
+            slotType << TRB_SLOT_TYPE_POS;
+   return trb;
+}
+TRB2 TRB_ADDRESS_DEVICE(uint64_t inputContextAddr, uint32_t slotId, uint32_t bsr){
+   TRB2 trb = {{{0,0,0,0}}};
+   trb.r0 = (uint32_t)inputContextAddr;
+   trb.r1 = (uint32_t)(inputContextAddr >> 32);
+   trb.r3 = bsr << ADDRESS_TRB_BSR_POS |
+            TRB_TYPE_ADDRESS_DEVICE << TRB_TYPE_POS |
+            slotId << TRB_SLOT_ID_POS;
+   printf("trb: %X %X %X %X\n", trb);
+   return trb;
 }
 static void initSegment(Segment segment, Segment nextSegment, int isLast){
    memset((void*)segment.address, 0, segment.trbCount * sizeof(TRB2));

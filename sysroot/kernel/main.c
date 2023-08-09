@@ -54,6 +54,7 @@ static void initXhci(PciGeneralDeviceHeader xhc){
            return;  
         }
         printf("USB device enabled\n");
+        xhcd_initPort(&xhci, attachedPortNr);
 }
 void kernel_main(){
     stdioinit();

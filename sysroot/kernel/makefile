@@ -15,6 +15,7 @@ OBJS?= ${BUILD}/boot.o \
 	   ${BUILD}/pci.o \
 	   ${BUILD}/xhcd.o \
 	   ${BUILD}/xhcd-ring.o \
+	   ${BUILD}/xhcd-event-ring.o \
 
 ${BUILD}/kernel.o : ${OBJS} 
 	${COMPILER} -T linker.ld ${LINK_FLAGS} ${OBJS} -o ${BUILD}/kernel.out
@@ -39,6 +40,13 @@ ${BUILD}/xhcd.o : xhcd.c include/kernel/xhcd.h
 
 ${BUILD}/xhcd-ring.o : xhcd-ring.c include/kernel/xhcd-ring.h
 	${COMPILER} ${CFLAGS} -c xhcd-ring.c -o ${BUILD}/xhcd-ring.o
+
+${BUILD}/xhcd-event-ring.o : xhcd-event-ring.c include/kernel/xhcd-event-ring.h
+	${COMPILER} ${CFLAGS} -c xhcd-event-ring.c -o ${BUILD}/xhcd-event-ring.o
+
+include/kernel/xhcd.h: include/kernel/xhcd-registers.h
+include/kernel/xhcd-ring.h: include/kernel/xhcd-registers.h
+include/kernel/xhcd-event-ring.h: include/kernel/xhcd-registers.h
 
 ${BUILD}/boot.o :
 	cd ${PREFIX}/i686 && \

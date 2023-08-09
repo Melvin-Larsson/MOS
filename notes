@@ -8,7 +8,15 @@
 
 
 stuff that might cause trouble:
+
 printf, what happens if str contains %, what happens if arg string contains %?
+
+-in qemu, the command ring continunes processing commands even if the event ring is full,
+probably not how real hardware works, but migh have to solve this
+
+-for some reason a event TRB segment with n slots, only reciveces n-1 events (including event ring full event)
+-does segmenting work (command ring probably works but event ring is unsure)
+
 on other hardware:
     A-20 line might not get enabled corectly
     Currently assumes that an apic is present

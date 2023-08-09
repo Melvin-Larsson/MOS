@@ -28,8 +28,8 @@ typedef volatile struct{
       struct{
          uint32_t dataBufferPointerLow;
          uint32_t dataBufferpointerHigh;
-         uint32_t trbTransferLength : 16;
-         uint32_t tdSize : 4;
+         uint32_t trbTransferLength : 17;
+         uint32_t tdSize : 5;
          uint32_t interrupterTarget : 10;
          uint32_t cycleBit : 1;
          uint32_t other : 9;
@@ -51,11 +51,12 @@ typedef struct{
 
 XhcdRing xhcd_newRing(Segment* segments, int count);
 int xhcd_attachCommandRing(uint32_t* operationalBase, XhcdRing *ring);
-void xhcd_putTRB(TRB2* trb, XhcdRing *ring);
+void xhcd_putTRB(TRB2 trb, XhcdRing *ring);
 
 
 TRB2 TRB_NOOP();
-
+TRB2 TRB_ENABLE_SLOT(int slotType);
+TRB2 TRB_ADDRESS_DEVICE(uint64_t inputContextAddr, uint32_t slotId, uint32_t bsr);
 
 
 

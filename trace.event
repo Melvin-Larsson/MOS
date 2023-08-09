@@ -1,3 +1,4 @@
+*xhci*
 usb_xhci_reset
 usb_xhci_exit
 usb_xhci_run
