@@ -1,6 +1,5 @@
 #include "stdlib.h"
 #include "stdint.h"
-#include "stdio.h"
 
 typedef struct MEMORY{
     uint8_t used;
@@ -126,15 +125,12 @@ static int isValidConstraint(int size, int alignment, int boundary){
     return size + boundaryToAlignmentOffset <= boundary;
 }
 static MemoryDescriptor *constrainDescriptor(MemoryDescriptor *descriptor, int size, int alignment, int boundary){
-    printf("desc next %X\n", descriptor->next);
     MemoryDescriptor *bounded = (MemoryDescriptor*)avoidBoundary(descriptor, size, boundary);
     MemoryDescriptor *aligned = (MemoryDescriptor*)getNextAlligned(bounded, alignment);
     if(hasEnoughSpace(aligned, descriptor->next, size)){
-        printf("enough\n");
         *aligned = *descriptor;
         return aligned;
     }
-    printf("not\n");
     return 0;
 }
 
