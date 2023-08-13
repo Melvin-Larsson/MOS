@@ -1,5 +1,6 @@
 #include "stdlib.h"
 #include "stdint.h"
+#include "stdio.h"
 
 typedef struct MEMORY{
     uint8_t used;
@@ -10,7 +11,7 @@ static int useDescriptor(MemoryDescriptor *descriptor, int size);
 static int isValidConstraint(int size, int alignment, int boundary);
 static MemoryDescriptor *constrainDescriptor(MemoryDescriptor *descriptor, int size, int alignment, int boundary);
 
-static int hasEnoughSpace(MemoryDescriptor *descriptor, unsigned int size);
+static int hasEnoughSpace(MemoryDescriptor *descriptor, MemoryDescriptor *next,  unsigned int size);
 static int hasExtraSpaceAfter(MemoryDescriptor *descriptor, unsigned int size);
 static int hasExtraSpaceBefore(MemoryDescriptor *descriptor, unsigned int alignment);
 
@@ -28,6 +29,18 @@ void stdlib_init(){
     *memoryDescriptor = (MemoryDescriptor){0,0};
 }
 
+void *calloc(int size){
+    void* ptr = malloc(size);
+    memset(ptr, 0, size);
+    return ptr;
+}
+void *callocco(int size, int alignment, int boundaries){
+    void *ptr = mallocco(size, alignment, boundaries);
+    memset(ptr, 0, size);
+    return ptr;
+
+}
+
 void *malloc(int size){
     for(MemoryDescriptor *desc = memoryDescriptor; desc != 0; desc = desc->next){
         if(useDescriptor(desc, size)){
@@ -36,29 +49,27 @@ void *malloc(int size){
     }
     return 0;
 }
-void *malloc_constrained(int size, int alignment, int boundary){
+void *mallocco(int size, int alignment, int boundary){
     if(!isValidConstraint(size, alignment, boundary)){
         return 0;
     }
     MemoryDescriptor *last = 0;
     for(MemoryDescriptor *desc = memoryDescriptor; desc != 0; desc = desc->next){
-        if(desc->used){
-            continue;
-        }
-        MemoryDescriptor *constrained = constrainDescriptor(desc, size, alignment, boundary);
-        if(constrained != 0){
-            constrained->next = desc->next;
-            if(hasExtraSpaceBefore(desc, alignment)){
-                desc->next = constrained;
+        if(!desc->used){
+            MemoryDescriptor *constrained = constrainDescriptor(desc, size, alignment, boundary);
+            if(constrained != 0){
+                if(hasExtraSpaceBefore(desc, alignment)){
+                    desc->next = constrained;
+                }
+                else if(last != 0){
+                    last->next = constrained;
+                }else{
+                    memoryDescriptor = constrained;
+                }
+                desc = constrained;
+                useDescriptor(desc, size);
+                return getMemoryPointer(desc);
             }
-            else if(last != 0){
-                last->next = constrained;
-            }else{
-                memoryDescriptor = constrained;
-            }
-            desc = constrained;
-            useDescriptor(desc, size);
-            return getMemoryPointer(desc);
         }
         last = desc;
     }
@@ -99,7 +110,7 @@ static int useDescriptor(MemoryDescriptor *descriptor, int size){
         descriptor->used = 1;
         return 1;
     }
-    if(hasEnoughSpace(descriptor, size)){
+    if(hasEnoughSpace(descriptor, descriptor->next, size)){
         descriptor->used = 1;
         return 1;
     }
@@ -115,17 +126,23 @@ static int isValidConstraint(int size, int alignment, int boundary){
     return size + boundaryToAlignmentOffset <= boundary;
 }
 static MemoryDescriptor *constrainDescriptor(MemoryDescriptor *descriptor, int size, int alignment, int boundary){
+    printf("desc next %X\n", descriptor->next);
     MemoryDescriptor *bounded = (MemoryDescriptor*)avoidBoundary(descriptor, size, boundary);
     MemoryDescriptor *aligned = (MemoryDescriptor*)getNextAlligned(bounded, alignment);
-    if(hasEnoughSpace(aligned, size)){
+    if(hasEnoughSpace(aligned, descriptor->next, size)){
+        printf("enough\n");
+        *aligned = *descriptor;
         return aligned;
     }
+    printf("not\n");
     return 0;
 }
 
-
-static int hasEnoughSpace(MemoryDescriptor *descriptor, unsigned int size){
-    unsigned int space = (unsigned int)((uint8_t*)descriptor->next - (uint8_t*)descriptor);
+static int hasEnoughSpace(MemoryDescriptor *descriptor, MemoryDescriptor *next,  unsigned int size){
+    if(next == 0){
+        return 1;
+    }
+    unsigned int space = (unsigned int)((uint8_t*)next - (uint8_t*)descriptor);
     return space >= size + sizeof(MemoryDescriptor);
 }
 static int hasExtraSpaceAfter(MemoryDescriptor *descriptor, unsigned int size){
