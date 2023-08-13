@@ -36,8 +36,11 @@ static void initDCAddressArray(Xhci *xhci);
 static void turnOnController(Xhci *xhci);
 static void initScratchPad(Xhci *xhci);
 
+static void setMaxPacketSize(Xhci *xhci, int slotId);
+
 static int getSlotType(Xhci *xhci);
 static void ringCommandDoorbell(Xhci *xhci);
+static void ringDoorbell(Xhci *xhci, uint8_t slotId, uint8_t target);
 
 static void test(Xhci *xhci);
 
@@ -163,7 +166,8 @@ int xhcd_initPort(Xhci *xhci, int portIndex){
       return -1;
    }
    printf("[xhc] TRB slot id: %X\n", trb.slotId);
-   int slotId = trb.slotId; //FIXME: why -1? seems like qemu enables devices itself (bios?)
+   int slotId = trb.slotId; 
+
    memset((void*)&inputContext[slotId], 0, sizeof(XhcInputContext));
    inputContext[slotId].inputControlContext.addContextFlags |= INPUT_CONTEXT_A0A1_MASK;
    
@@ -180,7 +184,7 @@ int xhcd_initPort(Xhci *xhci, int portIndex){
    XhcEndpointContext *controlEndpoint = &inputContext[slotId].endpointContext[0];
    XhcEndpointContext tempControlEndpoint = *controlEndpoint;
    tempControlEndpoint.endpointType = ENDPOINT_TYPE_CONTROL;
-   tempControlEndpoint.maxPackedSize = 8; //FIXME: what value?
+   tempControlEndpoint.maxPacketSize = 8; //FIXME: what value?
    tempControlEndpoint.maxBurstSize = 0;
    tempControlEndpoint.dequeuePointer = (uint64_t)transferRingDescriptor.dequeue | transferRingDescriptor.pcs;
    tempControlEndpoint.interval = 0;
@@ -190,7 +194,6 @@ int xhcd_initPort(Xhci *xhci, int portIndex){
    *controlEndpoint = tempControlEndpoint;
 
    memset((void*)&outputContext[slotId], 0, sizeof(XhcOutputContext));
-
 
    dcBaseAddressArray[slotId] =  (uint64_t)&outputContext[slotId];
 
@@ -203,8 +206,55 @@ int xhcd_initPort(Xhci *xhci, int portIndex){
       return 0;
    }
    printf("[xhc] successfully addressed device: (Event: %X %X %X %X)\n", result);
+   setMaxPacketSize(xhci, slotId);
 
    return 1;
+}
+static int readDescriptor(Xhci *xhci, int slotId, uint8_t result[18]){
+   xhcd_putTD(TD_GET_DESCRIPTOR(result, 18), &transferRingDescriptor);
+   ringDoorbell(xhci, slotId, 1);
+
+   XhcEventTRB event;
+   while(!xhcd_readEvent(&eventRingDescriptor, &event, 1));
+   if(event.completionCode != Success){
+      printf("[xhc] failed to read descriptor\n");
+      return -1;
+   }
+   return 1;
+}
+static void setMaxPacketSize(Xhci *xhci, int slotId){
+   uint8_t buffer[8];
+   xhcd_putTD(TD_GET_DESCRIPTOR(buffer, sizeof(buffer)), &transferRingDescriptor);
+   ringDoorbell(xhci, slotId, 1);
+
+   XhcEventTRB result;
+   while(!xhcd_readEvent(&eventRingDescriptor, &result, 1));
+   if(result.completionCode != Success){
+      printf("[xhc] failed to get max packet size\n");
+      return;
+   }
+   uint8_t maxPacketSize = buffer[7];
+
+   XhcOutputContext *output = &outputContext[slotId];
+   uint8_t currMaxPacketSize = output->endpointContext[0].maxPacketSize;
+
+   if(maxPacketSize != currMaxPacketSize){
+      XhcInputContext *input = &inputContext[slotId];
+      input->endpointContext[0] = output->endpointContext[0];
+      input->endpointContext[0].maxPacketSize = maxPacketSize;
+      memset((void*)&input->inputControlContext, 0, sizeof(XhcInputControlContext));
+      input->inputControlContext.addContextFlags = 1 << 1;
+      xhcd_putTRB(TRB_EVALUATE_CONTEXT((void*)input, slotId), &commandRingDescriptor);
+      ringCommandDoorbell(xhci);
+      XhcEventTRB result;
+      while(!xhcd_readEvent(&eventRingDescriptor, &result, 1));
+      if(result.completionCode != Success){
+         printf("[xhc] failed to set max packet size\n");
+         return;
+      }
+   }
+   currMaxPacketSize = output->endpointContext[0].maxPacketSize;
+   printf("[xhc] sucessfully set max packet size: %d\n", currMaxPacketSize);
 }
 static void test(Xhci *xhci){
 
@@ -259,6 +309,18 @@ static int getSlotType(Xhci *xhci){
 static void ringCommandDoorbell(Xhci *xhci){
    volatile uint32_t *doorbell = (uint32_t *)xhci->doorbells;
    doorbell[0] = 0;
+}
+static void ringDoorbell(Xhci *xhci, uint8_t slotId, uint8_t target){
+   if(slotId == 0){
+      printf("[xhc] Unable to ring doorbell. Invalid slotId: 0\n");
+      return;
+   }
+   if(target < 1){
+      printf("[xhc] Unable to ring doorbell. Invalid target: 0\n");
+      return;
+   }
+   volatile uint32_t *doorbell = (uint32_t*)xhci->doorbells;
+   doorbell[slotId] = target; 
 }
 
 static PortStatusAndControll *getPortStatus(Xhci *xhci, int portIndex){

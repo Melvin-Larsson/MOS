@@ -1,4 +1,5 @@
 #include "stdio.h"
+#include "stdlib.h"
 #include "kernel/interrupt.h"
 #include "kernel/apic.h"
 #include "kernel/pci.h"
@@ -56,8 +57,79 @@ static void initXhci(PciGeneralDeviceHeader xhc){
         printf("USB device enabled\n");
         xhcd_initPort(&xhci, attachedPortNr);
 }
+static int overlaps(uint8_t *p1, int s1, uint8_t *p2, int s2){
+    return p1 + s1 > p2 && p1 < p2 + s2;
+
+}
+static void testMemory(){
+    uint8_t *m1 = malloc(10);
+    uint8_t *m2 = malloc(10);
+    uint8_t *m3 = malloc(10);
+    if(overlaps(m1, 10, m2, 10) || overlaps(m2, 10, m3, 10) || overlaps(m1, 10, m3, 10)){
+        printf("Memory check failed, memories overlap!\n");
+        while(1);
+    }
+    free(m2);
+    uint8_t *m4 = malloc(10);
+    if(m2 != m4){
+        printf("Memory check failed, failed to reuse memory(1)!\n");
+        while(1);
+    }
+    free(m4);
+    uint8_t *m5 = malloc(1);
+    uint8_t *m6 = malloc(1);
+    if(!overlaps(m4, 10, m5, 1) || !overlaps(m4, 10, m6, 1)){
+        printf("Memory check failed, failed to reuse memory(2)!\n");
+        while(1);
+    }
+    free(m1);
+    free(m3);
+    free(m5);
+    free(m6);
+    uint8_t *m7 = malloc(10);
+    if(m7 != m1){
+        printf("Memory check failed, failed to reuse memory(3)!\n");
+        while(1);
+    }
+    free(m7);
+    printf("Passed memory check!\n");
+}
+static void testMemoryConstrained(){
+    uint8_t *m1 = malloc_constrained(10, 0x100, 0);
+    if((uint64_t)m1 % 0x100 != 0){
+        printf("Constrained memory check failed, failed to align!\n");
+        while(1);
+    }
+    uint8_t *m2 = malloc(1);
+    if(m2 > m1){
+        printf("Constrained memory check failed, failed to use alignment space\n");
+        while(1);
+    }
+    uint8_t *m3 = malloc_constrained(0x1000, 1, 0x1000);
+    if(!m3 || (uint64_t)m3 / 0x1000 != ((uint64_t)m3 + 0x1000-1) / 0x1000){
+        printf("Constrained memory check failed, failed to avoid boundary %X\n", m3);
+        while(1);
+    }
+    free(m1);
+    free(m2);
+    free(m3);
+    uint8_t *m4 = malloc_constrained(10, 2, 10);
+    uint8_t *m5 = malloc_constrained(7, 3, 10);
+    uint8_t *m6 = malloc_constrained(10, 3, 10);
+    if(!m4 || !m5 || m6){
+        printf("Constrained memory check failed, failed to avoid follow constraints\n");
+        while(1);
+    }
+    free(m4);
+    free(m5);
+    free(m6);
+    printf("Passed constrained memory check");
+}
 void kernel_main(){
     stdioinit();
+    stdlib_init();
+    testMemory();
+    testMemoryConstrained();
     printf(message);
     interruptDescriptorTableInit(); 
 

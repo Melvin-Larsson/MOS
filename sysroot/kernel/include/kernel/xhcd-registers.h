@@ -151,7 +151,7 @@ typedef volatile struct{
    uint32_t reserved3 : 1;
    uint32_t hostInitiateDisable : 1;
    uint32_t maxBurstSize : 8;
-   uint32_t maxPackedSize : 16;
+   uint32_t maxPacketSize : 16;
    uint64_t dequeuePointer;
    uint32_t avarageTrbLength : 16;
    uint32_t maxESITPayloadLow : 16;

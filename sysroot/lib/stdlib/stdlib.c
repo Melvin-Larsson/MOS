@@ -1,4 +1,6 @@
 #include "stdlib.h"
+#include "stdint.h"
+
 void *memset(void *start, int val, int size){
     unsigned char* p = (unsigned char *)start;
     while(size > 0){
