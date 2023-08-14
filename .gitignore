@@ -1,0 +1,4 @@
+build/*
+trash/
+src/
+session.vim
