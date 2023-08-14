@@ -1,4 +1,0 @@
-$HOME/opt/cross2/bin/i686-elf-gcc -mno-red-zone -c kernel/main.c kernel/stdio.c kernel/string.c -std=gnu99 -ffreestanding -O2 -Wall -Wextra &&
-$HOME/opt/cross2/bin/i686-elf-gcc -T linker.ld -o myos.elf -ffreestanding -O2 -nostdlib boot.o main.o stdio.o string.o -lgcc &&
-objcopy -O binary myos.elf myos.bin &&
-dd if=myos.bin of=/dev/sdd
