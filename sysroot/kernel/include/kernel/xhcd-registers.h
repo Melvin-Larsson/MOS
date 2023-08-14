@@ -84,9 +84,7 @@ typedef volatile struct{
    uint32_t pageSize;
    uint64_t reserved;
    uint32_t deviceNotificationControll;
-   //uint64_t commandRingControll;
-   uint32_t commandRingControllLow;
-   uint32_t commandRingControllHigh;
+   uint64_t commandRingControll;
    
    uint64_t reserved2;
    uint64_t reserved3;
@@ -112,10 +110,7 @@ typedef volatile struct{
    uint32_t eventRingSegmentTableSize;
    uint32_t reserved3;
    uint64_t eventRingSegmentTableAddress;
-   /*uint32_t eventRingSegmentTableBaseAddressLow;
-   uint32_t eventRingSegmentTablebaseAddressHigh; */
-   uint32_t eventRingDequePointerLow;
-   uint32_t eventRingDequePointerHigh;
+   uint64_t eventRingDequePointer;
 }__attribute__((packed))InterrupterRegisters;
 
 

@@ -2,9 +2,16 @@
 #define XHCD_RING_H_INCLUDED
 
 #include "stdint.h"
-typedef volatile struct{
-   uint32_t ringSegmentLow;
-   uint32_t ringSegmentHigh;
+#include "xhcd-registers.h"
+
+enum TransferType{
+   NoDataStage = 0,
+   OutDataStage = 2,
+   InDataStage = 3
+};
+
+typedef struct{
+   uint64_t ringSegment;
    uint32_t reserved : 22;
    uint32_t interrupterTarget : 10;
    uint32_t cycleBit : 1;
@@ -15,9 +22,9 @@ typedef volatile struct{
    uint32_t reserved3 : 4;
    uint32_t trbType : 6;
    uint32_t reserved4 : 16;
-}__attribute__((packed))LinkTRB2;
+}__attribute__((packed))LinkTRB;
 
-typedef volatile struct{
+typedef struct{
    union{
       struct{
          uint32_t r0;
@@ -25,8 +32,7 @@ typedef volatile struct{
          uint32_t r2;
          uint32_t r3; };
       struct{
-         uint32_t dataBufferPointerLow;
-         uint32_t dataBufferpointerHigh;
+         uint64_t dataBufferPointer;
          uint32_t trbTransferLength : 17;
          uint32_t tdSize : 5;
          uint32_t interrupterTarget : 10;
@@ -36,9 +42,9 @@ typedef volatile struct{
          uint32_t reserved : 16;
       };
    };
-}__attribute__((packed))TRB2;
+}__attribute__((packed))TRB;
 
-typedef volatile struct{
+typedef struct{
    union{
       struct{
          uint32_t r0;
@@ -67,7 +73,15 @@ typedef volatile struct{
    };
 }__attribute__((packed))SetupStageTRB;
 
-typedef volatile struct{
+typedef struct{
+   uint8_t bmRequestType;
+   uint8_t bRequest;
+   uint16_t wValue;
+   uint16_t wIndex;
+   uint16_t wLength;
+}SetupStageHeader;
+
+typedef struct{
    union{
       struct{
          uint32_t r0;
@@ -97,7 +111,7 @@ typedef volatile struct{
    };
 }__attribute__((packed))DataStageTRB;
 
-typedef volatile struct{
+typedef struct{
    union{
       struct{
          uint32_t r0;
@@ -125,35 +139,30 @@ typedef volatile struct{
 
 
 typedef struct{
-   TRB2 trbs[3];
+   TRB trbs[3];
 }TD;
 
 typedef struct{
-   uint64_t address;
+   uintptr_t address;
    int trbCount;
 }Segment;
 
 typedef struct{
    int pcs;
-   TRB2 *dequeue;
+   TRB *dequeue;
 }XhcdRing;
 
-XhcdRing xhcd_newRing(Segment* segments, int count);
-int xhcd_attachCommandRing(uint32_t* operationalBase, XhcdRing *ring);
+XhcdRing xhcd_newRing(int trbCount);
+int xhcd_attachCommandRing(XhciOperation *operation, XhcdRing *ring);
 void xhcd_putTD(TD td, XhcdRing *ring);
-void xhcd_putTRB(TRB2 trb, XhcdRing *ring);
+void xhcd_putTRB(TRB trb, XhcdRing *ring);
 
 
-TRB2 TRB_NOOP();
-TRB2 TRB_ENABLE_SLOT(int slotType);
-TRB2 TRB_ADDRESS_DEVICE(uint64_t inputContextAddr, uint32_t slotId, uint32_t bsr);
-TRB2 TRB_EVALUATE_CONTEXT(void* inputContext, uint32_t slotId);
+TRB TRB_NOOP();
+TRB TRB_ENABLE_SLOT(int slotType);
+TRB TRB_ADDRESS_DEVICE(uint64_t inputContextAddr, uint32_t slotId, uint32_t bsr);
+TRB TRB_EVALUATE_CONTEXT(void* inputContext, uint32_t slotId);
 TD TD_GET_DESCRIPTOR(void *dataBufferPointer, int descriptorLengt);
-
-
-
-
-
-
+TD TD_GET_CONFIGURATION_DESCRIPTOR(void *dataBufferPointer, int descriptorLength, uint8_t descriptorIndex);
 
 #endif

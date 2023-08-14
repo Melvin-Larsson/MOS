@@ -163,7 +163,7 @@ static uint8_t *avoidBoundary(void *ptr, int size, int boundary){
 
 
 static uint8_t *getNextAlligned(void *ptr, int alignment){
-    int offset = alignment - (((uint64_t)ptr + sizeof(MemoryDescriptor)) % alignment);
+    int offset = alignment - (((uintptr_t)ptr + sizeof(MemoryDescriptor)) % alignment);
     offset %= alignment;
     return (uint8_t*)ptr + offset;
 }
@@ -171,7 +171,7 @@ static int isCrossingBoundary(void *ptr, unsigned int size, int boundary){
     if(boundary == 0){
         return 0;
     }
-    uint64_t addr = (uint64_t)ptr + sizeof(MemoryDescriptor);
+    uintptr_t addr = (uintptr_t)ptr + sizeof(MemoryDescriptor);
     return addr / boundary != ((uint64_t)addr + size - 1) / boundary;
 }
 static void *getMemoryPointer(MemoryDescriptor *descriptor){

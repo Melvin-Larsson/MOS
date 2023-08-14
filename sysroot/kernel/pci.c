@@ -91,7 +91,6 @@ int pci_getDevices(PciDescriptor* output, int maxHeadersInOutput){
 void pci_getGeneralDevice(PciDescriptor* descriptor,
                           PciGeneralDeviceHeader* output){
    output->pciHeader = descriptor->pciHeader;
-   uint32_t *regPointer = (uint32_t *)output;
    for(int i = 0x4; i <= 0xF; i++){
       uint32_t val = 
        pci_configReadRegister(
@@ -99,7 +98,7 @@ void pci_getGeneralDevice(PciDescriptor* descriptor,
             descriptor->deviceNr,
             0,
             i * 4);
-      regPointer[i] = val;
+      output->reg[i] = val;
       printf("read %X", val);
    }
    printf("\n");

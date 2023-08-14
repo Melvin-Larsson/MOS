@@ -1,6 +1,7 @@
 #include "kernel/xhcd-ring.h"
 #include "stdio.h"
 #include "stdlib.h"
+#include "stdint.h"
 
 #define DEFAULT_PCS 1
 
@@ -29,24 +30,25 @@
 
 #define REQUEST_GET_DESCRIPTOR 6
 
-static void initSegment(Segment segment, Segment nextSegment, int isLast);
+#define DESCRIPTOR_TYPE_DEVICE 1
+#define DESCRIPTOR_TYPE_CONFIGURATION 2
 
-XhcdRing xhcd_newRing(Segment* segments, int count){
+static void initSegment(Segment segment, Segment nextSegment, int isLast);
+static TD createTD(SetupStageTRB setup, DataStageTRB data, StatusStageTRB starus);
+
+XhcdRing xhcd_newRing(int trbCount){
+   void* ringAddress = callocco(trbCount * sizeof(TRB), 64, 64000);
+   Segment segment = {(uintptr_t)ringAddress, trbCount};
+   initSegment(segment, segment, 1);
+
    XhcdRing ring;
    ring.pcs = DEFAULT_PCS;
-   uint64_t startAddress = segments[0].address;
-   ring.dequeue = (TRB2 *)startAddress;
-   for(int i = 0; i < count - 1; i++){
-      initSegment(segments[i], segments[i+1], 0);
-   }
-   initSegment(segments[count - 1], segments[0], 1);
+   ring.dequeue = (TRB *)ringAddress;
    return ring;
 }
-int xhcd_attachCommandRing(uint32_t* operationalBase, XhcdRing *ring){
-   uint32_t *commandRingControll = operationalBase + CRCR_OFFSET / 4;
-   uint64_t address = (uint64_t)ring->dequeue;
-   *commandRingControll  = ((uint32_t)address | ring->pcs);
-   *(commandRingControll + 1) = (uint32_t)(address >> 32);
+int xhcd_attachCommandRing(XhciOperation *operation, XhcdRing *ring){
+   uintptr_t address = (uintptr_t)ring->dequeue;
+   operation->commandRingControll  = address | ring->pcs;
    return 1;
 }
 void xhcd_putTD(TD td, XhcdRing *ring){
@@ -54,32 +56,31 @@ void xhcd_putTD(TD td, XhcdRing *ring){
       xhcd_putTRB(td.trbs[i], ring);
    }
 }
-void xhcd_putTRB(TRB2 trb, XhcdRing *ring){
+void xhcd_putTRB(TRB trb, XhcdRing *ring){
    trb.cycleBit = ring->pcs;
    *ring->dequeue = trb; 
    ring->dequeue++;
    if(ring->dequeue->trbType == TRB_TYPE_LINK){
-      LinkTRB2 *link = (LinkTRB2*)ring->dequeue;
+      LinkTRB *link = (LinkTRB*)ring->dequeue;
       link->cycleBit = ring->pcs;
-      uint64_t low = (uint64_t)link->ringSegmentLow;
-      uint64_t high = (uint64_t)link->ringSegmentHigh;
-      ring->dequeue = (TRB2*)(low | (high << 32));
+      uintptr_t address = link->ringSegment;
+      ring->dequeue = (TRB*)address;
       ring->pcs ^= link->toggleCycle;
    }
 }
-TRB2 TRB_NOOP(){
-   TRB2 trb = {{{0,0,0,0}}};
+TRB TRB_NOOP(){
+   TRB trb = {{{0,0,0,0}}};
    trb.r3 = TRB_TYPE_NOOP << TRB_TYPE_POS;
    return trb;
 }
-TRB2 TRB_ENABLE_SLOT(int slotType){
-   TRB2 trb = {{{0,0,0,0}}};
+TRB TRB_ENABLE_SLOT(int slotType){
+   TRB trb = {{{0,0,0,0}}};
    trb.r3 = TRB_TYPE_ENABLE_SLOT << TRB_TYPE_POS |
             slotType << TRB_SLOT_TYPE_POS;
    return trb;
 }
-TRB2 TRB_ADDRESS_DEVICE(uint64_t inputContextAddr, uint32_t slotId, uint32_t bsr){
-   TRB2 trb = {{{0,0,0,0}}};
+TRB TRB_ADDRESS_DEVICE(uint64_t inputContextAddr, uint32_t slotId, uint32_t bsr){
+   TRB trb = {{{0,0,0,0}}};
    trb.r0 = (uint32_t)inputContextAddr;
    trb.r1 = (uint32_t)(inputContextAddr >> 32);
    trb.r3 = bsr << ADDRESS_TRB_BSR_POS |
@@ -87,26 +88,85 @@ TRB2 TRB_ADDRESS_DEVICE(uint64_t inputContextAddr, uint32_t slotId, uint32_t bsr
             slotId << TRB_SLOT_ID_POS;
    return trb;
 }
-TRB2 TRB_EVALUATE_CONTEXT(void* inputContext, uint32_t slotId){
-   TRB2 trb = {{{0,0,0,0}}};
-   uint64_t addr = (uint64_t)inputContext;
-   trb.r0 = (uint32_t)addr;
-   trb.r1 = (uint32_t)(addr >> 32);
+TRB TRB_EVALUATE_CONTEXT(void* inputContext, uint32_t slotId){
+   TRB trb = {{{0,0,0,0}}};
+   trb.dataBufferPointer = (uintptr_t)inputContext;
    trb.r3 = TRB_TYPE_EVALUATE_CONTEXT << TRB_TYPE_POS |
             slotId << TRB_SLOT_ID_POS;
    return trb;
 
 }
-TD TD_GET_DESCRIPTOR(void *dataBufferPointer, int descriptorLength){
+TRB TRB_SETUP_STAGE(SetupStageHeader header){
    SetupStageTRB setupTrb = {{{0,0,0,0}}};
+
+   setupTrb.bmRequestType = header.bmRequestType;
+   setupTrb.bRequest = header.bRequest;
+   setupTrb.wValue = header.wValue;
+   setupTrb.wIndex = header.wIndex;
+   setupTrb.wLength = header.wLength;
+
+   setupTrb.transferLength = 8;
+   setupTrb.immediateData = 1;
+   setupTrb.interruptOnCompletion = 0;
+   setupTrb.type = TRB_TYPE_SETUP;
+   setupTrb.transferType = InDataStage;
+   TRB result;
+   memcpy(&result, &setupTrb, sizeof(TRB));
+   return result;
+}
+TRB TRB_DATA_STAGE(uint64_t dataBufferPointer, int bufferSize){
+   DataStageTRB dataTrb = {{{0,0,0,0}}};
+
+   dataTrb.dataBuffer = dataBufferPointer;
+   dataTrb.transferLength = bufferSize;
+   dataTrb.chainBit = 0;
+   dataTrb.interruptOnCompletion = 0;
+   dataTrb.immediateData = 0;
+   dataTrb.type = TRB_TYPE_DATA;
+   dataTrb.direction = DIRECTION_IN;
+   TRB result;
+   memcpy(&result, &dataTrb, sizeof(TRB));
+   return result;
+}
+TRB TRB_STATUS_STAGE(){
+   StatusStageTRB statusTrb = {{{0,0,0,0}}};
+   statusTrb.interruptOnCompletion = 1;
+   statusTrb.type = TRB_TYPE_STATUS;
+   statusTrb.direction = DIRECTION_OUT; //Questionable 
+   statusTrb.chainBit = 0;
+
+   TRB result;
+   memcpy(&result, &statusTrb, sizeof(TRB));
+   return result;
+}
+TD TD_GET_DESCRIPTOR(void *dataBufferPointer, int descriptorLength){
+   SetupStageHeader setupHeader;
+
+   setupHeader.bmRequestType = 0x80;
+   setupHeader.bRequest = REQUEST_GET_DESCRIPTOR;
+   setupHeader.wValue = DESCRIPTOR_TYPE_DEVICE << 8;
+   setupHeader.wIndex = 0;
+   setupHeader.wLength = descriptorLength;
+
+   TRB setupTrb = TRB_SETUP_STAGE(setupHeader);
+   TRB dataTrb = TRB_DATA_STAGE((uintptr_t)dataBufferPointer, descriptorLength);
+   TRB statusTrb = TRB_STATUS_STAGE();
+
+   TD result = {setupTrb, dataTrb, statusTrb};
+   return result;
+}
+TD TD_GET_CONFIGURATION_DESCRIPTOR(void *dataBufferPointer, int descriptorLength, uint8_t descriptorIndex){
+   SetupStageTRB setupTrb = {{{0,0,0,0}}};
+
    setupTrb.type = TRB_TYPE_SETUP;
    setupTrb.transferType = TRANSFER_TYPE_IN;
    setupTrb.transferLength = 8;
    setupTrb.interruptOnCompletion = 0;
    setupTrb.immediateData = 1;
+
    setupTrb.bmRequestType = 0x80;
    setupTrb.bRequest = REQUEST_GET_DESCRIPTOR;
-   setupTrb.wValue = 0x0100;
+   setupTrb.wValue = DESCRIPTOR_TYPE_CONFIGURATION << 8 | descriptorIndex;
    setupTrb.wIndex = 0;
    setupTrb.wLength = descriptorLength;
    
@@ -117,7 +177,7 @@ TD TD_GET_DESCRIPTOR(void *dataBufferPointer, int descriptorLength){
    dataTrb.chainBit = 0;
    dataTrb.interruptOnCompletion = 0;
    dataTrb.immediateData = 0;
-   dataTrb.dataBuffer = (uint64_t)dataBufferPointer;
+   dataTrb.dataBuffer = (uintptr_t)dataBufferPointer;
 
    StatusStageTRB statusTrb = {{{0,0,0,0}}};
    statusTrb.type = TRB_TYPE_STATUS;
@@ -125,24 +185,26 @@ TD TD_GET_DESCRIPTOR(void *dataBufferPointer, int descriptorLength){
    statusTrb.chainBit = 0;
    statusTrb.interruptOnCompletion = 1;
 
-   TRB2 *t1 = (TRB2*)&setupTrb;
-   TRB2 *t2 = (TRB2*)&dataTrb;
-   TRB2 *t3 = (TRB2*)&statusTrb;
-   
-   TD td = {{*t1, *t2, *t3}};
+   return createTD(setupTrb, dataTrb, statusTrb);
+}
+static TD createTD(SetupStageTRB setup, DataStageTRB data, StatusStageTRB status){
+   TRB t1, t2, t3;
+   memcpy(&t1, &setup, sizeof(TRB));
+   memcpy(&t2, &data, sizeof(TRB));
+   memcpy(&t3, &status, sizeof(TRB));
+   TD td = {{t1, t2, t3}};
    return td;
 }
 static void initSegment(Segment segment, Segment nextSegment, int isLast){
-   memset((void*)segment.address, 0, segment.trbCount * sizeof(TRB2));
-   TRB2 *trbs = (TRB2*)segment.address;
+   memset((void*)segment.address, 0, segment.trbCount * sizeof(TRB));
+   TRB *trbs = (TRB*)segment.address;
    if(!DEFAULT_PCS){
       for(int i = 0; i < segment.trbCount; i ++){
          trbs[i].r3 |= DEFAULT_PCS; 
       }
    }
-   LinkTRB2 *link = (LinkTRB2*)&trbs[segment.trbCount - 1];
-   link->ringSegmentLow = (uint32_t)nextSegment.address;
-   link->ringSegmentHigh = (uint32_t)(nextSegment.address >> 32);
+   LinkTRB *link = (LinkTRB*)&trbs[segment.trbCount - 1];
+   link->ringSegment = (uintptr_t)nextSegment.address;
    link->cycleBit = DEFAULT_PCS;
    link->toggleCycle = isLast;
    link->trbType = TRB_TYPE_LINK;

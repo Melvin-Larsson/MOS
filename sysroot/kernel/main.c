@@ -4,6 +4,7 @@
 #include "kernel/apic.h"
 #include "kernel/pci.h"
 #include "kernel/xhcd.h"
+#include "kernel/keyboard.h"
 #include "string.h"
 
 char message[] = "Kernel started!\n";
@@ -55,7 +56,21 @@ static void initXhci(PciGeneralDeviceHeader xhc){
            return;  
         }
         printf("USB device enabled\n");
-        xhcd_initPort(&xhci, attachedPortNr);
+        int slotId = xhcd_initPort(&xhci, attachedPortNr);
+        UsbDeviceDescriptor descriptor;
+        xhcd_getDeviceDescriptor(&xhci, slotId, &descriptor);
+        printf("Number of configurations %d\n", descriptor.bNumConfigurations);
+        UsbConfiguration *config = xhcd_getConfiguration(&xhci, slotId, 0);
+        UsbInterfaceDescriptor interfaceDescriptor = config->interfaces[0].descriptor;
+        printf("interface class %d\n", interfaceDescriptor.bInterfaceClass);
+        printf("interface subclass %d\n", interfaceDescriptor.bInterfaceSubClass);
+        printf("interface protocol %d\n", interfaceDescriptor.bInterfaceProtocol);
+        if(interfaceDescriptor.bInterfaceClass == 3){
+            UsbDevice device = {slotId, config};
+            keyboard_init(&xhci, &device);
+
+        }
+        xhcd_freeConfiguration(config);
 }
 static int overlaps(uint8_t *p1, int s1, uint8_t *p2, int s2){
     return p1 + s1 > p2 && p1 < p2 + s2;
@@ -95,8 +110,8 @@ static void testMemory(){
     printf("Passed memory check!\n");
 }
 static void testMemoryConstrained(){
-    uint8_t *m1 = malloc_constrained(10, 0x100, 0);
-    if((uint64_t)m1 % 0x100 != 0){
+    uint8_t *m1 = mallocco(10, 0x100, 0);
+    if((uintptr_t)m1 % 0x100 != 0){
         printf("Constrained memory check failed, failed to align!\n");
         while(1);
     }
@@ -105,17 +120,17 @@ static void testMemoryConstrained(){
         printf("Constrained memory check failed, failed to use alignment space\n");
         while(1);
     }
-    uint8_t *m3 = malloc_constrained(0x1000, 1, 0x1000);
-    if(!m3 || (uint64_t)m3 / 0x1000 != ((uint64_t)m3 + 0x1000-1) / 0x1000){
+    uint8_t *m3 = mallocco(0x1000, 1, 0x1000);
+    if(!m3 || (uintptr_t)m3 / 0x1000 != ((uint64_t)m3 + 0x1000-1) / 0x1000){
         printf("Constrained memory check failed, failed to avoid boundary %X\n", m3);
         while(1);
     }
     free(m1);
     free(m2);
     free(m3);
-    uint8_t *m4 = malloc_constrained(10, 2, 10);
-    uint8_t *m5 = malloc_constrained(7, 3, 10);
-    uint8_t *m6 = malloc_constrained(10, 3, 10);
+    uint8_t *m4 = mallocco(10, 2, 10);
+    uint8_t *m5 = mallocco(7, 3, 10);
+    uint8_t *m6 = mallocco(10, 3, 10);
     if(!m4 || !m5 || m6){
         printf("Constrained memory check failed, failed to avoid follow constraints\n");
         while(1);

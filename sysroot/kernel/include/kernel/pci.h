@@ -40,24 +40,29 @@ typedef struct{
 }PciDescriptor;
 
 typedef struct{
-   PciHeader pciHeader;
-   uint32_t baseAddress0;
-   uint32_t baseAddress1;
-   uint32_t baseAddress2;
-   uint32_t baseAddress3;
-   uint32_t baseAddress4;
-   uint32_t baseAddress5;
-   uint32_t cardbusCisPointer;
-   uint16_t subsystemVendorId;
-   uint16_t subsytemId;
-   uint32_t expansionROMBaseAddress;
-   uint32_t capabilitiesPointer : 8;
-   uint32_t reserved : 24;
-   uint32_t reserved2;
-   uint8_t interruptLine;
-   uint8_t interruptPin;
-   uint8_t minGrant;
-   uint8_t maxLatency;
+   union{
+      struct{
+         PciHeader pciHeader;
+         uint32_t baseAddress0;
+         uint32_t baseAddress1;
+         uint32_t baseAddress2;
+         uint32_t baseAddress3;
+         uint32_t baseAddress4;
+         uint32_t baseAddress5;
+         uint32_t cardbusCisPointer;
+         uint16_t subsystemVendorId;
+         uint16_t subsytemId;
+         uint32_t expansionROMBaseAddress;
+         uint32_t capabilitiesPointer : 8;
+         uint32_t reserved : 24;
+         uint32_t reserved2;
+         uint8_t interruptLine;
+         uint8_t interruptPin;
+         uint8_t minGrant;
+         uint8_t maxLatency;
+      };
+      uint32_t reg[16];
+   };
 }__attribute__((packed))PciGeneralDeviceHeader;
 
 void pciConfigWriteAddress(uint32_t address);

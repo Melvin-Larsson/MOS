@@ -1,6 +1,7 @@
 #include "kernel/xhcd.h"
 #include "kernel/xhcd-ring.h"
 #include "kernel/xhcd-event-ring.h"
+#include "kernel/usb-descriptors.h"
 #include "stdio.h"
 #include "stdlib.h"
 
@@ -22,10 +23,7 @@
 
 #define EXTENDED_CAPABILITY_SUPPORTED_PROTOCOL 2
 
-#define DEFAULT_PCS 1
-
 #define ENDPOINT_TYPE_CONTROL 4
-
 
 #define INPUT_CONTEXT_A0A1_MASK 0b11
 
@@ -48,34 +46,7 @@ static PortStatusAndControll *getPortStatus(Xhci *xhci, int portNumber);
 //static int shouldEnablePort(Xhci *xhci, int portNumber);
 
 __attribute__((aligned(64)))
-static volatile uint64_t dcBaseAddressArray[MAX_DEVICE_SLOTS_ENABLED + 1];
-
-__attribute__((aligned(64)))
 static XhcInputContext inputContext[MAX_DEVICE_SLOTS_ENABLED];
-
-__attribute__((aligned(64)))
-static XhcOutputContext outputContext[MAX_DEVICE_SLOTS_ENABLED];
-
-__attribute((aligned(64)))
-static volatile TRB commandRing[DEFAULT_COMMAND_RING_SIZE];
-
-__attribute__((aligned(64)))
-static volatile EventRingSegmentTableEntry eventRingSegmentTable[1];
-
-__attribute__((aligned(64)))
-static volatile CommandCompletionEventTRB eventRing[DEFAULT_EVENT_SEGEMNT_TRB_COUNT];
-
-static volatile uint64_t scratchpadPointers[255];
-
-__attribute__((aligned(4096)))
-static volatile uint8_t scratchpadStart[139264];
-
-__attribute__((aligned(4096)))
-static TRB transferRing[DEFAULT_TRANSFER_RING_TRB_COUNT];
-
-XhcdRing commandRingDescriptor;
-XhcdRing transferRingDescriptor;
-XhcEventRing eventRingDescriptor;
 
 int xhcd_init(PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
    int errorCode = 0;
@@ -88,14 +59,12 @@ int xhcd_init(PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
    waitForControllerReady(xhci);
    setMaxEnabledDeviceSlots(xhci);
    initDCAddressArray(xhci);
-   
-   Segment segments[] = {{(uint64_t)commandRing, DEFAULT_COMMAND_RING_SIZE}};
-   commandRingDescriptor = xhcd_newRing(segments, 1);
-   xhcd_attachCommandRing((uint32_t *)xhci->operation, &commandRingDescriptor);
 
-   XhcEventRingSegment eventSegments[] = {{(uint32_t*)eventRing, DEFAULT_EVENT_SEGEMNT_TRB_COUNT}};
-   eventRingDescriptor = xhcd_newEventRing(eventSegments, 1, (EventRingSegmentTableEntry2*)eventRingSegmentTable);
-   xhcd_attachEventRing(&eventRingDescriptor, &xhci->interrupterRegisters[0]);
+   xhci->commandRing = xhcd_newRing(DEFAULT_COMMAND_RING_SIZE);
+   xhcd_attachCommandRing(xhci->operation, &xhci->commandRing);
+
+   xhci->eventRing = xhcd_newEventRing(DEFAULT_EVENT_SEGEMNT_TRB_COUNT);
+   xhcd_attachEventRing(&xhci->eventRing, &xhci->interrupterRegisters[0]);
 
    initScratchPad(xhci);
    turnOnController(xhci);
@@ -103,6 +72,8 @@ int xhcd_init(PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
    printf("xhc running %b\n", xhci->operation->USBCommand & USBCMD_RUN_STOP_BIT);
    printf("xhc halted %b\n", xhci->operation->USBStatus & 1);
    printf("Error? %d\n", xhci->operation->USBStatus & (1 << 12));
+
+   test(xhci);
 
    return 0;
 }
@@ -113,7 +84,7 @@ int xhcd_checkForDeviceAttach(Xhci *xhci){
    for(int i = 0; i < count; i++){
       XhciPortRegisters *port = &operation->ports[i];
       PortStatusAndControll status = port->statusAndControll;
-      if(/*status.connectStatusChange &&*/ status.currentConnectStatus){
+      if(status.connectStatusChange && status.currentConnectStatus){
          status.connectStatusChange = 1;
             *(&port->statusAndControll) = status;
          return i;
@@ -148,11 +119,11 @@ int xhcd_enable(Xhci *xhci, int portIndex){
    return 1;
 }
 int xhcd_initPort(Xhci *xhci, int portIndex){
-   xhcd_putTRB(TRB_ENABLE_SLOT(getSlotType(xhci)), &commandRingDescriptor);
+   xhcd_putTRB(TRB_ENABLE_SLOT(getSlotType(xhci)), &xhci->commandRing);
    ringCommandDoorbell(xhci);
    XhcEventTRB trb;
    //FIXME: hack
-   while(!xhcd_readEvent(&eventRingDescriptor, &trb, 1) || trb.trbType == PortStatusChangeEvent);
+   while(!xhcd_readEvent(&xhci->eventRing, &trb, 1) || trb.trbType == PortStatusChangeEvent);
    if(trb.trbType != CommandCompletionEvent){
       printf("[xhc] unknown event %X %X %X %X (event %d)\n", trb, trb.trbType);
       return -1;
@@ -178,29 +149,29 @@ int xhcd_initPort(Xhci *xhci, int portIndex){
    tempSlotContext.contextEntries = 1;
    *slotContext = tempSlotContext;
 
-   Segment transferRingSegments[] = {{(uint64_t)transferRing, DEFAULT_TRANSFER_RING_TRB_COUNT}};
-   transferRingDescriptor = xhcd_newRing(transferRingSegments, 1);
+   XhcdRing transferRing = xhcd_newRing(DEFAULT_TRANSFER_RING_TRB_COUNT);
+   xhci->transferRing[slotId][0] = transferRing;
 
    XhcEndpointContext *controlEndpoint = &inputContext[slotId].endpointContext[0];
    XhcEndpointContext tempControlEndpoint = *controlEndpoint;
    tempControlEndpoint.endpointType = ENDPOINT_TYPE_CONTROL;
    tempControlEndpoint.maxPacketSize = 8; //FIXME: what value?
    tempControlEndpoint.maxBurstSize = 0;
-   tempControlEndpoint.dequeuePointer = (uint64_t)transferRingDescriptor.dequeue | transferRingDescriptor.pcs;
+   tempControlEndpoint.dequeuePointer = (uintptr_t)transferRing.dequeue | transferRing.pcs;
    tempControlEndpoint.interval = 0;
    tempControlEndpoint.maxPrimaryStreams = 0;
    tempControlEndpoint.mult = 0;
    tempControlEndpoint.errorCount = 3;
    *controlEndpoint = tempControlEndpoint;
 
-   memset((void*)&outputContext[slotId], 0, sizeof(XhcOutputContext));
+   XhcOutputContext *outputContext = callocco(sizeof(XhcOutputContext), 64, 0);
 
-   dcBaseAddressArray[slotId] =  (uint64_t)&outputContext[slotId];
+   xhci->dcBaseAddressArray[slotId] = (uintptr_t)outputContext;
 
-   xhcd_putTRB(TRB_ADDRESS_DEVICE((uint64_t)&inputContext[slotId], slotId, 0), &commandRingDescriptor);
+   xhcd_putTRB(TRB_ADDRESS_DEVICE((uintptr_t)&inputContext[slotId], slotId, 0), &xhci->commandRing);
    ringCommandDoorbell(xhci);
    XhcEventTRB result;
-   while(xhcd_readEvent(&eventRingDescriptor, &result, 1) == 0);
+   while(xhcd_readEvent(&xhci->eventRing, &result, 1) == 0);
    if(result.completionCode != Success){
       printf("[xhc] failed to addres device (Event: %X %X %X %X, code: %d)\n", result, result.completionCode);
       return 0;
@@ -208,34 +179,91 @@ int xhcd_initPort(Xhci *xhci, int portIndex){
    printf("[xhc] successfully addressed device: (Event: %X %X %X %X)\n", result);
    setMaxPacketSize(xhci, slotId);
 
-   return 1;
+   return slotId;
 }
-static int readDescriptor(Xhci *xhci, int slotId, uint8_t result[18]){
-   xhcd_putTD(TD_GET_DESCRIPTOR(result, 18), &transferRingDescriptor);
+int xhcd_getDeviceDescriptor(Xhci *xhci, int slotId, UsbDeviceDescriptor *result){
+   XhcdRing *transferRing = &xhci->transferRing[slotId][0];
+   xhcd_putTD(TD_GET_DESCRIPTOR(result, sizeof(UsbDeviceDescriptor)), transferRing);
    ringDoorbell(xhci, slotId, 1);
 
    XhcEventTRB event;
-   while(!xhcd_readEvent(&eventRingDescriptor, &event, 1));
+   while(!xhcd_readEvent(&xhci->eventRing, &event, 1));
    if(event.completionCode != Success){
       printf("[xhc] failed to read descriptor\n");
       return -1;
    }
    return 1;
 }
+UsbConfiguration *xhcd_getConfiguration(Xhci *xhci, int slotId, int configuration){
+   const int bufferSize =
+      sizeof(UsbConfigurationDescriptor) +
+      sizeof(UsbInterfaceDescriptor) * 32 +
+      sizeof(UsbEndpointDescriptor) * 32 * 15;
+   uint8_t buffer[bufferSize];
+
+   xhcd_putTD(TD_GET_CONFIGURATION_DESCRIPTOR(buffer, sizeof(buffer), configuration), &xhci->transferRing[slotId][0]);
+   ringDoorbell(xhci, slotId, 1);
+
+   XhcEventTRB event;
+   while(!xhcd_readEvent(&xhci->eventRing, &event, 1));
+   if(event.completionCode != Success){
+      printf("[xhc] failed to read configuration\n");
+      return 0;
+   }
+
+   uint8_t *pos = buffer;
+
+   UsbConfiguration *config = malloc(sizeof(UsbConfiguration));
+   UsbConfigurationDescriptor *configDescriptor = (UsbConfigurationDescriptor*)buffer;
+   config->descriptor = *configDescriptor;
+   config->interfaces = malloc(sizeof(UsbInterface) * configDescriptor->bNumInterfaces);
+   pos += sizeof(UsbConfigurationDescriptor);
+
+   for(int i = 0; i < configDescriptor->bNumInterfaces; i++){
+      UsbInterfaceDescriptor *interfaceDescriptor = (UsbInterfaceDescriptor*)pos;
+      UsbInterface *interface = &config->interfaces[i];
+      interface->descriptor = *interfaceDescriptor;
+      interface->endpoints = malloc(sizeof(UsbEndpointDescriptor) * interfaceDescriptor->bNumEndpoints);
+      pos += sizeof(UsbInterfaceDescriptor);
+
+      for(int j = 0; j < interfaceDescriptor->bNumEndpoints; j++){
+         UsbEndpointDescriptor *endpointDescriptor = (UsbEndpointDescriptor*)pos;
+         UsbEndpointDescriptor *endpoint = &interface->endpoints[j];
+         *endpoint = *endpointDescriptor;
+         pos += sizeof(UsbEndpointDescriptor);
+      }
+   }
+
+   return config;
+}
+void xhcd_freeConfiguration(UsbConfiguration *config){
+   for(int i = 0; i < config->descriptor.bNumInterfaces; i++){
+      xhcd_freeInterface((void*)&config->interfaces[i]);
+   }
+   free(config);
+}
+void xhcd_freeInterface(UsbInterface *interface){
+   for(int i = 0; i < interface->descriptor.bNumEndpoints; i++){
+      free((void*)&interface->endpoints[i]);
+   }
+   free(interface);
+}
 static void setMaxPacketSize(Xhci *xhci, int slotId){
    uint8_t buffer[8];
-   xhcd_putTD(TD_GET_DESCRIPTOR(buffer, sizeof(buffer)), &transferRingDescriptor);
+   XhcdRing *transferRing = &xhci->transferRing[slotId][0];
+   xhcd_putTD(TD_GET_DESCRIPTOR(buffer, sizeof(buffer)), transferRing);
    ringDoorbell(xhci, slotId, 1);
 
    XhcEventTRB result;
-   while(!xhcd_readEvent(&eventRingDescriptor, &result, 1));
+   while(!xhcd_readEvent(&xhci->eventRing, &result, 1));
    if(result.completionCode != Success){
       printf("[xhc] failed to get max packet size\n");
       return;
    }
    uint8_t maxPacketSize = buffer[7];
 
-   XhcOutputContext *output = &outputContext[slotId];
+   uintptr_t address = xhci->dcBaseAddressArray[slotId];
+   XhcOutputContext *output = (XhcOutputContext*)address;
    uint8_t currMaxPacketSize = output->endpointContext[0].maxPacketSize;
 
    if(maxPacketSize != currMaxPacketSize){
@@ -244,10 +272,10 @@ static void setMaxPacketSize(Xhci *xhci, int slotId){
       input->endpointContext[0].maxPacketSize = maxPacketSize;
       memset((void*)&input->inputControlContext, 0, sizeof(XhcInputControlContext));
       input->inputControlContext.addContextFlags = 1 << 1;
-      xhcd_putTRB(TRB_EVALUATE_CONTEXT((void*)input, slotId), &commandRingDescriptor);
+      xhcd_putTRB(TRB_EVALUATE_CONTEXT((void*)input, slotId), &xhci->commandRing);
       ringCommandDoorbell(xhci);
       XhcEventTRB result;
-      while(!xhcd_readEvent(&eventRingDescriptor, &result, 1));
+      while(!xhcd_readEvent(&xhci->eventRing, &result, 1));
       if(result.completionCode != Success){
          printf("[xhc] failed to set max packet size\n");
          return;
@@ -258,7 +286,7 @@ static void setMaxPacketSize(Xhci *xhci, int slotId){
 }
 static void test(Xhci *xhci){
 
-   xhcd_putTRB(TRB_NOOP(), &commandRingDescriptor);
+   xhcd_putTRB(TRB_NOOP(), &xhci->commandRing);
    ringCommandDoorbell(xhci);
    for(int i = 0; i < 2; i++){
       uint32_t status = xhci->operation->USBStatus;
@@ -267,9 +295,8 @@ static void test(Xhci *xhci){
 
    XhcEventTRB result;
    printf("Waiting for interruptor\n");
-   while(!xhcd_readEvent(&eventRingDescriptor, &result, 1));
+   while(!xhcd_readEvent(&xhci->eventRing, &result, 1));
    printf("event posted %X %X %X %X\n", result);
-   while(1);
 }
 /*
 static int shouldEnablePort (Xhci *xhci, int portNumber){
@@ -354,11 +381,7 @@ static int initBasePointers(PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
 }
 static void waitForControllerReady(Xhci *xhci){
    printf("Waiting for xhci controller ready...\n");
-   volatile uint32_t *us = &xhci->operation->USBStatus;
-   uint32_t usbStatus = *us;
-   while(usbStatus & CNR_FLAG){
-      usbStatus = *us;
-   }
+   while(xhci->operation->USBStatus & CNR_FLAG);
 }
 static void setMaxEnabledDeviceSlots(Xhci *xhci){
    volatile uint32_t *configure = (uint32_t*)&xhci->operation->configure;
@@ -368,9 +391,10 @@ static void setMaxEnabledDeviceSlots(Xhci *xhci){
    *configure = val;
 }
 static void initDCAddressArray(Xhci *xhci){
-   memset((void*)dcBaseAddressArray, 0, sizeof(dcBaseAddressArray));
-   uint32_t addr = (uint32_t)dcBaseAddressArray; 
-   xhci->operation->dcAddressArrayPointer = (uint64_t)addr;
+   xhci->dcBaseAddressArray = callocco((MAX_DEVICE_SLOTS_ENABLED + 1) * sizeof(uint64_t), 64, 0);
+   printf("dc array at %X\n", xhci->dcBaseAddressArray);
+   uintptr_t addr = (uintptr_t)xhci->dcBaseAddressArray; 
+   xhci->operation->dcAddressArrayPointer = addr;
 }
 
 static void initScratchPad(Xhci *xhci){
@@ -378,26 +402,21 @@ static void initScratchPad(Xhci *xhci){
    uint32_t scratchpadSize = structParams2.maxScratchpadBuffersHigh << 5;
    scratchpadSize |= structParams2.maxScratchpadBuffersLow;
    printf("required scratchpadSize %d\n", scratchpadSize);
+   if(scratchpadSize == 0){
+      return;
+   }
 
-   //FIXME: this could fuck the memory, you have to implement malloc etc.
    uint32_t pageSize = xhci->operation->pageSize << 12;
    printf("pageSize: %d\n", pageSize);
-   uint32_t currPagePoss = (uint32_t)scratchpadStart % pageSize;
-   uint32_t offset = pageSize - currPagePoss;
-   if(offset == pageSize){
-      offset = 0;
-   }
-   uint64_t *scratchpad = (uint64_t*)((uint32_t)scratchpadStart + offset);
-   printf("scratchpad begin at %X\n",scratchpad);
-   if((uint32_t)scratchpad % pageSize != 0){
-      printf("scratchpad pos invalid %d\n", (uint32_t)scratchpad % pageSize);
-   }
-   for(uint32_t i = 0; i < scratchpadSize; i++){
-      scratchpadPointers[i] = (uint64_t)&scratchpad[i];
-      memset(&scratchpad[i], 0, pageSize);
-   }
 
-   dcBaseAddressArray[0] = (uint64_t)scratchpadPointers;
+   void* scratchpadStart = callocco(scratchpadSize * pageSize, 1, pageSize);
+   printf("scratchpad begin at %X\n",scratchpadStart);
+   uint64_t *scratchpadPointers = mallocco(scratchpadSize * sizeof(uint64_t), 64, pageSize);
+
+   for(uint32_t i = 0; i < scratchpadSize; i++){
+      scratchpadPointers[i] = (uintptr_t)scratchpadStart + i * pageSize;
+   }
+   xhci->dcBaseAddressArray[0] = (uintptr_t)scratchpadPointers;
 }
 static void turnOnController(Xhci *xhci){
    uint32_t command = xhci->operation->USBCommand;

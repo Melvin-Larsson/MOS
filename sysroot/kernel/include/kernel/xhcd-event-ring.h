@@ -54,12 +54,11 @@ enum CompletionCode{
 };
 
 typedef volatile struct{
-   uint32_t baseAddressLow;
-   uint32_t baseAddressHigh;
+   uint64_t baseAddress;
    uint32_t ringSegmentSize : 16; //p.515. n * 64B
    uint32_t reserved : 16;
    uint32_t reserved2;
-}__attribute__((packed))EventRingSegmentTableEntry2;
+}__attribute__((packed))EventRingSegmentTableEntry;
 
 typedef volatile struct{
    uint32_t trbPointerLow;
@@ -81,22 +80,15 @@ typedef struct{
    XhcEventTRB *segmentEnd;
    int ccs;
 
-   EventRingSegmentTableEntry2 *currSegment;
-   EventRingSegmentTableEntry2 *segmentTableEnd;
+   EventRingSegmentTableEntry *currSegment;
+   EventRingSegmentTableEntry *segmentTableEnd;
    InterrupterRegisters *interruptor;
 
    int segmentCount;
 }XhcEventRing;
 
-typedef struct{
-   uint32_t *basePointer;
-   uint32_t trbCount;
-}XhcEventRingSegment;
 
-
-XhcEventRing xhcd_newEventRing(XhcEventRingSegment *segments,
-                  int segmentCount,
-                  EventRingSegmentTableEntry2 *segmentTableBase);
+XhcEventRing xhcd_newEventRing(int trbCount);
 
 int xhcd_attachEventRing(XhcEventRing *ring, InterrupterRegisters *interruptor);
 int xhcd_readEvent(XhcEventRing *ring, XhcEventTRB* result, int maxOutput);
