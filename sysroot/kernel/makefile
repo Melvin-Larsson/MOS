@@ -1,13 +1,12 @@
-
-COMPILER=${HOME}/opt/cross2/bin/i686-elf-gcc
-PREFIX?= ${HOME}/Programmering/OS/sysroot/kernel
-INCLUDE=-I ${PREFIX}/include -I ${HOME}/Programmering/OS/sysroot/lib/include 
+COMPILER?=${HOME}/opt/cross2/bin/i686-elf-gcc
+PREFIX?= ${HOME}/Programmering/OS
+INCLUDE=-I ${PREFIX}/sysroot/kernel/include -I ${PREFIX}/sysroot/lib/include 
 CFLAGS?= -O2 -std=gnu99 -ffreestanding -mno-red-zone -Wall -Wextra ${INCLUDE}
-BUILD?=${PREFIX}/build
+BUILD=${PREFIX}/sysroot/kernel/build
 
 LINK_FLAGS?= -nostdlib -lgcc -ffreestanding -O2 -r
 
-OBJS?= ${BUILD}/boot.o \
+OBJS= ${BUILD}/boot.o \
        ${BUILD}/kernel1.o \
 	   ${BUILD}/interrupt.o \
 	   ${BUILD}/registers.o \
@@ -56,7 +55,7 @@ include/kernel/xhcd-ring.h: include/kernel/xhcd-registers.h
 include/kernel/xhcd-event-ring.h: include/kernel/xhcd-registers.h
 
 ${BUILD}/boot.o :
-	cd ${PREFIX}/i686 && \
+	cd ${PREFIX}/sysroot/kernel/i686 && \
 	nasm -f elf program.s -o boot.o && \
 	mv boot.o ${BUILD}/boot.o && \
 	cd -
