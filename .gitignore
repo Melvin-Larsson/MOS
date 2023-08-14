@@ -1,4 +1,6 @@
-build/*
+build/
+sysroot/kernel/build/
+sysroot/lib/build/
 trash/
 src/
 session.vim
