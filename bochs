@@ -1,3 +1,0 @@
-make &&
-dd if=~/Programmering/OS/build/os.bin of=~/bochs/20_16_63.img bs=512 count=20160 conv=notrunc
-
