@@ -1,6 +1,6 @@
 make &&
 dd if=build/os.bin of=build/os.img conv=notrunc &&
-~/qemu/build/qemu-system-x86_64 -hda build/os.img \
+qemu-system-x86_64 -hda build/os.img \
 -device qemu-xhci,id=xhci \
 -device usb-kbd,bus=xhci.0 \
 -m 4G \

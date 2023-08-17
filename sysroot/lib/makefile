@@ -1,12 +1,12 @@
-COMPILER=${HOME}/opt/cross2/bin/i686-elf-gcc
-PREFIX?= ${HOME}/Programmering/OS/sysroot/lib
-INCLUDE?=${PREFIX}/include
+COMPILER?=${HOME}/opt/cross2/bin/i686-elf-gcc
+PREFIX?= ${HOME}/Programmering/OS
+INCLUDE=${PREFIX}/sysroot/lib/include
 CFLAGS?= -O2 -std=gnu99 -ffreestanding -mno-red-zone -Wall -Wextra -I ${INCLUDE}
-BUILD?=${PREFIX}/build
+BUILD=${PREFIX}/sysroot/lib/build
 
 LINK_FLAGS?= -nostdlib -lgcc -ffreestanding -O2 -r
 
-OBJS?= ${BUILD}/stdio.o \
+OBJS= ${BUILD}/stdio.o \
        ${BUILD}/stdlib.o \
        ${BUILD}/memory.o \
 	   ${BUILD}/string.o
