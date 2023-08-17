@@ -36,8 +36,7 @@ uint32_t pci_configReadAt(uint32_t address){
    pci_configWriteAddress(address);
    return pci_configRead();
 }
-uint32_t pci_configReadRegister(uint8_t busNr, uint8_t deviceNr,
-      uint8_t funcNr, uint8_t registerOffset){
+static uint32_t getAddress(uint8_t busNr, uint8_t deviceNr, uint8_t funcNr, uint8_t registerOffset){
    if(registerOffset & 0b11){
       printf("Error: pci register offset has to point do a dword");
       return -1;
@@ -49,7 +48,15 @@ uint32_t pci_configReadRegister(uint8_t busNr, uint8_t deviceNr,
 
    uint32_t address = (busNrl << 16) | (deviceNrl << 11) |
                       (funcNrl << 8) | (offsetl & 0xFC) | (1<<31);
-   return pci_configReadAt(address);
+   return address;
+
+}
+uint32_t pci_configReadRegister(uint8_t busNr, uint8_t deviceNr,
+      uint8_t funcNr, uint8_t registerOffset){
+   return pci_configReadAt(getAddress(busNr, deviceNr, funcNr, registerOffset));
+}
+void pci_configWriteRegister(uint8_t busNr, uint8_t deviceNr, uint8_t funcNr, uint8_t registerOffset, uint32_t value){
+   pci_configWrite(getAddress(busNr, deviceNr, funcNr, registerOffset), value);
 }
 
 int pci_getDevices(PciDescriptor* output, int maxHeadersInOutput){
@@ -91,6 +98,16 @@ int pci_getDevices(PciDescriptor* output, int maxHeadersInOutput){
 void pci_getGeneralDevice(PciDescriptor* descriptor,
                           PciGeneralDeviceHeader* output){
    output->pciHeader = descriptor->pciHeader;
+   pci_configWriteRegister( //FIXME: temp
+         descriptor->busNr,
+         descriptor->deviceNr,
+         0,
+         4,
+         output->reg[1] | 1 << 2);
+   for(int i = 0; i < 4; i++){
+      printf("read %X ", output->reg[i]);
+   }
+
    for(int i = 0x4; i <= 0xF; i++){
       uint32_t val = 
        pci_configReadRegister(
@@ -101,7 +118,7 @@ void pci_getGeneralDevice(PciDescriptor* descriptor,
       output->reg[i] = val;
       printf("read %X", val);
    }
-   printf("\n");
+      printf("\n");
 
 }
 

@@ -53,6 +53,7 @@ static void initXhci(PciGeneralDeviceHeader xhc){
         }
         printf("Attatched port nr %d\n", attachedPortNr);
         if(!xhcd_enable(&xhci, attachedPortNr)){
+            printf("Failed to enable port\n");
            return;  
         }
         printf("USB device enabled\n");

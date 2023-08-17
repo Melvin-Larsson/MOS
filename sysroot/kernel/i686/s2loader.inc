@@ -3,7 +3,7 @@ align 4
 dap: 
     db 0x10
     db 0
-    dw 32
+    dw 48
     dw 0
     dw 0x07E0
     dd 1

@@ -27,6 +27,6 @@ lib	:
 
 clean :
 	rm -f ${BUILD}/*
-	dd if=/dev/zero of=${BUILD}/os.img bs=512 count=1000
+	dd if=/dev/zero of=${BUILD}/os.img bs=512 count=2048
 	$(MAKE) -C ${KERNEL} clean
 	$(MAKE) -C ${LIBS} clean

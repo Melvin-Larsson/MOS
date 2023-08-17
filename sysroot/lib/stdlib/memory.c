@@ -24,7 +24,7 @@ static void *getMemoryPointer(MemoryDescriptor *descriptor);
 static MemoryDescriptor *memoryDescriptor;
 
 void stdlib_init(){
-    memoryDescriptor = (MemoryDescriptor*)0x70000; //FIXME
+    memoryDescriptor = (MemoryDescriptor*)0x30000; //FIXME
     *memoryDescriptor = (MemoryDescriptor){0,0};
 }
 
@@ -67,6 +67,7 @@ void *mallocco(int size, int alignment, int boundary){
                 }
                 desc = constrained;
                 useDescriptor(desc, size);
+                void * ptr = getMemoryPointer(desc);
                 return getMemoryPointer(desc);
             }
         }

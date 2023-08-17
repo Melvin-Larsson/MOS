@@ -47,7 +47,7 @@ typedef volatile struct{
    uint32_t warmPortResetChange : 1;
    uint32_t overCurrentChange : 1;
    uint32_t portResetChange : 1;
-   uint16_t other : 10;
+   uint32_t other : 10;
 }__attribute__((packed))PortStatusAndControll;
 
 typedef volatile struct{
@@ -157,7 +157,10 @@ typedef volatile struct{
    uint32_t dropContextFlags;
    uint32_t addContextFlags;
    uint32_t reserved[5];
-   uint32_t settings;
+   uint32_t configurationValue : 8;
+   uint32_t interfaceNumber : 8;
+   uint32_t alternateSettings : 8;
+   uint32_t reserved2 : 8;
 }__attribute__((packed))XhcInputControlContext;
 
 typedef volatile struct{

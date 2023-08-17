@@ -25,12 +25,22 @@ typedef struct{
    UsbConfiguration *configuration;
 }UsbDevice;
 
+typedef struct{
+   int isDirectionIn;
+   uint16_t maxPacketSize;
+   uint16_t maxBurstSize;
+   uint32_t maxESITPayload;
+   uint8_t configurationValue;
+   uint8_t interval;
+}XhcEndpointConfig;
+
 
 int xhcd_init(PciGeneralDeviceHeader *pciHeader, Xhci *xhci);
 int xhcd_checkForDeviceAttach(Xhci *xchi);
 int xhcd_isPortEnabled(Xhci *xhci, int portNumber);
 int xhcd_enable(Xhci *xhci, int portNumber);
 int xhcd_initPort(Xhci *xhci, int portNumber);
+int xhcd_initInterruptEndpoint(Xhci *xhci, UsbDevice *device, int endpoint, XhcEndpointConfig config);
 
 int xhcd_getDeviceDescriptor(
       Xhci *xhci,
@@ -41,8 +51,12 @@ UsbConfiguration *xhcd_getConfiguration(
       int slotId,
       int configuration
       );
+int xhcd_setConfiguration(Xhci *xhci, UsbDevice *device, UsbConfiguration *configuration);
+int xhcd_setProtocol(Xhci *xhci, UsbDevice *device, int interface, int protocol);
 void xhcd_freeConfiguration(UsbConfiguration *config);
 void xhcd_freeInterface(UsbInterface *interface);
+
+void xhcd_ringDoorbell(Xhci *xhci, uint8_t slotId, uint8_t target);
 
 
 #endif

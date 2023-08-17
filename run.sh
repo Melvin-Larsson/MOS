@@ -1,4 +1,4 @@
-./build.sh &&
+make &&
 dd if=build/os.bin of=build/os.img conv=notrunc &&
 ~/qemu/build/qemu-system-x86_64 -hda build/os.img \
 -device qemu-xhci,id=xhci \

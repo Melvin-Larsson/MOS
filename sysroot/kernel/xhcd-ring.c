@@ -12,9 +12,11 @@
 #define TRB_TYPE_ENABLE_SLOT 9
 #define TRB_TYPE_ADDRESS_DEVICE 11
 #define TRB_TYPE_EVALUATE_CONTEXT 13
+#define TRB_TYPE_CONFIGURE_ENDPOINT 12
 #define TRB_TYPE_SETUP 2
 #define TRB_TYPE_DATA 3
 #define TRB_TYPE_STATUS 4
+#define TRB_TYPE_NORMAL 1
 
 
 #define TRB_SLOT_TYPE_POS 16
@@ -29,17 +31,19 @@
 #define TRANSFER_TYPE_IN 3
 
 #define REQUEST_GET_DESCRIPTOR 6
+#define REQUEST_SET_CONFIGURATION 9
+#define REQUEST_SET_PROTOCOL 0xB
+#define REQUEST_GET_PROTOCOL 3
 
 #define DESCRIPTOR_TYPE_DEVICE 1
 #define DESCRIPTOR_TYPE_CONFIGURATION 2
 
 static void initSegment(Segment segment, Segment nextSegment, int isLast);
-static TD createTD(SetupStageTRB setup, DataStageTRB data, StatusStageTRB starus);
 
 XhcdRing xhcd_newRing(int trbCount){
    void* ringAddress = callocco(trbCount * sizeof(TRB), 64, 64000);
    Segment segment = {(uintptr_t)ringAddress, trbCount};
-   initSegment(segment, segment, 1);
+   initSegment(segment, segment, 1); //FIXME: isLast = 1
 
    XhcdRing ring;
    ring.pcs = DEFAULT_PCS;
@@ -52,7 +56,7 @@ int xhcd_attachCommandRing(XhciOperation *operation, XhcdRing *ring){
    return 1;
 }
 void xhcd_putTD(TD td, XhcdRing *ring){
-   for(int i = 0; i < 3; i++){
+   for(int i = 0; i < td.trbCount; i++){
       xhcd_putTRB(td.trbs[i], ring);
    }
 }
@@ -60,7 +64,7 @@ void xhcd_putTRB(TRB trb, XhcdRing *ring){
    trb.cycleBit = ring->pcs;
    *ring->dequeue = trb; 
    ring->dequeue++;
-   if(ring->dequeue->trbType == TRB_TYPE_LINK){
+   if(ring->dequeue->type == TRB_TYPE_LINK){
       LinkTRB *link = (LinkTRB*)ring->dequeue;
       link->cycleBit = ring->pcs;
       uintptr_t address = link->ringSegment;
@@ -94,7 +98,25 @@ TRB TRB_EVALUATE_CONTEXT(void* inputContext, uint32_t slotId){
    trb.r3 = TRB_TYPE_EVALUATE_CONTEXT << TRB_TYPE_POS |
             slotId << TRB_SLOT_ID_POS;
    return trb;
+}
+TRB TRB_CONFIGURE_ENDPOINT(void *inputContext, uint32_t slotId){
+   TRB trb = {{{0,0,0,0}}};
+   trb.dataBufferPointer = (uintptr_t)inputContext;
+   trb.r3 = TRB_TYPE_CONFIGURE_ENDPOINT << TRB_TYPE_POS |
+            slotId << TRB_SLOT_ID_POS;
+   return trb;
 
+
+}
+TRB TRB_NORMAL(void *dataBuffer, uint16_t bufferSize){
+   TRB trb = {{{0,0,0,0}}};
+   trb.dataBufferPointer = (uintptr_t)dataBuffer;
+   trb.transferLength = bufferSize;
+   trb.interruptOnCompletion = 1;
+   trb.interruptOnShortPacket = 1;
+   trb.type = TRB_TYPE_NORMAL; 
+
+   return trb;
 }
 TRB TRB_SETUP_STAGE(SetupStageHeader header){
    SetupStageTRB setupTrb = {{{0,0,0,0}}};
@@ -152,48 +174,83 @@ TD TD_GET_DESCRIPTOR(void *dataBufferPointer, int descriptorLength){
    TRB dataTrb = TRB_DATA_STAGE((uintptr_t)dataBufferPointer, descriptorLength);
    TRB statusTrb = TRB_STATUS_STAGE();
 
-   TD result = {setupTrb, dataTrb, statusTrb};
+   TD result = {{setupTrb, dataTrb, statusTrb}, 3};
    return result;
 }
 TD TD_GET_CONFIGURATION_DESCRIPTOR(void *dataBufferPointer, int descriptorLength, uint8_t descriptorIndex){
-   SetupStageTRB setupTrb = {{{0,0,0,0}}};
+   SetupStageHeader header;
+   header.bmRequestType = 0x80;
+   header.bRequest = REQUEST_GET_DESCRIPTOR;
+   header.wValue = DESCRIPTOR_TYPE_CONFIGURATION << 8 | descriptorIndex;
+   header.wIndex = 0;
+   header.wLength = descriptorLength;
 
-   setupTrb.type = TRB_TYPE_SETUP;
-   setupTrb.transferType = TRANSFER_TYPE_IN;
-   setupTrb.transferLength = 8;
-   setupTrb.interruptOnCompletion = 0;
-   setupTrb.immediateData = 1;
+   TRB setupTrb = TRB_SETUP_STAGE(header);
+   TRB dataTrb = TRB_DATA_STAGE((uintptr_t)dataBufferPointer, descriptorLength);
+   TRB statusTrb = TRB_STATUS_STAGE();
 
-   setupTrb.bmRequestType = 0x80;
-   setupTrb.bRequest = REQUEST_GET_DESCRIPTOR;
-   setupTrb.wValue = DESCRIPTOR_TYPE_CONFIGURATION << 8 | descriptorIndex;
-   setupTrb.wIndex = 0;
-   setupTrb.wLength = descriptorLength;
-   
-   DataStageTRB dataTrb = {{{0,0,0,0}}};
-   dataTrb.type = TRB_TYPE_DATA;
-   dataTrb.direction = DIRECTION_IN;
-   dataTrb.transferLength = descriptorLength;
-   dataTrb.chainBit = 0;
-   dataTrb.interruptOnCompletion = 0;
-   dataTrb.immediateData = 0;
-   dataTrb.dataBuffer = (uintptr_t)dataBufferPointer;
+   TD result = {{setupTrb, dataTrb, statusTrb}, 3};
+   printf("scount %d\n", result.trbCount);
 
-   StatusStageTRB statusTrb = {{{0,0,0,0}}};
-   statusTrb.type = TRB_TYPE_STATUS;
-   statusTrb.direction = DIRECTION_OUT;
-   statusTrb.chainBit = 0;
-   statusTrb.interruptOnCompletion = 1;
-
-   return createTD(setupTrb, dataTrb, statusTrb);
+   return result;
 }
-static TD createTD(SetupStageTRB setup, DataStageTRB data, StatusStageTRB status){
-   TRB t1, t2, t3;
-   memcpy(&t1, &setup, sizeof(TRB));
-   memcpy(&t2, &data, sizeof(TRB));
-   memcpy(&t3, &status, sizeof(TRB));
-   TD td = {{t1, t2, t3}};
-   return td;
+TD TD_SET_CONFIGURATION(int configuration){
+   SetupStageHeader header;
+   header.bmRequestType = 0;
+   header.bRequest = REQUEST_SET_CONFIGURATION;
+   header.wValue = configuration;
+   header.wIndex = 0;
+   header.wLength = 0;
+   TRB setupTrb = TRB_SETUP_STAGE(header);
+   TRB statusTrb = TRB_STATUS_STAGE();
+
+   TD result = {{setupTrb, statusTrb}, 2};
+   return result;
+}
+TD TD_SET_PROTOCOL(int protocol, int interface){
+   if(protocol != 0 && protocol != 1){
+      printf("[xhc] invalid protocol: %d\n", protocol);
+      return (TD){{},0};
+   }
+   SetupStageHeader header;
+   header.bmRequestType = 0x21;
+   header.bRequest = REQUEST_SET_PROTOCOL;
+   header.wValue = protocol;
+   header.wIndex = interface;
+   header.wLength = 0;
+   TRB setupTrb = TRB_SETUP_STAGE(header);
+   TRB statusTrb = TRB_STATUS_STAGE();
+
+   TD result = {{setupTrb, statusTrb}, 2};
+   return result;
+}
+TD TD_GET_PROTOCOL(int interface, uint8_t *resultPointer){
+   SetupStageHeader header;
+   header.bmRequestType = 0xA1;
+   header.bRequest = REQUEST_GET_PROTOCOL;
+   header.wValue = 0;
+   header.wIndex = interface;
+   header.wLength = 1;
+   TRB setupTrb = TRB_SETUP_STAGE(header);
+   TRB dataTrb = TRB_DATA_STAGE((uintptr_t)resultPointer, 1);
+   TRB statusTrb = TRB_STATUS_STAGE();
+
+   TD result = {{setupTrb, dataTrb, statusTrb}, 3};
+   return result;
+}
+TD TD_GET_REPORT(void *dataBufferPointer, uint16_t bufferSize, int interface){
+   SetupStageHeader header;
+   header.bmRequestType = 0xA1;
+   header.bRequest = 1;
+   header.wValue = 0x0100;
+   header.wIndex = interface;
+   header.wLength = bufferSize;
+   TRB setupTrb = TRB_SETUP_STAGE(header);
+   TRB dataTrb = TRB_DATA_STAGE((uintptr_t)dataBufferPointer, bufferSize);
+   TRB statusTrb = TRB_STATUS_STAGE();
+
+   TD result = {{setupTrb, dataTrb, statusTrb}, 3};
+   return result;
 }
 static void initSegment(Segment segment, Segment nextSegment, int isLast){
    memset((void*)segment.address, 0, segment.trbCount * sizeof(TRB));

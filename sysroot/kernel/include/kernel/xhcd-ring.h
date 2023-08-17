@@ -33,13 +33,20 @@ typedef struct{
          uint32_t r3; };
       struct{
          uint64_t dataBufferPointer;
-         uint32_t trbTransferLength : 17;
-         uint32_t tdSize : 5;
+         uint32_t transferLength : 17;
+         uint32_t size : 5;
          uint32_t interrupterTarget : 10;
          uint32_t cycleBit : 1;
-         uint32_t other : 9;
-         uint32_t trbType : 6;
-         uint32_t reserved : 16;
+         uint32_t evaluateNextTrb : 1;
+         uint32_t interruptOnShortPacket : 1;
+         uint32_t noSnoop : 1;
+         uint32_t chainBit : 1;
+         uint32_t interruptOnCompletion : 1;
+         uint32_t immediateData : 1;
+         uint32_t reserved : 2;
+         uint32_t blockEventInterrupt : 1;
+         uint32_t type : 6;
+         uint32_t reserved2 : 16;
       };
    };
 }__attribute__((packed))TRB;
@@ -140,6 +147,7 @@ typedef struct{
 
 typedef struct{
    TRB trbs[3];
+   int trbCount;
 }TD;
 
 typedef struct{
@@ -162,7 +170,13 @@ TRB TRB_NOOP();
 TRB TRB_ENABLE_SLOT(int slotType);
 TRB TRB_ADDRESS_DEVICE(uint64_t inputContextAddr, uint32_t slotId, uint32_t bsr);
 TRB TRB_EVALUATE_CONTEXT(void* inputContext, uint32_t slotId);
+TRB TRB_CONFIGURE_ENDPOINT(void *inputContext, uint32_t slotId);
+TRB TRB_NORMAL(void *dataBuffer, uint16_t bufferSize);
 TD TD_GET_DESCRIPTOR(void *dataBufferPointer, int descriptorLengt);
 TD TD_GET_CONFIGURATION_DESCRIPTOR(void *dataBufferPointer, int descriptorLength, uint8_t descriptorIndex);
+TD TD_SET_CONFIGURATION(int configuration);
+TD TD_SET_PROTOCOL(int protocol, int interface);
+TD TD_GET_REPORT(void *dataBufferPointer, uint16_t bufferSize, int interface);
+TD TD_GET_PROTOCOL(int interface, uint8_t *resultPointer);
 
 #endif

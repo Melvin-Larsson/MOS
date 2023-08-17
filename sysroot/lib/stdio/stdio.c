@@ -39,6 +39,11 @@ static void printChar(char c){
         newLine();
         return;
     }
+    if(c == '\b' && x > 0){
+        x--;
+        printc(' ', x, y);
+        return;
+    }
     printc(c, x, y);
     x++;
     if(x >= TERM_WIDTH){
