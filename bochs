@@ -1,0 +1,4 @@
+make &&
+dd if=~/Programmering/OS/build/os.bin of=~/bochs/c.img conv=notrunc &&
+bochs
+

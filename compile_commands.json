@@ -1,0 +1,238 @@
+[
+  {
+    "arguments": [
+      "/home/melvin/opt/cross2/bin/i686-elf-gcc",
+      "-O2",
+      "-std=gnu99",
+      "-ffreestanding",
+      "-mno-red-zone",
+      "-Wall",
+      "-Wextra",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/kernel/include",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/lib/include",
+      "-c",
+      "-o",
+      "/home/melvin/Programmering/OS/sysroot/kernel/build/kernel1.o",
+      "main.c"
+    ],
+    "directory": "/home/melvin/Programmering/OS/sysroot/kernel",
+    "file": "/home/melvin/Programmering/OS/sysroot/kernel/main.c",
+    "output": "/home/melvin/Programmering/OS/sysroot/kernel/build/kernel1.o"
+  },
+  {
+    "arguments": [
+      "/home/melvin/opt/cross2/bin/i686-elf-gcc",
+      "-O2",
+      "-std=gnu99",
+      "-ffreestanding",
+      "-mno-red-zone",
+      "-Wall",
+      "-Wextra",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/kernel/include",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/lib/include",
+      "-c",
+      "-o",
+      "/home/melvin/Programmering/OS/sysroot/kernel/build/interrupt.o",
+      "interrupt.c"
+    ],
+    "directory": "/home/melvin/Programmering/OS/sysroot/kernel",
+    "file": "/home/melvin/Programmering/OS/sysroot/kernel/interrupt.c",
+    "output": "/home/melvin/Programmering/OS/sysroot/kernel/build/interrupt.o"
+  },
+  {
+    "arguments": [
+      "/home/melvin/opt/cross2/bin/i686-elf-gcc",
+      "-O2",
+      "-std=gnu99",
+      "-ffreestanding",
+      "-mno-red-zone",
+      "-Wall",
+      "-Wextra",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/kernel/include",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/lib/include",
+      "-c",
+      "-o",
+      "/home/melvin/Programmering/OS/sysroot/kernel/build/registers.o",
+      "registers.c"
+    ],
+    "directory": "/home/melvin/Programmering/OS/sysroot/kernel",
+    "file": "/home/melvin/Programmering/OS/sysroot/kernel/registers.c",
+    "output": "/home/melvin/Programmering/OS/sysroot/kernel/build/registers.o"
+  },
+  {
+    "arguments": [
+      "/home/melvin/opt/cross2/bin/i686-elf-gcc",
+      "-O2",
+      "-std=gnu99",
+      "-ffreestanding",
+      "-mno-red-zone",
+      "-Wall",
+      "-Wextra",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/kernel/include",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/lib/include",
+      "-c",
+      "-o",
+      "/home/melvin/Programmering/OS/sysroot/kernel/build/apic.o",
+      "apic.c"
+    ],
+    "directory": "/home/melvin/Programmering/OS/sysroot/kernel",
+    "file": "/home/melvin/Programmering/OS/sysroot/kernel/apic.c",
+    "output": "/home/melvin/Programmering/OS/sysroot/kernel/build/apic.o"
+  },
+  {
+    "arguments": [
+      "/home/melvin/opt/cross2/bin/i686-elf-gcc",
+      "-O2",
+      "-std=gnu99",
+      "-ffreestanding",
+      "-mno-red-zone",
+      "-Wall",
+      "-Wextra",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/kernel/include",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/lib/include",
+      "-c",
+      "-o",
+      "/home/melvin/Programmering/OS/sysroot/kernel/build/pci.o",
+      "pci.c"
+    ],
+    "directory": "/home/melvin/Programmering/OS/sysroot/kernel",
+    "file": "/home/melvin/Programmering/OS/sysroot/kernel/pci.c",
+    "output": "/home/melvin/Programmering/OS/sysroot/kernel/build/pci.o"
+  },
+  {
+    "arguments": [
+      "/home/melvin/opt/cross2/bin/i686-elf-gcc",
+      "-O2",
+      "-std=gnu99",
+      "-ffreestanding",
+      "-mno-red-zone",
+      "-Wall",
+      "-Wextra",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/kernel/include",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/lib/include",
+      "-c",
+      "-o",
+      "/home/melvin/Programmering/OS/sysroot/kernel/build/xhcd.o",
+      "xhcd.c"
+    ],
+    "directory": "/home/melvin/Programmering/OS/sysroot/kernel",
+    "file": "/home/melvin/Programmering/OS/sysroot/kernel/xhcd.c",
+    "output": "/home/melvin/Programmering/OS/sysroot/kernel/build/xhcd.o"
+  },
+  {
+    "arguments": [
+      "/home/melvin/opt/cross2/bin/i686-elf-gcc",
+      "-O2",
+      "-std=gnu99",
+      "-ffreestanding",
+      "-mno-red-zone",
+      "-Wall",
+      "-Wextra",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/kernel/include",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/lib/include",
+      "-c",
+      "-o",
+      "/home/melvin/Programmering/OS/sysroot/kernel/build/xhcd-ring.o",
+      "xhcd-ring.c"
+    ],
+    "directory": "/home/melvin/Programmering/OS/sysroot/kernel",
+    "file": "/home/melvin/Programmering/OS/sysroot/kernel/xhcd-ring.c",
+    "output": "/home/melvin/Programmering/OS/sysroot/kernel/build/xhcd-ring.o"
+  },
+  {
+    "arguments": [
+      "/home/melvin/opt/cross2/bin/i686-elf-gcc",
+      "-O2",
+      "-std=gnu99",
+      "-ffreestanding",
+      "-mno-red-zone",
+      "-Wall",
+      "-Wextra",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/kernel/include",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/lib/include",
+      "-c",
+      "-o",
+      "/home/melvin/Programmering/OS/sysroot/kernel/build/xhcd-event-ring.o",
+      "xhcd-event-ring.c"
+    ],
+    "directory": "/home/melvin/Programmering/OS/sysroot/kernel",
+    "file": "/home/melvin/Programmering/OS/sysroot/kernel/xhcd-event-ring.c",
+    "output": "/home/melvin/Programmering/OS/sysroot/kernel/build/xhcd-event-ring.o"
+  },
+  {
+    "arguments": [
+      "/home/melvin/opt/cross2/bin/i686-elf-gcc",
+      "-O2",
+      "-std=gnu99",
+      "-ffreestanding",
+      "-mno-red-zone",
+      "-Wall",
+      "-Wextra",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/lib/include",
+      "-c",
+      "-o",
+      "/home/melvin/Programmering/OS/sysroot/lib/build/stdio.o",
+      "stdio/stdio.c"
+    ],
+    "directory": "/home/melvin/Programmering/OS/sysroot/lib",
+    "file": "/home/melvin/Programmering/OS/sysroot/lib/stdio/stdio.c",
+    "output": "/home/melvin/Programmering/OS/sysroot/lib/build/stdio.o"
+  },
+  {
+    "arguments": [
+      "/home/melvin/opt/cross2/bin/i686-elf-gcc",
+      "-O2",
+      "-std=gnu99",
+      "-ffreestanding",
+      "-mno-red-zone",
+      "-Wall",
+      "-Wextra",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/lib/include",
+      "-c",
+      "-o",
+      "/home/melvin/Programmering/OS/sysroot/lib/build/stdlib.o",
+      "stdlib/stdlib.c"
+    ],
+    "directory": "/home/melvin/Programmering/OS/sysroot/lib",
+    "file": "/home/melvin/Programmering/OS/sysroot/lib/stdlib/stdlib.c",
+    "output": "/home/melvin/Programmering/OS/sysroot/lib/build/stdlib.o"
+  },
+  {
+    "arguments": [
+      "/home/melvin/opt/cross2/bin/i686-elf-gcc",
+      "-O2",
+      "-std=gnu99",
+      "-ffreestanding",
+      "-mno-red-zone",
+      "-Wall",
+      "-Wextra",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/lib/include",
+      "-c",
+      "-o",
+      "/home/melvin/Programmering/OS/sysroot/lib/build/string.o",
+      "string/string.c"
+    ],
+    "directory": "/home/melvin/Programmering/OS/sysroot/lib",
+    "file": "/home/melvin/Programmering/OS/sysroot/lib/string/string.c",
+    "output": "/home/melvin/Programmering/OS/sysroot/lib/build/string.o"
+  }
+]
