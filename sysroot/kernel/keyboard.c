@@ -1,6 +1,8 @@
 #include "kernel/keyboard.h"
 #include "stdio.h"
 #include "stdlib.h"
+#include "string.h"
+#include "kernel/usb.h"
 
 #define BOOT_PROTOCOL 0
 #define REPORT_PROTOCOL 1
@@ -15,95 +17,32 @@
 #define DIRECTION_POS 7
 #define TRANSFER_TYPE_POS 0
 
-int keyboard_init(Xhci *xhci, UsbDevice *device){
-   UsbConfiguration *config = device->configuration;
-   UsbConfigurationDescriptor descriptor = config->descriptor;
-   UsbInterface *interface = 0;
+static UsbConfiguration *getConfiguration(UsbDevice2 *device);
+static UsbInterface *getInterface(UsbConfiguration *configuration);
+static UsbEndpointDescriptor *getEndpoint(UsbInterface *interface);
+static int setProtocol(UsbDevice2 *device);
 
-   for(int i = 0; i < descriptor.bNumInterfaces; i++){
-      UsbInterface *currInterface = &config->interfaces[i];
-      printf("class: %X, sub: %X, interface: %X\n",
-            currInterface->descriptor.bInterfaceClass,
-            currInterface->descriptor.bInterfaceSubClass,
-            currInterface->descriptor.bInterfaceProtocol);
-      if(currInterface->descriptor.bInterfaceClass == 3 &&
-         currInterface->descriptor.bInterfaceSubClass == 1 &&
-         currInterface->descriptor.bInterfaceProtocol == 1){
-         interface = currInterface;
-         //break;
-      }
+KeyboardStatus keyboard_init(Xhci *xhci, UsbDevice *device){
+   Usb usb = {xhci};
+   UsbDevice2 usbDevice = {device->slotId, device->configuration, 1, &usb};
+
+   UsbConfiguration *configuration = getConfiguration(&usbDevice);
+   if(configuration == 0){
+      return KeyboardInvalidConfiguration;
    }
-   if(!interface){
-      printf("[keyboard] Unable to find valid interface\n");
-      return 0;
+   UsbInterface *interface  = getInterface(configuration);
+   UsbEndpointDescriptor *endpoint = getEndpoint(interface);
+
+   if(usb_setConfiguration(&usbDevice, usbDevice.configuration) != StatusSuccess){
+      return KeyboardConfigureError;
    }
-
-
-   UsbEndpointDescriptor *interruptEndpoint = 0;
-   printf("endpoint count: %d\n", interface->descriptor.bNumEndpoints);
-   for(int i = 0; i < interface->descriptor.bNumEndpoints; i++){
-      UsbEndpointDescriptor *endpoint = &interface->endpoints[i];
-      printf("addr: %X\n", endpoint->bEndpointAddress);
-      if((endpoint->bEndpointAddress & DIRECTION_BITMASK) >> DIRECTION_POS != DIRECTION_IN){
-         continue;
-      }
-      if((endpoint->bmAttributes & TRANSFER_TYPE_BITMASK) >> TRANSFER_TYPE_POS != TRANSFER_TYPE_INTERRUPT){
-         continue;
-      }
-      interruptEndpoint = endpoint;
-      break;
-   }
-   if(interruptEndpoint == 0){
-      printf("[keyboard] unable to find interrupt endpoint\n");
-      return 0;
-   }
-   printf("[keyboard] found interrupt endpoint\n");
-
-   if(!xhcd_setConfiguration(xhci, device, config)){
-      return 0;
-   }
-   printf("[keyboard] sucessfully set configuration\n");
-
-   uint8_t interval = interruptEndpoint->bInterval;
-   uint8_t address = interruptEndpoint->bEndpointAddress & ENDPOINT_NUMBER_BITMASK;
-   uint16_t maxPacketSize = interruptEndpoint->wMaxPacketSize & 0x07FF;
-   uint16_t maxBurstSize = (interruptEndpoint->wMaxPacketSize & 0x1800) >> 11;
-   printf("interval %d\n", interval);
-
-   XhcEndpointConfig endpointConfig;
-   endpointConfig.isDirectionIn = 1;
-   endpointConfig.maxPacketSize = maxPacketSize;
-   endpointConfig.maxBurstSize = maxBurstSize;
-   endpointConfig.maxESITPayload = maxPacketSize * (maxBurstSize + 1);
-   endpointConfig.configurationValue = descriptor.bConfigurationValue;
-   endpointConfig.interval = interval;
-
-   if(!xhcd_initInterruptEndpoint(xhci, device, address, endpointConfig)){
-      printf("[keyboard] Failed to init interrupt endpoint\n");
-      return 0;
-   }
-   printf("[keyboard] initialized interrupt endpoint\n");
-
-   volatile uint64_t *dcAddressArray = xhci->dcBaseAddressArray;
-   uintptr_t ptr = dcAddressArray[device->slotId];
-   XhcOutputContext *outputContext = (XhcOutputContext*)ptr;
-   XhcEndpointContext endpoint = outputContext->endpointContext[address * 2 + 1 - 1];
-   printf("endpoint state %X\n", endpoint.endpointState);
-   printf("endpoint interval %d\n", endpoint.interval);
-   printf("avg trb length %d\n", endpoint.avarageTrbLength);
-   printf("max ESIs %X\n", endpoint.maxESITPayloadLow);
-
-   
-   
    int interfaceNumber = interface->descriptor.bInterfaceNumber;
    if(!xhcd_setProtocol(xhci, device, interfaceNumber, BOOT_PROTOCOL)){
-      return 0;
+      return KeyboardProtocolError;
    }
-   printf("[keyboard] sucessfully set boot protocol\n");
 
-   
    XhcEventTRB result;
-   int index = address * 2 + 1;
+   int index = endpoint->endpointNumber * 2 + 1;
    XhcdRing transferRing = xhci->transferRing[device->slotId][index - 1];
    uint8_t buffer[8];
    memset(buffer, 0, sizeof(buffer));
@@ -145,6 +84,57 @@ int keyboard_init(Xhci *xhci, UsbDevice *device){
    }
 
 
-   return 1;
+   return KeyboardSuccess;
 }
 
+void keyboard_getStatusCode(KeyboardStatus status, char output[100]){
+   char *statusCodes[] = {
+      "Success",
+      "Unable to find valid configuration",
+      "Failed to configure keyboard",
+      "Failed to set protocol"
+   };
+   strcpy(output, "[keyboard] ");
+   strAppend(output, statusCodes[status]);
+}
+static UsbConfiguration *getConfiguration(UsbDevice2 *device){
+   for(int i = 0; i < device->configurationCount; i++){
+      if(getInterface(&device->configuration[i]) != 0){
+         return &device->configuration[i];
+      }
+   }
+   return 0;
+}
+static UsbInterface *getInterface(UsbConfiguration *configuration){
+   for(int i = 0; i < configuration->descriptor.bNumInterfaces; i++){
+      UsbInterfaceDescriptor *interface = &configuration->interfaces[i].descriptor;
+      if(interface->bInterfaceClass != 3){
+         continue;
+      }
+      if(interface->bInterfaceSubClass != 1){
+         continue;
+      }
+      if(interface->bInterfaceProtocol != 1){
+         continue;
+      }
+      if(getEndpoint(&configuration->interfaces[i]) != 0){
+         return &configuration->interfaces[i];
+      }
+
+   }
+   return 0;
+}
+static UsbEndpointDescriptor *getEndpoint(UsbInterface *interface){
+   UsbInterfaceDescriptor *descriptor = &interface->descriptor;
+   for(int i = 0; i < descriptor->bNumEndpoints; i++){
+      UsbEndpointDescriptor *endpoint = &interface->endpoints[i];
+       if((endpoint->bEndpointAddress & DIRECTION_BITMASK) >> DIRECTION_POS != DIRECTION_IN){
+         continue;
+      }
+      if((endpoint->bmAttributes & TRANSFER_TYPE_BITMASK) >> TRANSFER_TYPE_POS != TRANSFER_TYPE_INTERRUPT){
+         continue;
+      }
+      return &interface->endpoints[i];
+   }
+   return 0;
+}

@@ -52,3 +52,6 @@ typedef volatile struct{
    uint8_t CSC : 1;
    uint16_t other2 : 14;
 }__attribute__((packed))PortStatusAndControll;
+
+_____________________FUCKING IMPORTANT______________________
+IF A PCI DEVICE USES DMA IT MUST HAVE THE BUS MASTER (PCI COMMAND REGISTER BIT 2) SET TO 1 IN ORDER TO ACCESS THE BUS AND READ MEMORY!!!!!!!!!

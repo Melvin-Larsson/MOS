@@ -16,6 +16,7 @@ OBJS= ${BUILD}/boot.o \
 	   ${BUILD}/xhcd-ring.o \
 	   ${BUILD}/xhcd-event-ring.o \
 	   ${BUILD}/keyboard.o \
+	   ${BUILD}/usb.o \
 
 
 
@@ -37,6 +38,8 @@ ${BUILD}/apic.o : apic.c include/kernel/apic.h
 ${BUILD}/pci.o : pci.c include/kernel/pci.h
 	${COMPILER} ${CFLAGS} -c pci.c -o ${BUILD}/pci.o
 
+
+
 ${BUILD}/xhcd.o : xhcd.c include/kernel/xhcd.h include/kernel/usb-descriptors.h
 	${COMPILER} ${CFLAGS} -c xhcd.c -o ${BUILD}/xhcd.o
 
@@ -46,6 +49,8 @@ ${BUILD}/xhcd-ring.o : xhcd-ring.c include/kernel/xhcd-ring.h
 ${BUILD}/xhcd-event-ring.o : xhcd-event-ring.c include/kernel/xhcd-event-ring.h
 	${COMPILER} ${CFLAGS} -c xhcd-event-ring.c -o ${BUILD}/xhcd-event-ring.o
 
+${BUILD}/usb.o : usb.c include/kernel/usb.h
+	${COMPILER} ${CFLAGS} -c usb.c -o ${BUILD}/usb.o
 
 ${BUILD}/keyboard.o : keyboard.c include/kernel/keyboard.h
 	${COMPILER} ${CFLAGS} -c keyboard.c -o ${BUILD}/keyboard.o
@@ -53,6 +58,7 @@ ${BUILD}/keyboard.o : keyboard.c include/kernel/keyboard.h
 include/kernel/xhcd.h: include/kernel/xhcd-registers.h
 include/kernel/xhcd-ring.h: include/kernel/xhcd-registers.h
 include/kernel/xhcd-event-ring.h: include/kernel/xhcd-registers.h
+include/kernel/usb.h : include/kernel/usb-descriptors.h include/kernel/xhcd.h
 
 ${BUILD}/boot.o :
 	cd ${PREFIX}/sysroot/kernel/i686 && \

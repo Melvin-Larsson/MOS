@@ -1,5 +1,5 @@
-#ifndef USB_H_INCLUDED
-#define USB_H_INCLUDED
+#ifndef XHCD_H_INCLUDED
+#define XHCD_H_INCLUDED
 
 #include "pci.h"
 #include "xhcd-registers.h"
@@ -40,7 +40,8 @@ int xhcd_checkForDeviceAttach(Xhci *xchi);
 int xhcd_isPortEnabled(Xhci *xhci, int portNumber);
 int xhcd_enable(Xhci *xhci, int portNumber);
 int xhcd_initPort(Xhci *xhci, int portNumber);
-int xhcd_initInterruptEndpoint(Xhci *xhci, UsbDevice *device, int endpoint, XhcEndpointConfig config);
+int xhcd_initInterruptEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint);
+int xhcd_configureEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint);
 
 int xhcd_getDeviceDescriptor(
       Xhci *xhci,
@@ -51,7 +52,7 @@ UsbConfiguration *xhcd_getConfiguration(
       int slotId,
       int configuration
       );
-int xhcd_setConfiguration(Xhci *xhci, UsbDevice *device, UsbConfiguration *configuration);
+int xhcd_setConfiguration(Xhci *xhci, int slotId, UsbConfiguration *configuration);
 int xhcd_setProtocol(Xhci *xhci, UsbDevice *device, int interface, int protocol);
 void xhcd_freeConfiguration(UsbConfiguration *config);
 void xhcd_freeInterface(UsbInterface *interface);

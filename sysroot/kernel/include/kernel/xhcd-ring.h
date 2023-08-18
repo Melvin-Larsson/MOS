@@ -172,6 +172,11 @@ TRB TRB_ADDRESS_DEVICE(uint64_t inputContextAddr, uint32_t slotId, uint32_t bsr)
 TRB TRB_EVALUATE_CONTEXT(void* inputContext, uint32_t slotId);
 TRB TRB_CONFIGURE_ENDPOINT(void *inputContext, uint32_t slotId);
 TRB TRB_NORMAL(void *dataBuffer, uint16_t bufferSize);
+
+TRB TRB_SETUP_STAGE(SetupStageHeader header);
+TRB TRB_DATA_STAGE(uint64_t dataBufferPointer, int bufferSize);
+TRB TRB_STATUS_STAGE();
+
 TD TD_GET_DESCRIPTOR(void *dataBufferPointer, int descriptorLengt);
 TD TD_GET_CONFIGURATION_DESCRIPTOR(void *dataBufferPointer, int descriptorLength, uint8_t descriptorIndex);
 TD TD_SET_CONFIGURATION(int configuration);

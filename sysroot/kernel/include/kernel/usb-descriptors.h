@@ -3,6 +3,21 @@
 
 #include "stdint.h"
 
+#define ENDPOINT_DIRECTION_OUT 0
+#define ENDPOINT_DIRECTION_IN 1
+
+#define ENDPOINT_TRANSFER_TYPE_CONTROL 0
+#define ENDPOINT_TRANSFER_TYPE_ISOCHRONOUS 1 
+#define ENDPOINT_TRANSFER_TYPE_BULK 2
+#define ENDPOINT_TRANSFER_TYPE_INTERRUPT 3
+
+#define ENDPOINT_INTERRUPT_USAGE_TYPE_PERIODIC 0
+#define ENDPOINT_INTERRUPT_USAGE_TYPE_NOTIFICATION 1
+
+#define ENDPOINT_ISOCHRONOUS_USAGE_TYPE_DATA 0
+#define ENDPOINT_ISOCHRONOUS_USAGE_TYPE_FEEDBACK 1
+#define ENDPOINT_ISOCHRONOUS_USAGE_TYPE_IMPLICIT_FEEDBACK 2
+
 typedef struct{
    uint8_t bLength;
    uint8_t bDescriptorType;
@@ -46,8 +61,23 @@ typedef struct{
 typedef struct{
    uint8_t bLength;
    uint8_t bDescriptorType;
-   uint8_t bEndpointAddress;
-   uint8_t bmAttributes;
+   union{
+      uint8_t bEndpointAddress;
+      struct{
+         uint8_t endpointNumber : 4;
+         uint8_t reserved : 3;
+         uint8_t direction : 1;
+      };
+   };
+   union{
+      uint8_t bmAttributes;
+      struct{
+         uint8_t transferType : 2;
+         uint8_t synchronizationType : 2;
+         uint8_t usageType : 2;
+         uint8_t reserved2 : 2;
+      };
+   };
    uint16_t wMaxPacketSize;
    uint8_t bInterval;
 }__attribute__((packed))UsbEndpointDescriptor;

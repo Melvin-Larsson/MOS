@@ -47,7 +47,7 @@ static int getSlotType(Xhci *xhci);
 static void ringCommandDoorbell(Xhci *xhci);
 
 static void test(Xhci *xhci);
-static int putConfigTD(Xhci *xhci, UsbDevice *device, TD td);
+static int putConfigTD(Xhci *xhci, int slotId, TD td);
 static XhcOutputContext *getOutputContext(Xhci *xhci, int slotId);
 
 static PortStatusAndControll *getPortStatus(Xhci *xhci, int portNumber);
@@ -199,54 +199,76 @@ int xhcd_initPort(Xhci *xhci, int portIndex){
 
    return slotId;
 }
-int xhcd_initInterruptEndpoint(Xhci *xhci, UsbDevice *device, int endpoint, XhcEndpointConfig config){
-   XhcInputContext input;
-   memset((void*)&input, 0, sizeof(XhcInputContext));
-   XhcInputControlContext *controll = &input.inputControlContext;
-   int endpointIndex = endpoint * 2;
-   if(config.isDirectionIn){
-      endpointIndex += 1;
+int xhcd_configureEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint){
+   switch(endpoint->transferType){
+      case ENDPOINT_TRANSFER_TYPE_INTERRUPT:
+         return xhcd_initInterruptEndpoint(xhci, slotId, endpoint);
+      default:
+         printf("Transfer type not yet implemented %d\n", endpoint->transferType);
+         return 0;
    }
-   printf("endpointIndex %d\n", endpointIndex);
-   controll->addContextFlags |= 1 << endpointIndex | 1;
-   controll->configurationValue = config.configurationValue;
-
-   XhcdRing transferRing = xhcd_newRing(DEFAULT_TRANSFER_RING_TRB_COUNT);
-   xhci->transferRing[device->slotId][endpointIndex - 1] = transferRing;
-
-   XhcEndpointContext *endpointContext = &input.endpointContext[endpointIndex - 1]; //-1 because endpoint index is calculated including slot context
-   if(config.isDirectionIn){
-      endpointContext->endpointType = ENDPOINT_TYPE_INTERRUPT_IN;
-   }else{
-      endpointContext->endpointType = ENDPOINT_TYPE_INTERRUPT_OUT;
-   }
-   endpointContext->maxPacketSize = config.maxPacketSize;
-   endpointContext->maxBurstSize = config.maxBurstSize;
-   endpointContext->mult = 0;
-   endpointContext->errorCount = 3;
-   endpointContext->dequeuePointer = (uintptr_t)transferRing.dequeue | transferRing.pcs;
-   endpointContext->maxESITPayloadLow = (uint16_t)config.maxESITPayload; 
-   endpointContext->maxESITPayloadHigh = config.maxESITPayload >> 16;
-   endpointContext->interval = config.interval;
-   //endpointContext->avarageTrbLength = 1000;
-
-   XhcOutputContext *output = getOutputContext(xhci, device->slotId);
-   XhcSlotContext *slotContext = &input.slotContext;
-   *slotContext = output->slotContext;
-   slotContext->contextEntries = endpointIndex;
-
-   xhcd_putTRB(TRB_CONFIGURE_ENDPOINT((void*)&input, device->slotId), &xhci->commandRing);
+}
+static int runCommand(Xhci *xhci, TRB trb){
+   xhcd_putTRB(trb, &xhci->commandRing);
    ringCommandDoorbell(xhci);
 
    XhcEventTRB result;
    while(!xhcd_readEvent(&xhci->eventRing, &result, 1));
    if(result.completionCode != Success){
-      printf("[xhc] failed to initialize interrupt endpoint (slotId: %d, endpoint %d)\n", device->slotId, endpoint);
       return 0;
    }
-   printf("result %X %X %X %X\n", result);
-
    return 1;
+}
+static int configureEndpoint(Xhci *xhci, int slotId, int endpointIndex, XhcEndpointContext *endpointContext){
+   XhcOutputContext *output = getOutputContext(xhci, slotId);
+   XhcInputContext input;
+   memset((void*)&input, 0, sizeof(XhcInputContext));
+
+   input.inputControlContext.addContextFlags |= (1 << endpointIndex) | 1;
+   //controll->configurationValue = config.configurationValue;
+   input.slotContext = output->slotContext;
+   input.slotContext.contextEntries = endpointIndex;
+   input.endpointContext[endpointIndex - 1] = *endpointContext;
+
+   TRB trb = TRB_CONFIGURE_ENDPOINT((void*)&input, slotId);
+   if(!runCommand(xhci, trb)){
+      printf("[xhc] failed to configure endpoint (slotid: %d)\n", slotId);
+      return 0;
+   }
+   return 1;
+}
+static int getEndpointIndex(UsbEndpointDescriptor *endpoint){
+   int index = endpoint->endpointNumber * 2;
+   if(endpoint->direction == ENDPOINT_DIRECTION_IN){
+      index += 1;
+   }
+   return index;
+}
+int xhcd_initInterruptEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint){
+   int endpointIndex = getEndpointIndex(endpoint);
+
+   XhcdRing transferRing = xhcd_newRing(DEFAULT_TRANSFER_RING_TRB_COUNT);
+   xhci->transferRing[slotId][endpointIndex - 1] = transferRing;
+
+   uint32_t maxPacketSize = endpoint->wMaxPacketSize & 0x7FF;
+   uint32_t maxBurstSize = (endpoint->wMaxPacketSize & 0x1800) >> 11;
+   uint32_t maxESITPayload = maxPacketSize * (maxBurstSize + 1);
+   uint32_t endpointType =
+      endpoint->direction == ENDPOINT_DIRECTION_IN ? ENDPOINT_TYPE_INTERRUPT_IN : ENDPOINT_TYPE_INTERRUPT_OUT;
+
+
+   XhcEndpointContext endpointContext;
+   endpointContext.endpointType = endpointType;
+   endpointContext.maxPacketSize = maxPacketSize;
+   endpointContext.maxBurstSize = maxBurstSize;
+   endpointContext.mult = 0;
+   endpointContext.errorCount = 3;
+   endpointContext.dequeuePointer = (uintptr_t)transferRing.dequeue | transferRing.pcs;
+   endpointContext.maxESITPayloadLow = (uint16_t)maxESITPayload; 
+   endpointContext.maxESITPayloadHigh = maxESITPayload >> 16;
+   endpointContext.interval = endpoint->bInterval;
+
+   return configureEndpoint(xhci, slotId, endpointIndex, &endpointContext);
 }
 static XhcOutputContext *getOutputContext(Xhci *xhci, int slotId){
    volatile uint64_t *dcAddressArray = xhci->dcBaseAddressArray;
@@ -314,9 +336,9 @@ UsbConfiguration *xhcd_getConfiguration(Xhci *xhci, int slotId, int configuratio
    }
    return config;
 }
-int xhcd_setConfiguration(Xhci *xhci, UsbDevice *device, UsbConfiguration *configuration){
+int xhcd_setConfiguration(Xhci *xhci, int slotId, UsbConfiguration *configuration){
    TD td = TD_SET_CONFIGURATION(configuration->descriptor.bConfigurationValue);
-   if(!putConfigTD(xhci, device, td)){
+   if(!putConfigTD(xhci, slotId, td)){
       printf("[xhc] failed to set configuration\n");
       return 0;
 
@@ -325,16 +347,16 @@ int xhcd_setConfiguration(Xhci *xhci, UsbDevice *device, UsbConfiguration *confi
 }
 int xhcd_setProtocol(Xhci *xhci, UsbDevice *device, int interface, int protocol){
    TD td = TD_SET_PROTOCOL(protocol, interface);
-   if(!putConfigTD(xhci, device, td)){
+   if(!putConfigTD(xhci, device->slotId, td)){
       printf("[xhc] failed to set protocol\n");
       return 0;
    }
    return 1;
 }
-static int putConfigTD(Xhci *xhci, UsbDevice *device, TD td){
-   XhcdRing *transferRing = &xhci->transferRing[device->slotId][0];
+static int putConfigTD(Xhci *xhci, int slotId, TD td){
+   XhcdRing *transferRing = &xhci->transferRing[slotId][0];
    xhcd_putTD(td, transferRing);
-   xhcd_ringDoorbell(xhci, device->slotId, 1);
+   xhcd_ringDoorbell(xhci, slotId, 1);
 
    XhcEventTRB event;
    while(!xhcd_readEvent(&xhci->eventRing, &event, 1));

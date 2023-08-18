@@ -185,6 +185,50 @@
       "-Wall",
       "-Wextra",
       "-I",
+      "/home/melvin/Programmering/OS/sysroot/kernel/include",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/lib/include",
+      "-c",
+      "-o",
+      "/home/melvin/Programmering/OS/sysroot/kernel/build/keyboard.o",
+      "keyboard.c"
+    ],
+    "directory": "/home/melvin/Programmering/OS/sysroot/kernel",
+    "file": "/home/melvin/Programmering/OS/sysroot/kernel/keyboard.c",
+    "output": "/home/melvin/Programmering/OS/sysroot/kernel/build/keyboard.o"
+  },
+  {
+    "arguments": [
+      "/home/melvin/opt/cross2/bin/i686-elf-gcc",
+      "-O2",
+      "-std=gnu99",
+      "-ffreestanding",
+      "-mno-red-zone",
+      "-Wall",
+      "-Wextra",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/kernel/include",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/lib/include",
+      "-c",
+      "-o",
+      "/home/melvin/Programmering/OS/sysroot/kernel/build/usb.o",
+      "usb.c"
+    ],
+    "directory": "/home/melvin/Programmering/OS/sysroot/kernel",
+    "file": "/home/melvin/Programmering/OS/sysroot/kernel/usb.c",
+    "output": "/home/melvin/Programmering/OS/sysroot/kernel/build/usb.o"
+  },
+  {
+    "arguments": [
+      "/home/melvin/opt/cross2/bin/i686-elf-gcc",
+      "-O2",
+      "-std=gnu99",
+      "-ffreestanding",
+      "-mno-red-zone",
+      "-Wall",
+      "-Wextra",
+      "-I",
       "/home/melvin/Programmering/OS/sysroot/lib/include",
       "-c",
       "-o",
@@ -214,6 +258,26 @@
     "directory": "/home/melvin/Programmering/OS/sysroot/lib",
     "file": "/home/melvin/Programmering/OS/sysroot/lib/stdlib/stdlib.c",
     "output": "/home/melvin/Programmering/OS/sysroot/lib/build/stdlib.o"
+  },
+  {
+    "arguments": [
+      "/home/melvin/opt/cross2/bin/i686-elf-gcc",
+      "-O2",
+      "-std=gnu99",
+      "-ffreestanding",
+      "-mno-red-zone",
+      "-Wall",
+      "-Wextra",
+      "-I",
+      "/home/melvin/Programmering/OS/sysroot/lib/include",
+      "-c",
+      "-o",
+      "/home/melvin/Programmering/OS/sysroot/lib/build/memory.o",
+      "stdlib/memory.c"
+    ],
+    "directory": "/home/melvin/Programmering/OS/sysroot/lib",
+    "file": "/home/melvin/Programmering/OS/sysroot/lib/stdlib/memory.c",
+    "output": "/home/melvin/Programmering/OS/sysroot/lib/build/memory.o"
   },
   {
     "arguments": [
