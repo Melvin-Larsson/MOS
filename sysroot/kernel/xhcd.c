@@ -70,7 +70,7 @@ int xhcd_init(PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
 
    xhci->commandRing = xhcd_newRing(DEFAULT_COMMAND_RING_SIZE);
    xhcd_attachCommandRing(xhci->operation, &xhci->commandRing);
-   printf("command ring ad %X\n", xhci->commandRing.dequeue);
+   printf("command ring at %X\n", xhci->commandRing.dequeue);
 
    xhci->eventRing = xhcd_newEventRing(DEFAULT_EVENT_SEGEMNT_TRB_COUNT);
    xhcd_attachEventRing(&xhci->eventRing, &xhci->interrupterRegisters[0]);
@@ -349,6 +349,19 @@ int xhcd_setProtocol(Xhci *xhci, UsbDevice *device, int interface, int protocol)
    TD td = TD_SET_PROTOCOL(protocol, interface);
    if(!putConfigTD(xhci, device->slotId, td)){
       printf("[xhc] failed to set protocol\n");
+      return 0;
+   }
+   return 1;
+}
+int xhcd_readData(Xhci *xhci, int slotId, int endpoint, void *dataBuffer, uint16_t bufferSize){
+   TRB trb = TRB_NORMAL(dataBuffer, bufferSize);
+   XhcdRing *transferRing = &xhci->transferRing[slotId][endpoint - 1];
+   xhcd_putTRB(trb, transferRing);
+   xhcd_ringDoorbell(xhci, slotId, endpoint);
+
+   XhcEventTRB event;
+   while(!xhcd_readEvent(&xhci->eventRing, &event, 1));
+   if(event.completionCode != Success){
       return 0;
    }
    return 1;

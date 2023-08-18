@@ -44,8 +44,9 @@ UsbStatus usb_setIsochDelay(UsbDevice2 *device, uint16_t delay);
 UsbStatus usb_setSel(UsbDevice2 *devive, uint8_t values[6]);
 UsbStatus usb_syncFrame(UsbDevice2 *device, uint16_t endpoint, uint8_t frameNumber[2]);
 
-
 UsbStatus usb_configureDevice(UsbDevice2 *device, DeviceConfigTransfer config);
+
+UsbStatus usb_readData(UsbDevice2 *device, int endpoint, void *dataBuffer, int dataBufferSize);
 
 
 #endif

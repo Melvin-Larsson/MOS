@@ -17,49 +17,38 @@
 #define DIRECTION_POS 7
 #define TRANSFER_TYPE_POS 0
 
+#define REQUEST_SET_PROTOCOL 0xB
+
 static UsbConfiguration *getConfiguration(UsbDevice2 *device);
 static UsbInterface *getInterface(UsbConfiguration *configuration);
 static UsbEndpointDescriptor *getEndpoint(UsbInterface *interface);
-static int setProtocol(UsbDevice2 *device);
+static UsbStatus setProtocol(UsbDevice2 *device, int interface, int protocol);
 
-KeyboardStatus keyboard_init(Xhci *xhci, UsbDevice *device){
-   Usb usb = {xhci};
-   UsbDevice2 usbDevice = {device->slotId, device->configuration, 1, &usb};
+KeyboardStatus keyboard_init(UsbDevice2 *usbDevice){
 
-   UsbConfiguration *configuration = getConfiguration(&usbDevice);
+   UsbConfiguration *configuration = getConfiguration(usbDevice);
    if(configuration == 0){
       return KeyboardInvalidConfiguration;
    }
    UsbInterface *interface  = getInterface(configuration);
    UsbEndpointDescriptor *endpoint = getEndpoint(interface);
 
-   if(usb_setConfiguration(&usbDevice, usbDevice.configuration) != StatusSuccess){
+   if(usb_setConfiguration(usbDevice, usbDevice->configuration) != StatusSuccess){
       return KeyboardConfigureError;
    }
    int interfaceNumber = interface->descriptor.bInterfaceNumber;
-   if(!xhcd_setProtocol(xhci, device, interfaceNumber, BOOT_PROTOCOL)){
+   if(setProtocol(usbDevice, interfaceNumber, BOOT_PROTOCOL) != StatusSuccess){
       return KeyboardProtocolError;
    }
 
-   XhcEventTRB result;
    int index = endpoint->endpointNumber * 2 + 1;
-   XhcdRing transferRing = xhci->transferRing[device->slotId][index - 1];
    uint8_t buffer[8];
    memset(buffer, 0, sizeof(buffer));
-   for(int i = 0; i < 14; i++){
-      xhcd_putTRB(TRB_NORMAL(buffer, sizeof(buffer)), &transferRing);
-   }
-   xhcd_ringDoorbell(xhci, device->slotId, index);
 
    printf("listening for keypresses:\n");
    uint8_t last = 0;
    while(1){
-      while(!xhcd_readEvent(&xhci->eventRing, &result, 1));
-      xhcd_putTRB(TRB_NORMAL(buffer, sizeof(buffer)), &transferRing);
-      if(result.completionCode != Success){
-         printf("[keyboard] failed event\n");
-         return 0;
-      }
+      usb_readData(usbDevice, index, buffer, sizeof(buffer));
       for(int i = 0; i < 6 && buffer[2] != last; i++){
          uint8_t keypress = buffer[2 + i];
          if(keypress == 0){
@@ -82,8 +71,6 @@ KeyboardStatus keyboard_init(Xhci *xhci, UsbDevice *device){
       }
       last = buffer[2];
    }
-
-
    return KeyboardSuccess;
 }
 
@@ -96,6 +83,17 @@ void keyboard_getStatusCode(KeyboardStatus status, char output[100]){
    };
    strcpy(output, "[keyboard] ");
    strAppend(output, statusCodes[status]);
+}
+
+static UsbStatus setProtocol(UsbDevice2 *device, int interface, int protocol){
+   DeviceConfigTransfer config;
+   config.bmRequestType = 0x21;
+   config.bRequest = REQUEST_SET_PROTOCOL;
+   config.wValue = protocol;
+   config.wIndex = interface;
+   config.wLength = 0;
+   return usb_configureDevice(device, config);
+
 }
 static UsbConfiguration *getConfiguration(UsbDevice2 *device){
    for(int i = 0; i < device->configurationCount; i++){

@@ -45,10 +45,18 @@ UsbStatus usb_configureDevice(UsbDevice2 *device, DeviceConfigTransfer config){
 
    XhcEventTRB result;
    while(!xhcd_readEvent(&xhci->eventRing, &result, 1));
-   if(result.completionCode == Success){
+   if(result.completionCode != Success){
       return StatusError;
    }
    return StatusSuccess;
+}
+UsbStatus usb_readData(UsbDevice2 *device, int endpoint, void *dataBuffer, int dataBufferSize){
+   Xhci *xhci = device->usb->xhci;
+   if(!xhcd_readData(xhci, device->slotId, endpoint, dataBuffer, dataBufferSize)){
+      return StatusError;
+   }
+   return StatusSuccess;
+
 }
 static UsbStatus initInterface(UsbDevice2 *device, UsbInterface *interface){
    for(int i = 0; i < interface->descriptor.bNumEndpoints; i++){

@@ -52,6 +52,7 @@ UsbConfiguration *xhcd_getConfiguration(
       int slotId,
       int configuration
       );
+int xhcd_readData(Xhci *xhci, int slotId, int endpoint, void *dataBuffer, uint16_t bufferSize);
 int xhcd_setConfiguration(Xhci *xhci, int slotId, UsbConfiguration *configuration);
 int xhcd_setProtocol(Xhci *xhci, UsbDevice *device, int interface, int protocol);
 void xhcd_freeConfiguration(UsbConfiguration *config);

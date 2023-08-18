@@ -67,8 +67,9 @@ static void initXhci(PciGeneralDeviceHeader xhc){
         printf("interface subclass %d\n", interfaceDescriptor.bInterfaceSubClass);
         printf("interface protocol %d\n", interfaceDescriptor.bInterfaceProtocol);
         if(interfaceDescriptor.bInterfaceClass == 3){
-            UsbDevice device = {slotId, config};
-            KeyboardStatus status = keyboard_init(&xhci, &device);
+            Usb usb = {&xhci};
+            UsbDevice2 device = {slotId, config, 1, &usb};
+            KeyboardStatus status = keyboard_init(&device);
             char buffer[100];
             keyboard_getStatusCode(status, buffer);
             printf("%s\n", buffer);
