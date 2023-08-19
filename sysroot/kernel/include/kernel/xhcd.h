@@ -36,9 +36,8 @@ typedef struct{
 
 
 int xhcd_init(PciGeneralDeviceHeader *pciHeader, Xhci *xhci);
-int xhcd_checkForDeviceAttach(Xhci *xchi);
+int xhcd_getNewlyAttachedDevices(Xhci *xhci, uint32_t *resultBuffer, int bufferSize);
 int xhcd_isPortEnabled(Xhci *xhci, int portNumber);
-int xhcd_enable(Xhci *xhci, int portNumber);
 int xhcd_initPort(Xhci *xhci, int portNumber);
 int xhcd_initInterruptEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint);
 int xhcd_configureEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint);

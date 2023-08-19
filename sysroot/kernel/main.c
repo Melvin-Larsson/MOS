@@ -47,17 +47,18 @@ static void initXhci(PciGeneralDeviceHeader xhc){
             return;
         }
         printf("xhc initialized\n");
-        int attachedPortNr = -1;
-        while(attachedPortNr == -1){
-            attachedPortNr = xhcd_checkForDeviceAttach(&xhci);
+        int attachedPortCount = 0;
+        uint32_t attachedPorts[32];
+        while(attachedPortCount == 0){
+            attachedPortCount = xhcd_getNewlyAttachedDevices(&xhci, attachedPorts, sizeof(attachedPorts) / sizeof(uint32_t));
         }
-        printf("Attatched port nr %d\n", attachedPortNr);
-        if(!xhcd_enable(&xhci, attachedPortNr)){
-            printf("Failed to enable port\n");
-           return;  
+        printf("Attatched port nr %d\n", attachedPorts[0]);
+        int slotId = xhcd_initPort(&xhci, attachedPorts[0]);
+        if(slotId == -1){
+            printf("Failed to enable port");
+            return;
         }
         printf("USB device enabled\n");
-        int slotId = xhcd_initPort(&xhci, attachedPortNr);
         UsbDeviceDescriptor descriptor;
         xhcd_getDeviceDescriptor(&xhci, slotId, &descriptor);
         printf("Number of configurations %d\n", descriptor.bNumConfigurations);
