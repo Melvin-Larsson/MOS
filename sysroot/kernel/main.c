@@ -3,7 +3,7 @@
 #include "kernel/interrupt.h"
 #include "kernel/apic.h"
 #include "kernel/pci.h"
-#include "kernel/xhcd.h"
+#include "kernel/usb.h"
 #include "kernel/keyboard.h"
 #include "string.h"
 
@@ -41,41 +41,21 @@ static int getXhcdDevice(PciDescriptor* descriptors, int count,
     }
     return 0;
 }
-static void initXhci(PciGeneralDeviceHeader xhc){
-        Xhci xhci;
-        if(xhcd_init(&xhc, &xhci) != 0){
-            return;
-        }
-        printf("xhc initialized\n");
-        int attachedPortCount = 0;
-        uint32_t attachedPorts[32];
-        while(attachedPortCount == 0){
-            attachedPortCount = xhcd_getNewlyAttachedDevices(&xhci, attachedPorts, sizeof(attachedPorts) / sizeof(uint32_t));
-        }
-        printf("Attatched port nr %d\n", attachedPorts[0]);
-        int slotId = xhcd_initPort(&xhci, attachedPorts[0]);
-        if(slotId == -1){
-            printf("Failed to enable port");
-            return;
-        }
-        printf("USB device enabled\n");
-        UsbDeviceDescriptor descriptor;
-        xhcd_getDeviceDescriptor(&xhci, slotId, &descriptor);
-        printf("Number of configurations %d\n", descriptor.bNumConfigurations);
-        UsbConfiguration *config = xhcd_getConfiguration(&xhci, slotId, 0);
-        UsbInterfaceDescriptor interfaceDescriptor = config->interfaces[0].descriptor;
-        printf("interface class %d\n", interfaceDescriptor.bInterfaceClass);
-        printf("interface subclass %d\n", interfaceDescriptor.bInterfaceSubClass);
-        printf("interface protocol %d\n", interfaceDescriptor.bInterfaceProtocol);
-        if(interfaceDescriptor.bInterfaceClass == 3){
-            Usb usb = {&xhci};
-            UsbDevice2 device = {slotId, config, 1, &usb};
-            KeyboardStatus status = keyboard_init(&device);
-            char buffer[100];
-            keyboard_getStatusCode(status, buffer);
-            printf("%s\n", buffer);
-        }
-        xhcd_freeConfiguration(config);
+static void initXhci(PciGeneralDeviceHeader pci){
+    Usb usb;
+    if(usb_init(&pci, &usb) != StatusSuccess){
+        printf("Failed to initialize USB\n");
+        return;
+    }
+    UsbDevice2 device;
+    printf("Wait for attach\n");
+    while(usb_getNewlyAttachedDevices(&usb, &device, 1) == 0);
+    printf("device attach\n");
+    KeyboardStatus status = keyboard_init(&device);
+    char buffer[100];
+    keyboard_getStatusCode(status, buffer);
+    printf("%s\n", buffer);
+        
 }
 static int overlaps(uint8_t *p1, int s1, uint8_t *p2, int s2){
     return p1 + s1 > p2 && p1 < p2 + s2;

@@ -55,10 +55,10 @@ ${BUILD}/usb.o : usb.c include/kernel/usb.h
 ${BUILD}/keyboard.o : keyboard.c include/kernel/keyboard.h
 	${COMPILER} ${CFLAGS} -c keyboard.c -o ${BUILD}/keyboard.o
 
-include/kernel/xhcd.h: include/kernel/xhcd-registers.h
+include/kernel/xhcd.h: include/kernel/xhcd-registers.h include/kernel/usb-messages.h
 include/kernel/xhcd-ring.h: include/kernel/xhcd-registers.h
 include/kernel/xhcd-event-ring.h: include/kernel/xhcd-registers.h
-include/kernel/usb.h : include/kernel/usb-descriptors.h include/kernel/xhcd.h
+include/kernel/usb.h : include/kernel/usb-descriptors.h include/kernel/xhcd.h include/kernel/usb-messages.h
 
 ${BUILD}/boot.o :
 	cd ${PREFIX}/sysroot/kernel/i686 && \

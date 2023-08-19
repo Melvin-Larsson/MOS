@@ -86,14 +86,13 @@ void keyboard_getStatusCode(KeyboardStatus status, char output[100]){
 }
 
 static UsbStatus setProtocol(UsbDevice2 *device, int interface, int protocol){
-   DeviceConfigTransfer config;
-   config.bmRequestType = 0x21;
-   config.bRequest = REQUEST_SET_PROTOCOL;
-   config.wValue = protocol;
-   config.wIndex = interface;
-   config.wLength = 0;
-   return usb_configureDevice(device, config);
-
+   UsbRequestMessage request;
+   request.bmRequestType = 0x21;
+   request.bRequest = REQUEST_SET_PROTOCOL;
+   request.wValue = protocol;
+   request.wIndex = interface;
+   request.wLength = 0;
+   return usb_configureDevice(device, request);
 }
 static UsbConfiguration *getConfiguration(UsbDevice2 *device){
    for(int i = 0; i < device->configurationCount; i++){

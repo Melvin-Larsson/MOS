@@ -6,6 +6,7 @@
 #include "xhcd-ring.h"
 #include "xhcd-event-ring.h"
 #include "usb-descriptors.h"
+#include "usb-messages.h"
 
 typedef struct{
    PciHeader *pciHeader;
@@ -36,28 +37,17 @@ typedef struct{
 
 
 int xhcd_init(PciGeneralDeviceHeader *pciHeader, Xhci *xhci);
-int xhcd_getNewlyAttachedDevices(Xhci *xhci, uint32_t *resultBuffer, int bufferSize);
-int xhcd_isPortEnabled(Xhci *xhci, int portNumber);
-int xhcd_initPort(Xhci *xhci, int portNumber);
-int xhcd_initInterruptEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint);
-int xhcd_configureEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint);
-
-int xhcd_getDeviceDescriptor(
-      Xhci *xhci,
-      int slotId,
-      UsbDeviceDescriptor *result);
-UsbConfiguration *xhcd_getConfiguration(
-      Xhci *xhci,
-      int slotId,
-      int configuration
-      );
+int xhcd_sendRequest(Xhci *xhci, int slotId, UsbRequestMessage request);
 int xhcd_readData(Xhci *xhci, int slotId, int endpoint, void *dataBuffer, uint16_t bufferSize);
-int xhcd_setConfiguration(Xhci *xhci, int slotId, UsbConfiguration *configuration);
-int xhcd_setProtocol(Xhci *xhci, UsbDevice *device, int interface, int protocol);
-void xhcd_freeConfiguration(UsbConfiguration *config);
-void xhcd_freeInterface(UsbInterface *interface);
+//TODO: Implement:
+int xhcd_writeData(Xhci *xhci, int slotId, int endpoint, void *dataBuffer, uint16_t bufferSize);
+int xhcd_setConfiguration(Xhci *xhci, int slotId, const UsbConfiguration *configuration);
+int xhcd_getSlots(Xhci  *xhci, int *resultBuffer, int bufferSize);
 
-void xhcd_ringDoorbell(Xhci *xhci, uint8_t slotId, uint8_t target);
+//TODO: remove
+int xhcd_getNewlyAttachedDevices(Xhci *xhci, uint32_t *resultBuffer, int bufferSize);
+int xhcd_initPort(Xhci *xhci, int portNumber);
+int xhcd_configureEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint);
 
 
 #endif

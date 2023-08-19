@@ -44,6 +44,7 @@ static void initDCAddressArray(Xhci *xhci);
 static void turnOnController(Xhci *xhci);
 static void initScratchPad(Xhci *xhci);
 static int enablePort(Xhci *xhci, int portIndex);
+static int isPortEnabled(Xhci *xhci, int portIndex);
 static int checkoutPort(Xhci *xhci, int portIndex);
 
 static int getSlotId(Xhci *xhci);
@@ -51,6 +52,7 @@ static int addressDevice(Xhci *xhci, int slotId, int portIndex);
 static void initDefaultInputContext(XhcInputContext *inputContext, int portIndex, XhcdRing transferRing);
 
 static int configureEndpoint(Xhci *xhci, int slotId, int endpointIndex, XhcEndpointContext *endpointContext);
+static int initInterruptEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint);
 static int getEndpointIndex(UsbEndpointDescriptor *endpoint);
 
 static int setMaxPacketSize(Xhci *xhci, int slotId);
@@ -60,6 +62,7 @@ static void ringCommandDoorbell(Xhci *xhci);
 
 static void test(Xhci *xhci);
 static int putConfigTD(Xhci *xhci, int slotId, TD td);
+static void xhcd_ringDoorbell(Xhci *xhci, uint8_t slotId, uint8_t target);
 static XhcOutputContext *getOutputContext(Xhci *xhci, int slotId);
 
 static PortStatusAndControll *getPortStatus(Xhci *xhci, int portNumber);
@@ -111,7 +114,7 @@ int xhcd_initPort(Xhci *xhci, int portIndex){
    if(!enablePort(xhci, portIndex)){
       return 0;
    }
-   
+
    int slotId = getSlotId(xhci);
    if(slotId < 0){
       return 0;
@@ -120,80 +123,59 @@ int xhcd_initPort(Xhci *xhci, int portIndex){
    if(!addressDevice(xhci, slotId, portIndex)){
       return 0;
    }
+
    if(!setMaxPacketSize(xhci, slotId)){
       return 0;
    }
+
    return slotId;
 }
 int xhcd_configureEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint){
    switch(endpoint->transferType){
       case ENDPOINT_TRANSFER_TYPE_INTERRUPT:
-         return xhcd_initInterruptEndpoint(xhci, slotId, endpoint);
+         return initInterruptEndpoint(xhci, slotId, endpoint);
       default:
          printf("Transfer type not yet implemented %d\n", endpoint->transferType);
          return 0;
    }
 }
-int xhcd_getDeviceDescriptor(Xhci *xhci, int slotId, UsbDeviceDescriptor *result){
-   XhcdRing *transferRing = &xhci->transferRing[slotId][0];
-   xhcd_putTD(TD_GET_DESCRIPTOR(result, sizeof(UsbDeviceDescriptor)), transferRing);
-   xhcd_ringDoorbell(xhci, slotId, 1);
+int xhcd_readData(Xhci *xhci, int slotId, int endpoint, void *dataBuffer, uint16_t bufferSize){
+   TRB trb = TRB_NORMAL(dataBuffer, bufferSize);
+   XhcdRing *transferRing = &xhci->transferRing[slotId][endpoint - 1];
+   xhcd_putTRB(trb, transferRing);
+   xhcd_ringDoorbell(xhci, slotId, endpoint);
 
    XhcEventTRB event;
    while(!xhcd_readEvent(&xhci->eventRing, &event, 1));
    if(event.completionCode != Success){
-      printf("[xhc] failed to read descriptor\n");
-      return -1;
+      return 0;
    }
    return 1;
 }
-UsbConfiguration *xhcd_getConfiguration(Xhci *xhci, int slotId, int configuration){
-   const int bufferSize =
-      sizeof(UsbConfigurationDescriptor) +
-      sizeof(UsbInterfaceDescriptor) * 32 +
-      sizeof(UsbEndpointDescriptor) * 32 * 15;
-   uint8_t buffer[bufferSize];
+int xhcd_sendRequest(Xhci *xhci, int slotId, UsbRequestMessage request){
+   SetupStageHeader header;
+   header.bmRequestType = request.bmRequestType;
+   header.bRequest = request.bRequest;
+   header.wValue = request.wValue;
+   header.wIndex = request.wIndex;
+   header.wLength = request.wLength;
+   TRB setupTrb = TRB_SETUP_STAGE(header);
+   TRB statusTrb = TRB_STATUS_STAGE();
 
-   xhcd_putTD(TD_GET_CONFIGURATION_DESCRIPTOR(buffer, sizeof(buffer), configuration), &xhci->transferRing[slotId][0]);
-   xhcd_ringDoorbell(xhci, slotId, 1);
-
-   XhcEventTRB event;
-   while(!xhcd_readEvent(&xhci->eventRing, &event, 1));
-   if(event.completionCode != Success){
-      printf("[xhc] failed to read configuration\n");
+   TD td;
+   if(header.wLength == 0){
+      td = (TD){{setupTrb, statusTrb}, 2};
+   }else{
+      TRB dataTrb = TRB_DATA_STAGE((uintptr_t)request.dataBuffer, request.wLength);
+      td = (TD){{setupTrb, dataTrb, statusTrb}, 3};
+   }
+   if(!putConfigTD(xhci, slotId, td)){
       return 0;
+
    }
-
-   uint8_t *pos = buffer;
-
-   UsbConfiguration *config = malloc(sizeof(UsbConfiguration));
-   UsbConfigurationDescriptor *configDescriptor = (UsbConfigurationDescriptor*)buffer;
-   config->descriptor = *configDescriptor;
-   config->interfaces = malloc(sizeof(UsbInterface) * configDescriptor->bNumInterfaces);
-   pos += sizeof(UsbConfigurationDescriptor);
-
-   for(int i = 0; i < configDescriptor->bNumInterfaces; i++){
-      UsbInterfaceDescriptor *interfaceDescriptor = (UsbInterfaceDescriptor*)pos;
-      UsbInterface *interface = &config->interfaces[i];
-      interface->descriptor = *interfaceDescriptor;
-      interface->endpoints = malloc(sizeof(UsbEndpointDescriptor) * interfaceDescriptor->bNumEndpoints);
-      pos += sizeof(UsbInterfaceDescriptor);
-
-      for(int j = 0; j < interfaceDescriptor->bNumEndpoints; j++){
-         UsbEndpointDescriptor *endpointDescriptor = (UsbEndpointDescriptor*)pos;
-         if(endpointDescriptor->bDescriptorType != DESCRIPTOR_TYPE_ENDPOINT){ //FIXME: kind of a hack to ignore HID descriptors
-            j--;
-            pos += endpointDescriptor->bLength;
-         }else{
-            UsbEndpointDescriptor *endpoint = &interface->endpoints[j];
-            *endpoint = *endpointDescriptor;
-            pos += sizeof(UsbEndpointDescriptor);
-         }
-      }
-   }
-   return config;
+   return 1;
 }
-int xhcd_initInterruptEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint){
+static int initInterruptEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint){
    int endpointIndex = getEndpointIndex(endpoint);
 
    XhcdRing transferRing = xhcd_newRing(DEFAULT_TRANSFER_RING_TRB_COUNT);
@@ -218,36 +200,6 @@ int xhcd_initInterruptEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *en
    endpointContext.interval = endpoint->bInterval;
 
    return configureEndpoint(xhci, slotId, endpointIndex, &endpointContext);
-}
-int xhcd_setConfiguration(Xhci *xhci, int slotId, UsbConfiguration *configuration){
-   TD td = TD_SET_CONFIGURATION(configuration->descriptor.bConfigurationValue);
-   if(!putConfigTD(xhci, slotId, td)){
-      printf("[xhc] failed to set configuration\n");
-      return 0;
-
-   }
-   return 1;
-}
-int xhcd_setProtocol(Xhci *xhci, UsbDevice *device, int interface, int protocol){
-   TD td = TD_SET_PROTOCOL(protocol, interface);
-   if(!putConfigTD(xhci, device->slotId, td)){
-      printf("[xhc] failed to set protocol\n");
-      return 0;
-   }
-   return 1;
-}
-int xhcd_readData(Xhci *xhci, int slotId, int endpoint, void *dataBuffer, uint16_t bufferSize){
-   TRB trb = TRB_NORMAL(dataBuffer, bufferSize);
-   XhcdRing *transferRing = &xhci->transferRing[slotId][endpoint - 1];
-   xhcd_putTRB(trb, transferRing);
-   xhcd_ringDoorbell(xhci, slotId, endpoint);
-
-   XhcEventTRB event;
-   while(!xhcd_readEvent(&xhci->eventRing, &event, 1));
-   if(event.completionCode != Success){
-      return 0;
-   }
-   return 1;
 }
 static int getSlotId(Xhci *xhci){
    xhcd_putTRB(TRB_ENABLE_SLOT(getSlotType(xhci)), &xhci->commandRing);
@@ -338,7 +290,7 @@ static void initEventRing(Xhci *xhci){
    xhcd_attachEventRing(&xhci->eventRing, &xhci->interrupterRegisters[0]);
 }
 static int enablePort(Xhci *xhci, int portIndex){
-   if(xhcd_isPortEnabled(xhci, portIndex)){
+   if(isPortEnabled(xhci, portIndex)){
       printf("Port already enabled (USB3)\n");
       return 1;
    }
@@ -358,7 +310,7 @@ static int enablePort(Xhci *xhci, int portIndex){
       temp = *statusAndControll;
    }
    printf("status: %X\n", *statusAndControll);
-   int isEnabled = xhcd_isPortEnabled(xhci, portIndex);
+   int isEnabled = isPortEnabled(xhci, portIndex);
    temp.portResetChange = 1; //Clear FIXME: this acts strange
    *statusAndControll = temp; 
    printf("old status: %X\n", *statusAndControll);
@@ -423,18 +375,6 @@ static int putConfigTD(Xhci *xhci, int slotId, TD td){
    }
    return 1;
 }
-void xhcd_freeConfiguration(UsbConfiguration *config){
-   for(int i = 0; i < config->descriptor.bNumInterfaces; i++){
-      xhcd_freeInterface((void*)&config->interfaces[i]);
-   }
-   free(config);
-}
-void xhcd_freeInterface(UsbInterface *interface){
-   for(int i = 0; i < interface->descriptor.bNumEndpoints; i++){
-      free((void*)&interface->endpoints[i]);
-   }
-   free(interface);
-}
 static int setMaxPacketSize(Xhci *xhci, int slotId){
    uint8_t buffer[8];
    XhcdRing *transferRing = &xhci->transferRing[slotId][0];
@@ -497,7 +437,7 @@ static int shouldEnablePort (Xhci *xhci, int portNumber){
    return status->portLinkState == LINK_STATE_POLLING;
 }
 */
-int xhcd_isPortEnabled(Xhci *xhci, int portIndex){
+static int isPortEnabled(Xhci *xhci, int portIndex){
       PortStatusAndControll status = *getPortStatus(xhci, portIndex);
       printf("enabled? %b %b %b\n", status.portEnabledDisabled, !status.portReset, !status.portLinkState);
       printf("new status %X\n", status);
@@ -528,7 +468,7 @@ static void ringCommandDoorbell(Xhci *xhci){
    volatile uint32_t *doorbell = (uint32_t *)xhci->doorbells;
    doorbell[0] = 0;
 }
-void xhcd_ringDoorbell(Xhci *xhci, uint8_t slotId, uint8_t target){
+static void xhcd_ringDoorbell(Xhci *xhci, uint8_t slotId, uint8_t target){
    if(slotId == 0){
       printf("[xhc] Unable to ring doorbell. Invalid slotId: 0\n");
       return;

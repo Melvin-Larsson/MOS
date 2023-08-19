@@ -2,16 +2,9 @@
 #define USB_H_INCLUDED
 
 #include "usb-descriptors.h"
+#include "usb-messages.h"
 #include "xhcd.h"
-
-typedef struct{
-   uint8_t bmRequestType;
-   uint8_t bRequest;
-   uint16_t wValue;
-   uint16_t wIndex;
-   uint16_t wLength;
-   uintptr_t dataBuffer;
-}DeviceConfigTransfer;
+#include "pci.h"
 
 typedef struct{
    Xhci *xhci;
@@ -19,6 +12,7 @@ typedef struct{
 
 typedef struct{
    int slotId;
+   UsbDeviceDescriptor deviceDescriptor;
    UsbConfiguration *configuration;
    int configurationCount;
    Usb* usb;
@@ -29,9 +23,13 @@ typedef enum{
    StatusError = 1
 }UsbStatus;
 
+UsbStatus usb_init(PciGeneralDeviceHeader *pci, Usb *result);
+int usb_getNewlyAttachedDevices(Usb *usb, UsbDevice2 *resultBuffer, int bufferSize);
+
 UsbStatus usb_setConfiguration(
       UsbDevice2 *device,
       UsbConfiguration *configuration);
+UsbDeviceDescriptor usb_getDeviceDescriptor(UsbDevice2 *deviceor);
 UsbStatus usb_clearFeature(UsbDevice2 *device, uint16_t featureSelector);
 UsbStatus usb_getConfiguration(UsbDevice2 *device, uint8_t result[1]);
 UsbStatus usb_getDescriptor(UsbDevice2 *device, void *buffer, uint16_t bufferSize);
@@ -44,7 +42,7 @@ UsbStatus usb_setIsochDelay(UsbDevice2 *device, uint16_t delay);
 UsbStatus usb_setSel(UsbDevice2 *devive, uint8_t values[6]);
 UsbStatus usb_syncFrame(UsbDevice2 *device, uint16_t endpoint, uint8_t frameNumber[2]);
 
-UsbStatus usb_configureDevice(UsbDevice2 *device, DeviceConfigTransfer config);
+UsbStatus usb_configureDevice(UsbDevice2 *device, UsbRequestMessage message);
 
 UsbStatus usb_readData(UsbDevice2 *device, int endpoint, void *dataBuffer, int dataBufferSize);
 

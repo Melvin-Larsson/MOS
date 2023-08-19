@@ -178,10 +178,5 @@ TRB TRB_DATA_STAGE(uint64_t dataBufferPointer, int bufferSize);
 TRB TRB_STATUS_STAGE();
 
 TD TD_GET_DESCRIPTOR(void *dataBufferPointer, int descriptorLengt);
-TD TD_GET_CONFIGURATION_DESCRIPTOR(void *dataBufferPointer, int descriptorLength, uint8_t descriptorIndex);
-TD TD_SET_CONFIGURATION(int configuration);
-TD TD_SET_PROTOCOL(int protocol, int interface);
-TD TD_GET_REPORT(void *dataBufferPointer, uint16_t bufferSize, int interface);
-TD TD_GET_PROTOCOL(int interface, uint8_t *resultPointer);
 
 #endif

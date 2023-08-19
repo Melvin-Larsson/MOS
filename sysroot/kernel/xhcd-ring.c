@@ -32,8 +32,6 @@
 
 #define REQUEST_GET_DESCRIPTOR 6
 #define REQUEST_SET_CONFIGURATION 9
-#define REQUEST_SET_PROTOCOL 0xB
-#define REQUEST_GET_PROTOCOL 3
 
 #define DESCRIPTOR_TYPE_DEVICE 1
 #define DESCRIPTOR_TYPE_CONFIGURATION 2
@@ -172,81 +170,6 @@ TD TD_GET_DESCRIPTOR(void *dataBufferPointer, int descriptorLength){
 
    TRB setupTrb = TRB_SETUP_STAGE(setupHeader);
    TRB dataTrb = TRB_DATA_STAGE((uintptr_t)dataBufferPointer, descriptorLength);
-   TRB statusTrb = TRB_STATUS_STAGE();
-
-   TD result = {{setupTrb, dataTrb, statusTrb}, 3};
-   return result;
-}
-TD TD_GET_CONFIGURATION_DESCRIPTOR(void *dataBufferPointer, int descriptorLength, uint8_t descriptorIndex){
-   SetupStageHeader header;
-   header.bmRequestType = 0x80;
-   header.bRequest = REQUEST_GET_DESCRIPTOR;
-   header.wValue = DESCRIPTOR_TYPE_CONFIGURATION << 8 | descriptorIndex;
-   header.wIndex = 0;
-   header.wLength = descriptorLength;
-
-   TRB setupTrb = TRB_SETUP_STAGE(header);
-   TRB dataTrb = TRB_DATA_STAGE((uintptr_t)dataBufferPointer, descriptorLength);
-   TRB statusTrb = TRB_STATUS_STAGE();
-
-   TD result = {{setupTrb, dataTrb, statusTrb}, 3};
-   printf("scount %d\n", result.trbCount);
-
-   return result;
-}
-TD TD_SET_CONFIGURATION(int configuration){
-   SetupStageHeader header;
-   header.bmRequestType = 0;
-   header.bRequest = REQUEST_SET_CONFIGURATION;
-   header.wValue = configuration;
-   header.wIndex = 0;
-   header.wLength = 0;
-   TRB setupTrb = TRB_SETUP_STAGE(header);
-   TRB statusTrb = TRB_STATUS_STAGE();
-
-   TD result = {{setupTrb, statusTrb}, 2};
-   return result;
-}
-TD TD_SET_PROTOCOL(int protocol, int interface){
-   if(protocol != 0 && protocol != 1){
-      printf("[xhc] invalid protocol: %d\n", protocol);
-      return (TD){{},0};
-   }
-   SetupStageHeader header;
-   header.bmRequestType = 0x21;
-   header.bRequest = REQUEST_SET_PROTOCOL;
-   header.wValue = protocol;
-   header.wIndex = interface;
-   header.wLength = 0;
-   TRB setupTrb = TRB_SETUP_STAGE(header);
-   TRB statusTrb = TRB_STATUS_STAGE();
-
-   TD result = {{setupTrb, statusTrb}, 2};
-   return result;
-}
-TD TD_GET_PROTOCOL(int interface, uint8_t *resultPointer){
-   SetupStageHeader header;
-   header.bmRequestType = 0xA1;
-   header.bRequest = REQUEST_GET_PROTOCOL;
-   header.wValue = 0;
-   header.wIndex = interface;
-   header.wLength = 1;
-   TRB setupTrb = TRB_SETUP_STAGE(header);
-   TRB dataTrb = TRB_DATA_STAGE((uintptr_t)resultPointer, 1);
-   TRB statusTrb = TRB_STATUS_STAGE();
-
-   TD result = {{setupTrb, dataTrb, statusTrb}, 3};
-   return result;
-}
-TD TD_GET_REPORT(void *dataBufferPointer, uint16_t bufferSize, int interface){
-   SetupStageHeader header;
-   header.bmRequestType = 0xA1;
-   header.bRequest = 1;
-   header.wValue = 0x0100;
-   header.wIndex = interface;
-   header.wLength = bufferSize;
-   TRB setupTrb = TRB_SETUP_STAGE(header);
-   TRB dataTrb = TRB_DATA_STAGE((uintptr_t)dataBufferPointer, bufferSize);
    TRB statusTrb = TRB_STATUS_STAGE();
 
    TD result = {{setupTrb, dataTrb, statusTrb}, 3};
