@@ -55,6 +55,8 @@ static int configureEndpoint(Xhci *xhci, int slotId, int endpointIndex, XhcEndpo
 static int initInterruptEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint);
 static int getEndpointIndex(UsbEndpointDescriptor *endpoint);
 
+static int initPort(Xhci *xhci, int portIndex);
+static int getNewlyAttachedDevices(Xhci *xhci, uint32_t *result, int bufferSize);
 static int setMaxPacketSize(Xhci *xhci, int slotId);
 
 static int getSlotType(Xhci *xhci);
@@ -96,7 +98,16 @@ int xhcd_init(PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
 
    return 0;
 }
-int xhcd_getNewlyAttachedDevices(Xhci *xhci, uint32_t *result, int bufferSize){
+int xhcd_getSlots(Xhci  *xhci, uint32_t *resultBuffer, int bufferSize){
+   uint32_t *portIndexes = malloc(bufferSize * sizeof(uint32_t));
+   int count = getNewlyAttachedDevices(xhci, portIndexes, bufferSize);
+   for(int i = 0; i < count; i++){
+      resultBuffer[i] = initPort(xhci, portIndexes[i]);
+   }
+   free(portIndexes);
+   return count;
+}
+static int getNewlyAttachedDevices(Xhci *xhci, uint32_t *result, int bufferSize){
    StructParams1 structParams1 = xhci->capabilities->structParams1;
    int count = structParams1.maxPorts;
 
@@ -110,7 +121,7 @@ int xhcd_getNewlyAttachedDevices(Xhci *xhci, uint32_t *result, int bufferSize){
    }
    return resultIndex;
 }
-int xhcd_initPort(Xhci *xhci, int portIndex){
+static int initPort(Xhci *xhci, int portIndex){
    if(!enablePort(xhci, portIndex)){
       return 0;
    }

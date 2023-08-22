@@ -42,11 +42,9 @@ int xhcd_readData(Xhci *xhci, int slotId, int endpoint, void *dataBuffer, uint16
 //TODO: Implement:
 int xhcd_writeData(Xhci *xhci, int slotId, int endpoint, void *dataBuffer, uint16_t bufferSize);
 int xhcd_setConfiguration(Xhci *xhci, int slotId, const UsbConfiguration *configuration);
-int xhcd_getSlots(Xhci  *xhci, int *resultBuffer, int bufferSize);
+int xhcd_getSlots(Xhci  *xhci, uint32_t *resultBuffer, int bufferSize);
 
 //TODO: remove
-int xhcd_getNewlyAttachedDevices(Xhci *xhci, uint32_t *resultBuffer, int bufferSize);
-int xhcd_initPort(Xhci *xhci, int portNumber);
 int xhcd_configureEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint);
 
 

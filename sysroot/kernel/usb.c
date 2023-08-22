@@ -22,7 +22,7 @@ static UsbStatus initEndpoint(
       UsbDevice2 *device,
       UsbEndpointDescriptor *endpoint);
 
-static UsbDevice2 initUsbDevice(Usb *usb, int portIndex);
+static UsbDevice2 initUsbDevice(Usb *usb, int slotId);
 
 static UsbStatus getDeviceDescriptor(Usb *usb, int slotId, UsbDeviceDescriptor *result); 
 static UsbStatus getConfiguration(Usb *usb, int slotId, int configuration, UsbConfiguration **result); 
@@ -51,7 +51,7 @@ UsbStatus usb_init(PciGeneralDeviceHeader *pci, Usb *result){
 }
 int usb_getNewlyAttachedDevices(Usb *usb, UsbDevice2 *resultBuffer, int bufferSize){
    uint32_t *portIndexBuffer = malloc(bufferSize * sizeof(uint32_t));
-   int attachedPortsCount = xhcd_getNewlyAttachedDevices(usb->xhci, portIndexBuffer, bufferSize);
+   int attachedPortsCount = xhcd_getSlots(usb->xhci, portIndexBuffer, bufferSize);
    for(int i = 0; i < attachedPortsCount; i++){
       resultBuffer[i] = initUsbDevice(usb, portIndexBuffer[i]);
    }
@@ -96,8 +96,7 @@ UsbStatus usb_readData(UsbDevice2 *device, int endpoint, void *dataBuffer, int d
    return StatusSuccess;
 
 }
-static UsbDevice2 initUsbDevice(Usb *usb, int portIndex){
-   int slotId = xhcd_initPort(usb->xhci, portIndex);
+static UsbDevice2 initUsbDevice(Usb *usb, int slotId){
 
    UsbDeviceDescriptor descriptor;
    getDeviceDescriptor(usb, slotId, &descriptor);
