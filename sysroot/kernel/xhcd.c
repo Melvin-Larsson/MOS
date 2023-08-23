@@ -51,7 +51,8 @@ static int getSlotId(Xhci *xhci);
 static int addressDevice(Xhci *xhci, int slotId, int portIndex);
 static void initDefaultInputContext(XhcInputContext *inputContext, int portIndex, XhcdRing transferRing);
 
-static int configureEndpoint(Xhci *xhci, int slotId, int endpointIndex, XhcEndpointContext *endpointContext);
+static int configureEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint);
+static int runConfigureEndpointCommand(Xhci *xhci, int slotId, int endpointIndex, XhcEndpointContext *endpointContext);
 static int initInterruptEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint);
 static int getEndpointIndex(UsbEndpointDescriptor *endpoint);
 
@@ -143,7 +144,20 @@ static int initDevice(Xhci *xhci, int portIndex, XhcDevice *result){
    *result = (XhcDevice){slotId};
    return 1;
 }
-int xhcd_configureEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint){
+int xhcd_setConfiguration(Xhci *xhci, int slotId, const UsbConfiguration *configuration){
+   for(int i = 0; i < configuration->descriptor.bNumInterfaces; i++){
+      UsbInterface *interface = &configuration->interfaces[i];
+      for(int j = 0; j < interface->descriptor.bNumEndpoints; j++){
+         UsbEndpointDescriptor *endpointDescriptor = &interface->endpoints[j];
+         int status = configureEndpoint(xhci, slotId, endpointDescriptor);
+         if(!status){
+            return status;
+         }
+      }
+   }
+   return 1;
+}
+static int configureEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint){
    switch(endpoint->transferType){
       case ENDPOINT_TRANSFER_TYPE_INTERRUPT:
          return initInterruptEndpoint(xhci, slotId, endpoint);
@@ -212,7 +226,7 @@ static int initInterruptEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *
    endpointContext.maxESITPayloadHigh = maxESITPayload >> 16;
    endpointContext.interval = endpoint->bInterval;
 
-   return configureEndpoint(xhci, slotId, endpointIndex, &endpointContext);
+   return runConfigureEndpointCommand(xhci, slotId, endpointIndex, &endpointContext);
 }
 static int getSlotId(Xhci *xhci){
    xhcd_putTRB(TRB_ENABLE_SLOT(getSlotType(xhci)), &xhci->commandRing);
@@ -344,7 +358,7 @@ static int runCommand(Xhci *xhci, TRB trb){
    }
    return 1;
 }
-static int configureEndpoint(Xhci *xhci, int slotId, int endpointIndex, XhcEndpointContext *endpointContext){
+static int runConfigureEndpointCommand(Xhci *xhci, int slotId, int endpointIndex, XhcEndpointContext *endpointContext){
    XhcOutputContext *output = getOutputContext(xhci, slotId);
    XhcInputContext input;
    memset((void*)&input, 0, sizeof(XhcInputContext));

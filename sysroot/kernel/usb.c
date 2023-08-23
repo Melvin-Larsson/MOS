@@ -60,22 +60,8 @@ int usb_getNewlyAttachedDevices(Usb *usb, UsbDevice2 *resultBuffer, int bufferSi
 }
 
 UsbStatus usb_setConfiguration(UsbDevice2 *device, UsbConfiguration *configuration){
-   UsbRequestMessage request;
-   request.bmRequestType = 0;
-   request.bRequest = REQUEST_SET_CONFIGURATION;
-   request.wValue = configuration->descriptor.bConfigurationValue;
-   request.wIndex = 0;
-   request.wLength = 0;
-
-   Xhci *xhci = device->usb->xhci;
-   if(!xhcd_sendRequest(xhci, device->slotId, request)){
+   if(!xhcd_setConfiguration(device->usb->xhci, device->slotId, configuration)){
       return StatusError;
-   }
-   for(int i = 0; i < configuration->descriptor.bNumInterfaces; i++){
-      UsbStatus status = initInterface(device, &configuration->interfaces[i]);
-      if(status != StatusSuccess){
-         return status;
-      }
    }
    return StatusSuccess;
 }
@@ -189,21 +175,5 @@ static void freeInterface(UsbInterface *interface){
       free((void*)&interface->endpoints[i]);
    }
    free(interface);
-}
-static UsbStatus initInterface(UsbDevice2 *device, UsbInterface *interface){
-   for(int i = 0; i < interface->descriptor.bNumEndpoints; i++){
-      UsbStatus status = initEndpoint(device, &interface->endpoints[i]);
-      if(status != StatusSuccess){
-         return status;
-      }
-   }
-   return StatusSuccess;
-}
-
-static UsbStatus initEndpoint(UsbDevice2 *device, UsbEndpointDescriptor *endpoint){
-   if(!xhcd_configureEndpoint(device->usb->xhci, device->slotId, endpoint)){
-      return StatusError;
-   }
-   return StatusSuccess;
 }
 
