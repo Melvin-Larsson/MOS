@@ -14,14 +14,6 @@
 #define REQUEST_GET_DESCRIPTOR 6
 #define DESCRIPTOR_TYPE_DEVICE 1 
 
-
-static UsbStatus initInterface(
-      UsbDevice2 *device,
-      UsbInterface *interface);
-static UsbStatus initEndpoint(
-      UsbDevice2 *device,
-      UsbEndpointDescriptor *endpoint);
-
 static UsbDevice2 initUsbDevice(Usb *usb, XhcDevice device);
 
 static UsbStatus getDeviceDescriptor(Usb *usb, int slotId, UsbDeviceDescriptor *result); 
