@@ -23,8 +23,7 @@ typedef struct{
 
 typedef struct{
    int slotId;
-   UsbConfiguration *configuration;
-}UsbDevice;
+}XhcDevice;
 
 typedef struct{
    int isDirectionIn;
@@ -39,10 +38,11 @@ typedef struct{
 int xhcd_init(PciGeneralDeviceHeader *pciHeader, Xhci *xhci);
 int xhcd_sendRequest(Xhci *xhci, int slotId, UsbRequestMessage request);
 int xhcd_readData(Xhci *xhci, int slotId, int endpoint, void *dataBuffer, uint16_t bufferSize);
+int xhcd_getDevices(Xhci  *xhci, XhcDevice *resultBuffer, int bufferSize);
+
 //TODO: Implement:
 int xhcd_writeData(Xhci *xhci, int slotId, int endpoint, void *dataBuffer, uint16_t bufferSize);
 int xhcd_setConfiguration(Xhci *xhci, int slotId, const UsbConfiguration *configuration);
-int xhcd_getSlots(Xhci  *xhci, uint32_t *resultBuffer, int bufferSize);
 
 //TODO: remove
 int xhcd_configureEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint);

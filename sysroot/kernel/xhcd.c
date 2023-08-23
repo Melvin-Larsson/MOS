@@ -55,7 +55,7 @@ static int configureEndpoint(Xhci *xhci, int slotId, int endpointIndex, XhcEndpo
 static int initInterruptEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint);
 static int getEndpointIndex(UsbEndpointDescriptor *endpoint);
 
-static int initPort(Xhci *xhci, int portIndex);
+static int initDevice(Xhci *xhci, int portIndex, XhcDevice *result);
 static int getNewlyAttachedDevices(Xhci *xhci, uint32_t *result, int bufferSize);
 static int setMaxPacketSize(Xhci *xhci, int slotId);
 
@@ -98,11 +98,12 @@ int xhcd_init(PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
 
    return 0;
 }
-int xhcd_getSlots(Xhci  *xhci, uint32_t *resultBuffer, int bufferSize){
+
+int xhcd_getDevices(Xhci  *xhci, XhcDevice *resultBuffer, int bufferSize){
    uint32_t *portIndexes = malloc(bufferSize * sizeof(uint32_t));
    int count = getNewlyAttachedDevices(xhci, portIndexes, bufferSize);
    for(int i = 0; i < count; i++){
-      resultBuffer[i] = initPort(xhci, portIndexes[i]);
+      initDevice(xhci, portIndexes[i], &resultBuffer[i]);
    }
    free(portIndexes);
    return count;
@@ -121,7 +122,7 @@ static int getNewlyAttachedDevices(Xhci *xhci, uint32_t *result, int bufferSize)
    }
    return resultIndex;
 }
-static int initPort(Xhci *xhci, int portIndex){
+static int initDevice(Xhci *xhci, int portIndex, XhcDevice *result){
    if(!enablePort(xhci, portIndex)){
       return 0;
    }
@@ -139,7 +140,8 @@ static int initPort(Xhci *xhci, int portIndex){
       return 0;
    }
 
-   return slotId;
+   *result = (XhcDevice){slotId};
+   return 1;
 }
 int xhcd_configureEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint){
    switch(endpoint->transferType){
