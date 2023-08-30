@@ -36,12 +36,12 @@ typedef struct{
 
 
 int xhcd_init(PciGeneralDeviceHeader *pciHeader, Xhci *xhci);
-int xhcd_sendRequest(Xhci *xhci, int slotId, UsbRequestMessage request);
-int xhcd_readData(Xhci *xhci, int slotId, int endpoint, void *dataBuffer, uint16_t bufferSize);
-int xhcd_getDevices(Xhci  *xhci, XhcDevice *resultBuffer, int bufferSize);
-int xhcd_setConfiguration(Xhci *xhci, int slotId, const UsbConfiguration *configuration);
+int xhcd_sendRequest(Xhci *xhci, XhcDevice *device, UsbRequestMessage request);
+int xhcd_readData(Xhci *xhci, XhcDevice *device, int endpoint, void *dataBuffer, uint16_t bufferSize);
+int xhcd_getDevices(Xhci *xhci, XhcDevice *resultBuffer, int bufferSize);
+int xhcd_setConfiguration(Xhci *xhci, XhcDevice *device, const UsbConfiguration *configuration);
 
 //TODO: Implement:
-int xhcd_writeData(Xhci *xhci, int slotId, int endpoint, void *dataBuffer, uint16_t bufferSize);
+int xhcd_writeData(Xhci *xhci, XhcDevice *device, int endpoint, void *dataBuffer, uint16_t bufferSize);
 
 #endif

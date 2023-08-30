@@ -14,10 +14,10 @@
 #define REQUEST_GET_DESCRIPTOR 6
 #define DESCRIPTOR_TYPE_DEVICE 1 
 
-static UsbDevice2 initUsbDevice(Usb *usb, XhcDevice device);
+static UsbDevice2 initUsbDevice(Usb *usb, const XhcDevice *device);
 
-static UsbStatus getDeviceDescriptor(Usb *usb, int slotId, UsbDeviceDescriptor *result); 
-static UsbStatus getConfiguration(Usb *usb, int slotId, int configuration, UsbConfiguration **result); 
+static UsbStatus getDeviceDescriptor(Usb *usb, const XhcDevice *device, UsbDeviceDescriptor *result); 
+static UsbStatus getConfiguration(Usb *usb, const XhcDevice *device, int configuration, UsbConfiguration **result); 
 static UsbConfiguration *parseConfiguration(uint8_t *configBuffer);
 static void freeConfiguration(UsbConfiguration *config);
 static void freeInterface(UsbInterface *interface);
@@ -45,20 +45,20 @@ int usb_getNewlyAttachedDevices(Usb *usb, UsbDevice2 *resultBuffer, int bufferSi
    XhcDevice *deviceBuffer = malloc(bufferSize * sizeof(XhcDevice));
    int attachedPortsCount = xhcd_getDevices(usb->xhci, deviceBuffer, bufferSize);
    for(int i = 0; i < attachedPortsCount; i++){
-      resultBuffer[i] = initUsbDevice(usb, deviceBuffer[i]);
+      resultBuffer[i] = initUsbDevice(usb, &deviceBuffer[i]);
    }
    free(deviceBuffer);
    return attachedPortsCount;
 }
 
 UsbStatus usb_setConfiguration(UsbDevice2 *device, UsbConfiguration *configuration){
-   if(!xhcd_setConfiguration(device->usb->xhci, device->slotId, configuration)){
+   if(!xhcd_setConfiguration(device->usb->xhci, device->xhcDevice, configuration)){
       return StatusError;
    }
    return StatusSuccess;
 }
 UsbStatus usb_configureDevice(UsbDevice2 *device, UsbRequestMessage message){
-   if(!xhcd_sendRequest(device->usb->xhci, device->slotId, message)){
+   if(!xhcd_sendRequest(device->usb->xhci, device->xhcDevice, message)){
       return StatusError;
    }
    return StatusSuccess;
@@ -68,30 +68,31 @@ UsbDeviceDescriptor usb_getDeviceDescriptor(UsbDevice2 *device){
 }
 UsbStatus usb_readData(UsbDevice2 *device, int endpoint, void *dataBuffer, int dataBufferSize){
    Xhci *xhci = device->usb->xhci;
-   if(!xhcd_readData(xhci, device->slotId, endpoint, dataBuffer, dataBufferSize)){
+   if(!xhcd_readData(xhci, device->xhcDevice, endpoint, dataBuffer, dataBufferSize)){
       return StatusError;
    }
    return StatusSuccess;
 
 }
-static UsbDevice2 initUsbDevice(Usb *usb, XhcDevice device){
-   int slotId = device.slotId;
-
+static UsbDevice2 initUsbDevice(Usb *usb, const XhcDevice *device){
    UsbDeviceDescriptor descriptor;
-   getDeviceDescriptor(usb, slotId, &descriptor);
+   getDeviceDescriptor(usb, device, &descriptor);
 
    int configCount = descriptor.bNumConfigurations;
    UsbConfiguration *configurations = malloc(sizeof(UsbConfiguration) * configCount);
    for(int j = 0; j < configCount; j++){
       UsbConfiguration *config;
-      getConfiguration(usb, slotId, j, &config);
+      getConfiguration(usb, device, j, &config);
       configurations[j] = *config;
-      freeConfiguration(config);
+      free(config);
+
    }
-   UsbDevice2 usbDevice = {slotId, descriptor, configurations, configCount, usb};
+   XhcDevice *xhcDevice = malloc(sizeof(XhcDevice));
+   *xhcDevice = *device;
+   UsbDevice2 usbDevice = {xhcDevice, descriptor, configurations, configCount, usb};
    return usbDevice;
 }
-static UsbStatus getDeviceDescriptor(Usb *usb, int slotId, UsbDeviceDescriptor *result){
+static UsbStatus getDeviceDescriptor(Usb *usb, const XhcDevice *device, UsbDeviceDescriptor *result){
    UsbRequestMessage request;
    request.bmRequestType = 0x80;
    request.bRequest = REQUEST_GET_DESCRIPTOR;
@@ -100,13 +101,13 @@ static UsbStatus getDeviceDescriptor(Usb *usb, int slotId, UsbDeviceDescriptor *
    request.wLength = sizeof(UsbDeviceDescriptor);
    request.dataBuffer = result;
 
-   if(!xhcd_sendRequest(usb->xhci, slotId, request)){
+   if(!xhcd_sendRequest(usb->xhci, device, request)){
       return StatusError;
    }
    return StatusSuccess;
 
 }
-static UsbStatus getConfiguration(Usb *usb, int slotId, int configuration, UsbConfiguration **result){
+static UsbStatus getConfiguration(Usb *usb, const XhcDevice *device, int configuration, UsbConfiguration **result){
    const int bufferSize =
       sizeof(UsbConfigurationDescriptor) +
       sizeof(UsbInterfaceDescriptor) * 32 +
@@ -120,7 +121,7 @@ static UsbStatus getConfiguration(Usb *usb, int slotId, int configuration, UsbCo
    request.wIndex = 0;
    request.wLength = sizeof(buffer);
    request.dataBuffer = buffer;
-   if(!xhcd_sendRequest(usb->xhci, slotId, request)){
+   if(!xhcd_sendRequest(usb->xhci, device, request)){
       return StatusError;
    }
    *result = parseConfiguration(buffer);
@@ -154,7 +155,6 @@ static UsbConfiguration *parseConfiguration(uint8_t *configBuffer){
       }
    }
    return config;
-
 }
 static void freeConfiguration(UsbConfiguration *config){
    for(int i = 0; i < config->descriptor.bNumInterfaces; i++){

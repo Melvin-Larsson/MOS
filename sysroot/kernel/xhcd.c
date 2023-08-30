@@ -100,7 +100,7 @@ int xhcd_init(PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
    return 0;
 }
 
-int xhcd_getDevices(Xhci  *xhci, XhcDevice *resultBuffer, int bufferSize){
+int xhcd_getDevices(Xhci *xhci, XhcDevice *resultBuffer, int bufferSize){
    uint32_t *portIndexes = malloc(bufferSize * sizeof(uint32_t));
    int count = getNewlyAttachedDevices(xhci, portIndexes, bufferSize);
    for(int i = 0; i < count; i++){
@@ -144,12 +144,12 @@ static int initDevice(Xhci *xhci, int portIndex, XhcDevice *result){
    *result = (XhcDevice){slotId};
    return 1;
 }
-int xhcd_setConfiguration(Xhci *xhci, int slotId, const UsbConfiguration *configuration){
+int xhcd_setConfiguration(Xhci *xhci, XhcDevice *device, const UsbConfiguration *configuration){
    for(int i = 0; i < configuration->descriptor.bNumInterfaces; i++){
       UsbInterface *interface = &configuration->interfaces[i];
       for(int j = 0; j < interface->descriptor.bNumEndpoints; j++){
          UsbEndpointDescriptor *endpointDescriptor = &interface->endpoints[j];
-         int status = configureEndpoint(xhci, slotId, endpointDescriptor);
+         int status = configureEndpoint(xhci, device->slotId, endpointDescriptor);
          if(!status){
             return status;
          }
@@ -166,11 +166,11 @@ static int configureEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endp
          return 0;
    }
 }
-int xhcd_readData(Xhci *xhci, int slotId, int endpoint, void *dataBuffer, uint16_t bufferSize){
+int xhcd_readData(Xhci *xhci, XhcDevice *device, int endpoint, void *dataBuffer, uint16_t bufferSize){
    TRB trb = TRB_NORMAL(dataBuffer, bufferSize);
-   XhcdRing *transferRing = &xhci->transferRing[slotId][endpoint - 1];
+   XhcdRing *transferRing = &xhci->transferRing[device->slotId][endpoint - 1];
    xhcd_putTRB(trb, transferRing);
-   xhcd_ringDoorbell(xhci, slotId, endpoint);
+   xhcd_ringDoorbell(xhci, device->slotId, endpoint);
 
    XhcEventTRB event;
    while(!xhcd_readEvent(&xhci->eventRing, &event, 1));
@@ -179,7 +179,7 @@ int xhcd_readData(Xhci *xhci, int slotId, int endpoint, void *dataBuffer, uint16
    }
    return 1;
 }
-int xhcd_sendRequest(Xhci *xhci, int slotId, UsbRequestMessage request){
+int xhcd_sendRequest(Xhci *xhci, XhcDevice *device, UsbRequestMessage request){
    SetupStageHeader header;
    header.bmRequestType = request.bmRequestType;
    header.bRequest = request.bRequest;
@@ -196,7 +196,7 @@ int xhcd_sendRequest(Xhci *xhci, int slotId, UsbRequestMessage request){
       TRB dataTrb = TRB_DATA_STAGE((uintptr_t)request.dataBuffer, request.wLength);
       td = (TD){{setupTrb, dataTrb, statusTrb}, 3};
    }
-   if(!putConfigTD(xhci, slotId, td)){
+   if(!putConfigTD(xhci, device->slotId, td)){
       return 0;
 
    }
