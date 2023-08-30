@@ -46,7 +46,6 @@ void *callocco(int size, int alignment, int boundaries){
     void *ptr = mallocco(size, alignment, boundaries);
     memset(ptr, 0, size);
     return ptr;
-
 }
 
 void *malloc(int size){
@@ -76,7 +75,6 @@ void *mallocco(int size, int alignment, int boundary){
                 }
                 desc = constrained;
                 useDescriptor(desc, size);
-                void * ptr = getMemoryPointer(desc);
                 return getMemoryPointer(desc);
             }
         }
@@ -148,19 +146,19 @@ static int hasEnoughSpace(MemoryDescriptor *descriptor, MemoryDescriptor *next, 
     if(next == 0){
         return 1;
     }
-    unsigned int space = (unsigned int)((uint8_t*)next - (uint8_t*)descriptor);
-    return space >= size + sizeof(MemoryDescriptor);
+    int space = (int)((uint8_t*)next - (uint8_t*)descriptor);
+    return space >= (int)(size + sizeof(MemoryDescriptor));
 }
 static int hasExtraSpaceAfter(MemoryDescriptor *descriptor, unsigned int size){
     if(descriptor->next == 0){
         return 1;
     }
-    unsigned int space = (unsigned int)((uint8_t*)descriptor->next - (uint8_t*)descriptor);
-    return space >= size + 2 * sizeof(MemoryDescriptor);
+    int space = (int)((uint8_t*)descriptor->next - (uint8_t*)descriptor);
+    return space >= (int)(size + 2 * sizeof(MemoryDescriptor));
 }
 static int hasExtraSpaceBefore(MemoryDescriptor *descriptor, unsigned int alignment){
-    unsigned int space = (unsigned int)(getNextAlligned(descriptor, alignment) - (uint8_t*)descriptor);
-    return space > sizeof(MemoryDescriptor);
+    int space = (int)(getNextAlligned(descriptor, alignment) - (uint8_t*)descriptor);
+    return space > (int)sizeof(MemoryDescriptor);
 }
 
 
