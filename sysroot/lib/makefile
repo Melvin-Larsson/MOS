@@ -12,8 +12,11 @@ OBJS= ${BUILD}/stdio.o \
 	   ${BUILD}/string.o
 
 
-${BUILD}/lib.out : ${OBJS} 
+${BUILD}/lib.out : ${BUILD} ${OBJS} 
 	${COMPILER} ${LINK_FLAGS} ${OBJS} -o ${BUILD}/lib.out
+
+${BUILD} :
+	mkdir ${BUILD}
 
 ${BUILD}/stdio.o : stdio/stdio.c include/stdio.h
 	${COMPILER} ${CFLAGS} -c stdio/stdio.c -o ${BUILD}/stdio.o

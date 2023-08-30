@@ -18,10 +18,11 @@ OBJS= ${BUILD}/boot.o \
 	   ${BUILD}/keyboard.o \
 	   ${BUILD}/usb.o \
 
-
-
-${BUILD}/kernel.o : ${OBJS} 
+${BUILD}/kernel.o : ${BUILD} ${OBJS} 
 	${COMPILER} -T linker.ld ${LINK_FLAGS} ${OBJS} -o ${BUILD}/kernel.out
+
+${BUILD} : 
+	mkdir ${BUILD}
 
 ${BUILD}/kernel1.o : main.c
 	${COMPILER} ${CFLAGS} -c main.c -o ${BUILD}/kernel1.o

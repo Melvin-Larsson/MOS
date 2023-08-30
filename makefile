@@ -12,12 +12,18 @@ OBJS= ${KERNEL}/build/kernel.out \
        ${LIBS}/build/lib.out
 
 .PHONY: all
-all:
+all : ${BUILD}/os.img
 	echo ${PREFIX}
 	$(MAKE) kernel
 	$(MAKE) lib
 	${COMPILER} -T ${PREFIX}/linker.ld ${OBJS} ${LINK_FLAGS}  -o ${BUILD}/os.elf
 	objcopy -O binary ${BUILD}/os.elf ${BUILD}/os.bin
+
+${BUILD}/os.img : ${BUILD}
+	dd if=/dev/zero of=${BUILD}/os.img bs=512 count=2048
+
+${BUILD} :
+	mkdir ${BUILD}
 
 .PHONY: kernel
 kernel :
