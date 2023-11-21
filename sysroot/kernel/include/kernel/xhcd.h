@@ -47,11 +47,58 @@ typedef enum{
    XhcNotYetImplemented,
 }XhcStatus;
 
+/*
+  Initializes the xhcd controller.
 
+  @param pciHeader A pointer to a PciGeneralDeviceHeader with
+  information about the Xhci controller.
+  @param xhci A pointer to memory where the Xhci object will be
+  stored.
+  @return XhcOk if successfully initialized the controller. Otherwise,
+  an error code will be returned.
+ */
 XhcStatus xhcd_init(PciGeneralDeviceHeader *pciHeader, Xhci *xhci);
+/*
+   Send an USB request message.
+
+   @param xhci The XHC controller to send the message from.
+   @param device The device to send the message to.
+   @param request The message to send.
+   @return XhcOk if successful. An error code otherwise.
+  
+ */
 XhcStatus xhcd_sendRequest(Xhci *xhci, XhcDevice *device, UsbRequestMessage request);
+/*
+  Reads data from an USB endpoint.
+
+  @param xhci The controller to read data from.
+  @param device The device to read data from.
+  @param endpoint The endpoint to read data from.
+  @param dataBuffer A pointer to memory where the result will be put.
+  @param bufferSize The size of the dataBuffer.
+  @return XhcOk if successful. An error code otherwise.
+
+ */
 XhcStatus xhcd_readData(Xhci *xhci, XhcDevice *device, int endpoint, void *dataBuffer, uint16_t bufferSize);
+/*
+  Detects and initializes devices that have not been initialized.
+
+  @param xhci The xhc controller to detect devices on.
+  @param resultBuffer Memory where information about the devices will
+  be stored.
+  @param bufferSize The size of resultBuffer.
+  @return The number of newly initialized devices.
+*/
 int xhcd_getDevices(Xhci *xhci, XhcDevice *resultBuffer, int bufferSize);
+/** Sets the configuration for an USB device.
+ *
+ * @param xhci The xhc controller to configure devices from.
+ * @param device The device to configure.
+ * @param configuration The configuration to use.
+ * @return XhcOk if the configuration was successful.
+ *         An error code otherwise.
+ *
+ */
 XhcStatus xhcd_setConfiguration(Xhci *xhci, XhcDevice *device, const UsbConfiguration *configuration);
 
 //TODO: Implement:
