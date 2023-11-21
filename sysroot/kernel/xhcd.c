@@ -145,16 +145,15 @@ static XhcStatus initDevice(Xhci *xhci, int portIndex, XhcDevice *result){
    if(!setMaxPacketSize(xhci, slotId)){
       return XhcSetMaxPacketSizeError;
    }
-
-   *result = (XhcDevice){slotId};
+   *result = (XhcDevice){slotId, xhci};
    return XhcOk;
 }
-XhcStatus xhcd_setConfiguration(Xhci *xhci, XhcDevice *device, const UsbConfiguration *configuration){
+XhcStatus xhcd_setConfiguration(XhcDevice *device, const UsbConfiguration *configuration){
    for(int i = 0; i < configuration->descriptor.bNumInterfaces; i++){
       UsbInterface *interface = &configuration->interfaces[i];
       for(int j = 0; j < interface->descriptor.bNumEndpoints; j++){
          UsbEndpointDescriptor *endpointDescriptor = &interface->endpoints[j];
-         int status = configureEndpoint(xhci, device->slotId, endpointDescriptor);
+         int status = configureEndpoint(device->xhci, device->slotId, endpointDescriptor);
          if(status != XhcOk){
             return status;
          }
@@ -171,7 +170,8 @@ static XhcStatus configureEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor
          return XhcNotYetImplemented;
    }
 }
-XhcStatus xhcd_readData(Xhci *xhci, XhcDevice *device, int endpoint, void *dataBuffer, uint16_t bufferSize){
+XhcStatus xhcd_readData(const XhcDevice *device, int endpoint, void *dataBuffer, uint16_t bufferSize){
+   Xhci *xhci = device->xhci;
    TRB trb = TRB_NORMAL(dataBuffer, bufferSize);
    XhcdRing *transferRing = &xhci->transferRing[device->slotId][endpoint - 1];
    xhcd_putTRB(trb, transferRing);
@@ -184,7 +184,7 @@ XhcStatus xhcd_readData(Xhci *xhci, XhcDevice *device, int endpoint, void *dataB
    }
    return XhcOk;
 }
-XhcStatus xhcd_sendRequest(Xhci *xhci, XhcDevice *device, UsbRequestMessage request){
+XhcStatus xhcd_sendRequest(const XhcDevice *device, UsbRequestMessage request){
    SetupStageHeader header;
    header.bmRequestType = request.bmRequestType;
    header.bRequest = request.bRequest;
@@ -201,7 +201,7 @@ XhcStatus xhcd_sendRequest(Xhci *xhci, XhcDevice *device, UsbRequestMessage requ
       TRB dataTrb = TRB_DATA_STAGE((uintptr_t)request.dataBuffer, request.wLength);
       td = (TD){{setupTrb, dataTrb, statusTrb}, 3};
    }
-   if(!putConfigTD(xhci, device->slotId, td)){
+   if(!putConfigTD(device->xhci, device->slotId, td)){
       return XhcSendRequestError;
 
    }

@@ -23,6 +23,7 @@ typedef struct{
 
 typedef struct{
    int slotId;
+   Xhci *xhci;
 }XhcDevice;
 
 typedef struct{
@@ -61,17 +62,15 @@ XhcStatus xhcd_init(PciGeneralDeviceHeader *pciHeader, Xhci *xhci);
 /*
    Send an USB request message.
 
-   @param xhci The XHC controller to send the message from.
    @param device The device to send the message to.
    @param request The message to send.
    @return XhcOk if successful. An error code otherwise.
   
  */
-XhcStatus xhcd_sendRequest(Xhci *xhci, XhcDevice *device, UsbRequestMessage request);
+XhcStatus xhcd_sendRequest(const XhcDevice *device, UsbRequestMessage request);
 /*
   Reads data from an USB endpoint.
 
-  @param xhci The controller to read data from.
   @param device The device to read data from.
   @param endpoint The endpoint to read data from.
   @param dataBuffer A pointer to memory where the result will be put.
@@ -79,7 +78,7 @@ XhcStatus xhcd_sendRequest(Xhci *xhci, XhcDevice *device, UsbRequestMessage requ
   @return XhcOk if successful. An error code otherwise.
 
  */
-XhcStatus xhcd_readData(Xhci *xhci, XhcDevice *device, int endpoint, void *dataBuffer, uint16_t bufferSize);
+XhcStatus xhcd_readData(const XhcDevice *device, int endpoint, void *dataBuffer, uint16_t bufferSize);
 /*
   Detects and initializes devices that have not been initialized.
 
@@ -92,14 +91,13 @@ XhcStatus xhcd_readData(Xhci *xhci, XhcDevice *device, int endpoint, void *dataB
 int xhcd_getDevices(Xhci *xhci, XhcDevice *resultBuffer, int bufferSize);
 /** Sets the configuration for an USB device.
  *
- * @param xhci The xhc controller to configure devices from.
  * @param device The device to configure.
  * @param configuration The configuration to use.
  * @return XhcOk if the configuration was successful.
  *         An error code otherwise.
  *
  */
-XhcStatus xhcd_setConfiguration(Xhci *xhci, XhcDevice *device, const UsbConfiguration *configuration);
+XhcStatus xhcd_setConfiguration(XhcDevice *device, const UsbConfiguration *configuration);
 
 //TODO: Implement:
 int xhcd_writeData(Xhci *xhci, XhcDevice *device, int endpoint, void *dataBuffer, uint16_t bufferSize);

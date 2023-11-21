@@ -52,13 +52,13 @@ int usb_getNewlyAttachedDevices(Usb *usb, UsbDevice2 *resultBuffer, int bufferSi
 }
 
 UsbStatus usb_setConfiguration(UsbDevice2 *device, UsbConfiguration *configuration){
-   if(xhcd_setConfiguration(device->usb->xhci, device->xhcDevice, configuration) != XhcOk){
+   if(xhcd_setConfiguration(device->xhcDevice, configuration) != XhcOk){
       return StatusError;
    }
    return StatusSuccess;
 }
 UsbStatus usb_configureDevice(UsbDevice2 *device, UsbRequestMessage message){
-   if(xhcd_sendRequest(device->usb->xhci, device->xhcDevice, message) != XhcOk){
+   if(xhcd_sendRequest(device->xhcDevice, message) != XhcOk){
       return StatusError;
    }
    return StatusSuccess;
@@ -67,8 +67,7 @@ UsbDeviceDescriptor usb_getDeviceDescriptor(UsbDevice2 *device){
    return device->deviceDescriptor;
 }
 UsbStatus usb_readData(UsbDevice2 *device, int endpoint, void *dataBuffer, int dataBufferSize){
-   Xhci *xhci = device->usb->xhci;
-   if(xhcd_readData(xhci, device->xhcDevice, endpoint, dataBuffer, dataBufferSize) != XhcOk){
+   if(xhcd_readData(device->xhcDevice, endpoint, dataBuffer, dataBufferSize) != XhcOk){
       return StatusError;
    }
    return StatusSuccess;
@@ -100,7 +99,7 @@ static UsbStatus getDeviceDescriptor(Usb *usb, const XhcDevice *device, UsbDevic
    request.wLength = sizeof(UsbDeviceDescriptor);
    request.dataBuffer = result;
 
-   if(xhcd_sendRequest(usb->xhci, device, request) != XhcOk){
+   if(xhcd_sendRequest(device, request) != XhcOk){
       return StatusError;
    }
    return StatusSuccess;
@@ -120,7 +119,7 @@ static UsbStatus getConfiguration(Usb *usb, const XhcDevice *device, int configu
    request.wIndex = 0;
    request.wLength = sizeof(buffer);
    request.dataBuffer = buffer;
-   if(xhcd_sendRequest(usb->xhci, device, request) != XhcOk){
+   if(xhcd_sendRequest(device, request) != XhcOk){
       return StatusError;
    }
    *result = parseConfiguration(buffer);
