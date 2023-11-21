@@ -4,3 +4,4 @@ src/
 session.vim
 *.o
 *.out
+test

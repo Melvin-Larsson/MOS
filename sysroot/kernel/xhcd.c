@@ -51,12 +51,12 @@ static int getSlotId(Xhci *xhci);
 static int addressDevice(Xhci *xhci, int slotId, int portIndex);
 static void initDefaultInputContext(XhcInputContext *inputContext, int portIndex, XhcdRing transferRing);
 
-static int configureEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint);
-static int runConfigureEndpointCommand(Xhci *xhci, int slotId, int endpointIndex, XhcEndpointContext *endpointContext);
-static int initInterruptEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint);
+static XhcStatus configureEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint);
+static XhcStatus runConfigureEndpointCommand(Xhci *xhci, int slotId, int endpointIndex, XhcEndpointContext *endpointContext);
+static XhcStatus initInterruptEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint);
 static int getEndpointIndex(UsbEndpointDescriptor *endpoint);
 
-static int initDevice(Xhci *xhci, int portIndex, XhcDevice *result);
+static XhcStatus initDevice(Xhci *xhci, int portIndex, XhcDevice *result);
 static int getNewlyAttachedDevices(Xhci *xhci, uint32_t *result, int bufferSize);
 static int setMaxPacketSize(Xhci *xhci, int slotId);
 
@@ -74,7 +74,7 @@ static PortStatusAndControll *getPortStatus(Xhci *xhci, int portNumber);
 __attribute__((aligned(64)))
 static XhcInputContext inputContext[MAX_DEVICE_SLOTS_ENABLED];
 
-int xhcd_init(PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
+XhcStatus xhcd_init(PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
    int errorCode = 0;
    if((errorCode = initBasePointers(pciHeader, xhci)) != 0){
       return errorCode;
@@ -97,14 +97,19 @@ int xhcd_init(PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
    XhcEventTRB result[16];
    while(xhcd_readEvent(&xhci->eventRing, result, 16));
 
-   return 0;
+   return XhcOk;
 }
 
 int xhcd_getDevices(Xhci *xhci, XhcDevice *resultBuffer, int bufferSize){
    uint32_t *portIndexes = malloc(bufferSize * sizeof(uint32_t));
    int count = getNewlyAttachedDevices(xhci, portIndexes, bufferSize);
    for(int i = 0; i < count; i++){
-      initDevice(xhci, portIndexes[i], &resultBuffer[i]);
+      XhcStatus status = initDevice(xhci, portIndexes[i], &resultBuffer[i]);
+      if(status != XhcOk){
+         i--;
+         count--;
+         //FIXME: Some kind of error message here?
+      }
    }
    free(portIndexes);
    return count;
@@ -123,50 +128,50 @@ static int getNewlyAttachedDevices(Xhci *xhci, uint32_t *result, int bufferSize)
    }
    return resultIndex;
 }
-static int initDevice(Xhci *xhci, int portIndex, XhcDevice *result){
+static XhcStatus initDevice(Xhci *xhci, int portIndex, XhcDevice *result){
    if(!enablePort(xhci, portIndex)){
-      return 0;
+      return XhcEnablePortError;
    }
 
    int slotId = getSlotId(xhci);
    if(slotId < 0){
-      return 0;
+      return XhcSlotIdError;
    }
 
    if(!addressDevice(xhci, slotId, portIndex)){
-      return 0;
+      return XhcAddressDeviceError;
    }
 
    if(!setMaxPacketSize(xhci, slotId)){
-      return 0;
+      return XhcSetMaxPacketSizeError;
    }
 
    *result = (XhcDevice){slotId};
-   return 1;
+   return XhcOk;
 }
-int xhcd_setConfiguration(Xhci *xhci, XhcDevice *device, const UsbConfiguration *configuration){
+XhcStatus xhcd_setConfiguration(Xhci *xhci, XhcDevice *device, const UsbConfiguration *configuration){
    for(int i = 0; i < configuration->descriptor.bNumInterfaces; i++){
       UsbInterface *interface = &configuration->interfaces[i];
       for(int j = 0; j < interface->descriptor.bNumEndpoints; j++){
          UsbEndpointDescriptor *endpointDescriptor = &interface->endpoints[j];
          int status = configureEndpoint(xhci, device->slotId, endpointDescriptor);
-         if(!status){
+         if(status != XhcOk){
             return status;
          }
       }
    }
-   return 1;
+   return XhcOk;
 }
-static int configureEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint){
+static XhcStatus configureEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint){
    switch(endpoint->transferType){
       case ENDPOINT_TRANSFER_TYPE_INTERRUPT:
          return initInterruptEndpoint(xhci, slotId, endpoint);
       default:
          printf("Transfer type not yet implemented %d\n", endpoint->transferType);
-         return 0;
+         return XhcNotYetImplemented;
    }
 }
-int xhcd_readData(Xhci *xhci, XhcDevice *device, int endpoint, void *dataBuffer, uint16_t bufferSize){
+XhcStatus xhcd_readData(Xhci *xhci, XhcDevice *device, int endpoint, void *dataBuffer, uint16_t bufferSize){
    TRB trb = TRB_NORMAL(dataBuffer, bufferSize);
    XhcdRing *transferRing = &xhci->transferRing[device->slotId][endpoint - 1];
    xhcd_putTRB(trb, transferRing);
@@ -175,11 +180,11 @@ int xhcd_readData(Xhci *xhci, XhcDevice *device, int endpoint, void *dataBuffer,
    XhcEventTRB event;
    while(!xhcd_readEvent(&xhci->eventRing, &event, 1));
    if(event.completionCode != Success){
-      return 0;
+      return XhcReadDataError;
    }
-   return 1;
+   return XhcOk;
 }
-int xhcd_sendRequest(Xhci *xhci, XhcDevice *device, UsbRequestMessage request){
+XhcStatus xhcd_sendRequest(Xhci *xhci, XhcDevice *device, UsbRequestMessage request){
    SetupStageHeader header;
    header.bmRequestType = request.bmRequestType;
    header.bRequest = request.bRequest;
@@ -197,12 +202,12 @@ int xhcd_sendRequest(Xhci *xhci, XhcDevice *device, UsbRequestMessage request){
       td = (TD){{setupTrb, dataTrb, statusTrb}, 3};
    }
    if(!putConfigTD(xhci, device->slotId, td)){
-      return 0;
+      return XhcSendRequestError;
 
    }
-   return 1;
+   return XhcOk;
 }
-static int initInterruptEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint){
+static XhcStatus initInterruptEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint){
    int endpointIndex = getEndpointIndex(endpoint);
 
    XhcdRing transferRing = xhcd_newRing(DEFAULT_TRANSFER_RING_TRB_COUNT);
@@ -358,7 +363,7 @@ static int runCommand(Xhci *xhci, TRB trb){
    }
    return 1;
 }
-static int runConfigureEndpointCommand(Xhci *xhci, int slotId, int endpointIndex, XhcEndpointContext *endpointContext){
+static XhcStatus runConfigureEndpointCommand(Xhci *xhci, int slotId, int endpointIndex, XhcEndpointContext *endpointContext){
    XhcOutputContext *output = getOutputContext(xhci, slotId);
    XhcInputContext input;
    memset((void*)&input, 0, sizeof(XhcInputContext));
@@ -372,9 +377,9 @@ static int runConfigureEndpointCommand(Xhci *xhci, int slotId, int endpointIndex
    TRB trb = TRB_CONFIGURE_ENDPOINT((void*)&input, slotId);
    if(!runCommand(xhci, trb)){
       printf("[xhc] failed to configure endpoint (slotid: %d)\n", slotId);
-      return 0;
+      return XhcConfigEndpointError;
    }
-   return 1;
+   return XhcOk;
 }
 static int getEndpointIndex(UsbEndpointDescriptor *endpoint){
    int index = endpoint->endpointNumber * 2;
