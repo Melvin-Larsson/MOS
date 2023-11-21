@@ -10,7 +10,7 @@ typedef enum{
    KeyboardProtocolError
 }KeyboardStatus;
 
-KeyboardStatus keyboard_init(UsbDevice2 *usbDevice);
+KeyboardStatus keyboard_init(UsbDevice *usbDevice);
 void keyboard_getStatusCode(KeyboardStatus status, char output[100]);
 
 

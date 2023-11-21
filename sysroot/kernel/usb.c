@@ -14,7 +14,7 @@
 #define REQUEST_GET_DESCRIPTOR 6
 #define DESCRIPTOR_TYPE_DEVICE 1 
 
-static UsbDevice2 initUsbDevice(Usb *usb, const XhcDevice *device);
+static UsbDevice initUsbDevice(Usb *usb, const XhcDevice *device);
 
 static UsbStatus getDeviceDescriptor(Usb *usb, const XhcDevice *device, UsbDeviceDescriptor *result); 
 static UsbStatus getConfiguration(Usb *usb, const XhcDevice *device, int configuration, UsbConfiguration **result); 
@@ -41,7 +41,7 @@ UsbStatus usb_init(PciGeneralDeviceHeader *pci, Usb *result){
    printf("USB controller not yet implemented\n");
    return StatusError;
 }
-int usb_getNewlyAttachedDevices(Usb *usb, UsbDevice2 *resultBuffer, int bufferSize){
+int usb_getNewlyAttachedDevices(Usb *usb, UsbDevice *resultBuffer, int bufferSize){
    XhcDevice *deviceBuffer = malloc(bufferSize * sizeof(XhcDevice));
    int attachedPortsCount = xhcd_getDevices(usb->xhci, deviceBuffer, bufferSize);
    for(int i = 0; i < attachedPortsCount; i++){
@@ -51,29 +51,29 @@ int usb_getNewlyAttachedDevices(Usb *usb, UsbDevice2 *resultBuffer, int bufferSi
    return attachedPortsCount;
 }
 
-UsbStatus usb_setConfiguration(UsbDevice2 *device, UsbConfiguration *configuration){
+UsbStatus usb_setConfiguration(UsbDevice *device, UsbConfiguration *configuration){
    if(xhcd_setConfiguration(device->xhcDevice, configuration) != XhcOk){
       return StatusError;
    }
    return StatusSuccess;
 }
-UsbStatus usb_configureDevice(UsbDevice2 *device, UsbRequestMessage message){
+UsbStatus usb_configureDevice(UsbDevice *device, UsbRequestMessage message){
    if(xhcd_sendRequest(device->xhcDevice, message) != XhcOk){
       return StatusError;
    }
    return StatusSuccess;
 }
-UsbDeviceDescriptor usb_getDeviceDescriptor(UsbDevice2 *device){
+UsbDeviceDescriptor usb_getDeviceDescriptor(UsbDevice *device){
    return device->deviceDescriptor;
 }
-UsbStatus usb_readData(UsbDevice2 *device, int endpoint, void *dataBuffer, int dataBufferSize){
+UsbStatus usb_readData(UsbDevice *device, int endpoint, void *dataBuffer, int dataBufferSize){
    if(xhcd_readData(device->xhcDevice, endpoint, dataBuffer, dataBufferSize) != XhcOk){
       return StatusError;
    }
    return StatusSuccess;
 
 }
-static UsbDevice2 initUsbDevice(Usb *usb, const XhcDevice *device){
+static UsbDevice initUsbDevice(Usb *usb, const XhcDevice *device){
    UsbDeviceDescriptor descriptor;
    getDeviceDescriptor(usb, device, &descriptor);
 
@@ -87,7 +87,7 @@ static UsbDevice2 initUsbDevice(Usb *usb, const XhcDevice *device){
    }
    XhcDevice *xhcDevice = malloc(sizeof(XhcDevice));
    *xhcDevice = *device;
-   UsbDevice2 usbDevice = {xhcDevice, descriptor, configurations, configCount, usb};
+   UsbDevice usbDevice = {xhcDevice, descriptor, configurations, configCount, usb};
    return usbDevice;
 }
 static UsbStatus getDeviceDescriptor(Usb *usb, const XhcDevice *device, UsbDeviceDescriptor *result){

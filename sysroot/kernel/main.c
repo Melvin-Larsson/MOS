@@ -47,7 +47,7 @@ static void initXhci(PciGeneralDeviceHeader pci){
         printf("Failed to initialize USB\n");
         return;
     }
-    UsbDevice2 device;
+    UsbDevice device;
     printf("Wait for attach\n");
     while(usb_getNewlyAttachedDevices(&usb, &device, 1) == 0);
     printf("device attach\n");

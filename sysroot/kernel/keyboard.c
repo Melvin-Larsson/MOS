@@ -19,12 +19,12 @@
 
 #define REQUEST_SET_PROTOCOL 0xB
 
-static UsbConfiguration *getConfiguration(UsbDevice2 *device);
+static UsbConfiguration *getConfiguration(UsbDevice *device);
 static UsbInterface *getInterface(UsbConfiguration *configuration);
 static UsbEndpointDescriptor *getEndpoint(UsbInterface *interface);
-static UsbStatus setProtocol(UsbDevice2 *device, int interface, int protocol);
+static UsbStatus setProtocol(UsbDevice *device, int interface, int protocol);
 
-KeyboardStatus keyboard_init(UsbDevice2 *usbDevice){
+KeyboardStatus keyboard_init(UsbDevice *usbDevice){
 
    UsbConfiguration *configuration = getConfiguration(usbDevice);
    if(configuration == 0){
@@ -85,7 +85,7 @@ void keyboard_getStatusCode(KeyboardStatus status, char output[100]){
    strAppend(output, statusCodes[status]);
 }
 
-static UsbStatus setProtocol(UsbDevice2 *device, int interface, int protocol){
+static UsbStatus setProtocol(UsbDevice *device, int interface, int protocol){
    UsbRequestMessage request;
    request.bmRequestType = 0x21;
    request.bRequest = REQUEST_SET_PROTOCOL;
@@ -94,7 +94,7 @@ static UsbStatus setProtocol(UsbDevice2 *device, int interface, int protocol){
    request.wLength = 0;
    return usb_configureDevice(device, request);
 }
-static UsbConfiguration *getConfiguration(UsbDevice2 *device){
+static UsbConfiguration *getConfiguration(UsbDevice *device){
    for(int i = 0; i < device->configurationCount; i++){
       if(getInterface(&device->configuration[i]) != 0){
          return &device->configuration[i];
