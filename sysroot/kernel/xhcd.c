@@ -34,7 +34,7 @@
 #define DESCRIPTOR_TYPE_INTERFACE 4
 #define DESCRIPTOR_TYPE_ENDPOINT 5
 
-static int initBasePointers(PciGeneralDeviceHeader *pciHeader, Xhci *xhci);
+static int initBasePointers(const PciGeneralDeviceHeader *pciHeader, Xhci *xhci);
 static void waitForControllerReady(Xhci *xhci);
 static void setMaxEnabledDeviceSlots(Xhci *xhci);
 static void resetXhc(Xhci *xhci);
@@ -74,7 +74,7 @@ static PortStatusAndControll *getPortStatus(Xhci *xhci, int portNumber);
 __attribute__((aligned(64)))
 static XhcInputContext inputContext[MAX_DEVICE_SLOTS_ENABLED];
 
-XhcStatus xhcd_init(PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
+XhcStatus xhcd_init(const PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
    int errorCode = 0;
    if((errorCode = initBasePointers(pciHeader, xhci)) != 0){
       return errorCode;
@@ -519,7 +519,7 @@ static PortStatusAndControll *getPortStatus(Xhci *xhci, int portIndex){
    PortStatusAndControll *status = &port->statusAndControll;
    return status;
 }
-static int initBasePointers(PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
+static int initBasePointers(const PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
    if(pciHeader->baseAddress1 != 0){
       printf("Error: unable to reach xhcd MMIO in 32 bit mode: %X %X\n",
             pciHeader->baseAddress0, pciHeader->baseAddress1);

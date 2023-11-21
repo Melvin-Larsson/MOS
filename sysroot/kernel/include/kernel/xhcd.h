@@ -58,7 +58,7 @@ typedef enum{
   @return XhcOk if successfully initialized the controller. Otherwise,
   an error code will be returned.
  */
-XhcStatus xhcd_init(PciGeneralDeviceHeader *pciHeader, Xhci *xhci);
+XhcStatus xhcd_init(const PciGeneralDeviceHeader *pciHeader, Xhci *xhci);
 /*
    Send an USB request message.
 
@@ -100,6 +100,6 @@ int xhcd_getDevices(Xhci *xhci, XhcDevice *resultBuffer, int bufferSize);
 XhcStatus xhcd_setConfiguration(XhcDevice *device, const UsbConfiguration *configuration);
 
 //TODO: Implement:
-int xhcd_writeData(Xhci *xhci, XhcDevice *device, int endpoint, void *dataBuffer, uint16_t bufferSize);
+int xhcd_writeData(const XhcDevice *device, int endpoint, void *dataBuffer, uint16_t bufferSize);
 
 #endif
