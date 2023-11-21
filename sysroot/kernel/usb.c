@@ -14,13 +14,14 @@
 #define REQUEST_GET_DESCRIPTOR 6
 #define DESCRIPTOR_TYPE_DEVICE 1 
 
-static UsbDevice initUsbDevice(Usb *usb, const XhcDevice *device);
+static UsbDevice initUsbDevice(Usb *usb, UsbControllerDevice device);
 
-static UsbStatus getDeviceDescriptor(Usb *usb, const XhcDevice *device, UsbDeviceDescriptor *result); 
-static UsbStatus getConfiguration(Usb *usb, const XhcDevice *device, int configuration, UsbConfiguration **result); 
+static UsbStatus getDeviceDescriptor(UsbDevice* device); 
+static UsbStatus getConfiguration(const UsbDevice *device, int configuration, UsbConfiguration **result); 
 static UsbConfiguration *parseConfiguration(uint8_t *configBuffer);
 static void freeConfiguration(UsbConfiguration *config);
 static void freeInterface(UsbInterface *interface);
+
 
 UsbStatus usb_init(PciGeneralDeviceHeader *pci, Usb *result){
    if(pci->pciHeader.classCode != PCI_CLASS_SERIAL_BUS_CONTROLLER){
@@ -35,30 +36,47 @@ UsbStatus usb_init(PciGeneralDeviceHeader *pci, Usb *result){
          free(xhci);
          return StatusError;
       }
-      *result  = (Usb){xhci};
+      *result  = (Usb){.type = UsbControllerXhci, {.xhci = xhci}};
       return StatusSuccess;
    }
    printf("USB controller not yet implemented\n");
    return StatusError;
 }
+
 int usb_getNewlyAttachedDevices(Usb *usb, UsbDevice *resultBuffer, int bufferSize){
+   if(usb->type != UsbControllerXhci){
+      printf("USB controller not yet implemented");
+      return -1;
+   }
+
    XhcDevice *deviceBuffer = malloc(bufferSize * sizeof(XhcDevice));
    int attachedPortsCount = xhcd_getDevices(usb->xhci, deviceBuffer, bufferSize);
    for(int i = 0; i < attachedPortsCount; i++){
-      resultBuffer[i] = initUsbDevice(usb, &deviceBuffer[i]);
+      UsbControllerDevice device = {.type = UsbControllerXhci, {.xhcDevice = &deviceBuffer[i]}};
+      resultBuffer[i] = initUsbDevice(usb, device);
    }
    free(deviceBuffer);
    return attachedPortsCount;
 }
 
 UsbStatus usb_setConfiguration(UsbDevice *device, UsbConfiguration *configuration){
-   if(xhcd_setConfiguration(device->xhcDevice, configuration) != XhcOk){
+   if(device->usb->type != UsbControllerXhci){
+//      printf("USB controller not yet implemented");
+      return StatusError;
+   }
+
+   if(xhcd_setConfiguration(device->controllerDevice.xhcDevice, configuration) != XhcOk){
       return StatusError;
    }
    return StatusSuccess;
 }
 UsbStatus usb_configureDevice(UsbDevice *device, UsbRequestMessage message){
-   if(xhcd_sendRequest(device->xhcDevice, message) != XhcOk){
+   if(device->usb->type != UsbControllerXhci){
+//      printf("USB controller not yet implemented");
+      return StatusError;
+   }
+
+   if(xhcd_sendRequest(device->controllerDevice.xhcDevice, message) != XhcOk){
       return StatusError;
    }
    return StatusSuccess;
@@ -67,45 +85,61 @@ UsbDeviceDescriptor usb_getDeviceDescriptor(UsbDevice *device){
    return device->deviceDescriptor;
 }
 UsbStatus usb_readData(UsbDevice *device, int endpoint, void *dataBuffer, int dataBufferSize){
-   if(xhcd_readData(device->xhcDevice, endpoint, dataBuffer, dataBufferSize) != XhcOk){
+   if(device->usb->type != UsbControllerXhci){
+//      printf("USB controller not yet implemented");
+      return StatusError;
+   }
+
+   if(xhcd_readData(device->controllerDevice.xhcDevice, endpoint, dataBuffer, dataBufferSize) != XhcOk){
       return StatusError;
    }
    return StatusSuccess;
 
 }
-static UsbDevice initUsbDevice(Usb *usb, const XhcDevice *device){
-   UsbDeviceDescriptor descriptor;
-   getDeviceDescriptor(usb, device, &descriptor);
+static UsbDevice initUsbDevice(Usb *usb, UsbControllerDevice device){
+   XhcDevice *xhcDevice = malloc(sizeof(XhcDevice));
+   *xhcDevice = *device.xhcDevice;
+   UsbDevice usbDevice = {.controllerDevice = device, .usb = usb};
+   getDeviceDescriptor(&usbDevice);
 
-   int configCount = descriptor.bNumConfigurations;
+   int configCount = usbDevice.deviceDescriptor.bNumConfigurations;
    UsbConfiguration *configurations = malloc(sizeof(UsbConfiguration) * configCount);
    for(int j = 0; j < configCount; j++){
       UsbConfiguration *config;
-      getConfiguration(usb, device, j, &config);
+      getConfiguration(&usbDevice, j, &config);
       configurations[j] = *config;
       free(config);
    }
-   XhcDevice *xhcDevice = malloc(sizeof(XhcDevice));
-   *xhcDevice = *device;
-   UsbDevice usbDevice = {xhcDevice, descriptor, configurations, configCount, usb};
+   usbDevice.configuration = configurations;
+   usbDevice.configurationCount = configCount;
+
    return usbDevice;
 }
-static UsbStatus getDeviceDescriptor(Usb *usb, const XhcDevice *device, UsbDeviceDescriptor *result){
+static UsbStatus getDeviceDescriptor(UsbDevice *device){
+   if(device->usb->type != UsbControllerXhci){
+//      printf("USB controller not yet implemented");
+      return StatusError;
+   }
+
    UsbRequestMessage request;
    request.bmRequestType = 0x80;
    request.bRequest = REQUEST_GET_DESCRIPTOR;
    request.wValue = DESCRIPTOR_TYPE_DEVICE << 8;
    request.wIndex = 0;
    request.wLength = sizeof(UsbDeviceDescriptor);
-   request.dataBuffer = result;
+   request.dataBuffer = &device->deviceDescriptor;
 
-   if(xhcd_sendRequest(device, request) != XhcOk){
+   if(xhcd_sendRequest(device->controllerDevice.xhcDevice, request) != XhcOk){
       return StatusError;
    }
    return StatusSuccess;
-
 }
-static UsbStatus getConfiguration(Usb *usb, const XhcDevice *device, int configuration, UsbConfiguration **result){
+static UsbStatus getConfiguration(const UsbDevice *device, int configuration, UsbConfiguration **result){
+   if(device->usb->type != UsbControllerXhci){
+//      printf("USB controller not yet implemented");
+      return StatusError;
+   }
+
    const int bufferSize =
       sizeof(UsbConfigurationDescriptor) +
       sizeof(UsbInterfaceDescriptor) * 32 +
@@ -119,7 +153,7 @@ static UsbStatus getConfiguration(Usb *usb, const XhcDevice *device, int configu
    request.wIndex = 0;
    request.wLength = sizeof(buffer);
    request.dataBuffer = buffer;
-   if(xhcd_sendRequest(device, request) != XhcOk){
+   if(xhcd_sendRequest(device->controllerDevice.xhcDevice, request) != XhcOk){
       return StatusError;
    }
    *result = parseConfiguration(buffer);

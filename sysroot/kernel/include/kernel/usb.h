@@ -6,12 +6,28 @@
 #include "xhcd.h"
 #include "pci.h"
 
+typedef enum{
+   UsbControllerXhci,
+
+}UsbController;
+
 typedef struct{
-   Xhci *xhci;
+   UsbController type;
+   union{
+      Xhci *xhci;
+   };
 }Usb;
 
 typedef struct{
-   XhcDevice *xhcDevice;
+   UsbController type;
+   union{
+      XhcDevice  *xhcDevice;
+   };
+
+}UsbControllerDevice;
+
+typedef struct{
+   UsbControllerDevice controllerDevice;
    UsbDeviceDescriptor deviceDescriptor;
    UsbConfiguration *configuration;
    int configurationCount;
