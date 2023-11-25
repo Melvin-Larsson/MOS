@@ -53,7 +53,10 @@ static void initDefaultInputContext(XhcInputContext *inputContext, int portIndex
 
 static XhcStatus configureEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint);
 static XhcStatus runConfigureEndpointCommand(Xhci *xhci, int slotId, int endpointIndex, XhcEndpointContext *endpointContext);
+
 static XhcStatus initInterruptEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint);
+static XhcStatus initBulkEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint);
+
 static int getEndpointIndex(UsbEndpointDescriptor *endpoint);
 
 static XhcStatus initDevice(Xhci *xhci, int portIndex, XhcDevice *result);
@@ -165,6 +168,8 @@ static XhcStatus configureEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor
    switch(endpoint->transferType){
       case ENDPOINT_TRANSFER_TYPE_INTERRUPT:
          return initInterruptEndpoint(xhci, slotId, endpoint);
+      case ENDPOINT_TRANSFER_TYPE_BULK:
+         return initBulkEndpoint(xhci, slotId, endpoint);
       default:
          printf("Transfer type not yet implemented %d\n", endpoint->transferType);
          return XhcNotYetImplemented;
@@ -219,20 +224,36 @@ static XhcStatus initInterruptEndpoint(Xhci *xhci, int slotId, UsbEndpointDescri
    uint32_t endpointType =
       endpoint->direction == ENDPOINT_DIRECTION_IN ? ENDPOINT_TYPE_INTERRUPT_IN : ENDPOINT_TYPE_INTERRUPT_OUT;
 
-
-   XhcEndpointContext endpointContext;
-   endpointContext.endpointType = endpointType;
-   endpointContext.maxPacketSize = maxPacketSize;
-   endpointContext.maxBurstSize = maxBurstSize;
-   endpointContext.mult = 0;
-   endpointContext.errorCount = 3;
-   endpointContext.dequeuePointer = (uintptr_t)transferRing.dequeue | transferRing.pcs;
-   endpointContext.maxESITPayloadLow = (uint16_t)maxESITPayload; 
-   endpointContext.maxESITPayloadHigh = maxESITPayload >> 16;
-   endpointContext.interval = endpoint->bInterval;
-
+   XhcEndpointContext endpointContext = (XhcEndpointContext){
+      .endpointType = endpointType,
+      .maxPacketSize = maxPacketSize,
+      .maxBurstSize = maxBurstSize,
+      .mult = 0,
+      .errorCount = 3,
+      .dequeuePointer = (uintptr_t)transferRing.dequeue | transferRing.pcs,
+      .maxESITPayloadLow = (uint16_t)maxESITPayload, 
+      .maxESITPayloadHigh = maxESITPayload >> 16,
+      .interval = endpoint->bInterval,
+   };
    return runConfigureEndpointCommand(xhci, slotId, endpointIndex, &endpointContext);
 }
+static XhcStatus initBulkEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint){
+   int endpointIndex = getEndpointIndex(endpoint);
+
+   XhcdRing transferRing = xhcd_newRing(DEFAULT_TRANSFER_RING_TRB_COUNT);
+   xhci->transferRing[slotId][endpointIndex - 1] = transferRing;
+
+   XhcEndpointContext endpointContext = (XhcEndpointContext)
+   {
+      .endpointType = endpoint->direction == ENDPOINT_DIRECTION_IN ? 0 : 0, //TBD
+      .maxPacketSize = endpoint->wMaxPacketSize,
+      .maxBurstSize = 0, //TBD
+      .errorCount = 3,
+      //TBD
+   };
+   return runConfigureEndpointCommand(xhci, slotId, endpointIndex, &endpointContext);
+}
+
 static int getSlotId(Xhci *xhci){
    xhcd_putTRB(TRB_ENABLE_SLOT(getSlotType(xhci)), &xhci->commandRing);
    ringCommandDoorbell(xhci);
