@@ -123,7 +123,7 @@ static UsbStatus getDeviceDescriptor(UsbDevice *device){
 //      printf("USB controller not yet implemented");
       return StatusError;
    }
-   UsbDeviceDescriptor result;
+   UsbDeviceDescriptor result __attribute__((aligned (8))); //Why does not e.g. 64 work?
 
    UsbRequestMessage request;
    request.bmRequestType = 0x80;
@@ -131,7 +131,7 @@ static UsbStatus getDeviceDescriptor(UsbDevice *device){
    request.wValue = DESCRIPTOR_TYPE_DEVICE << 8;
    request.wIndex = 0;
    request.wLength = sizeof(UsbDeviceDescriptor);
-   request.dataBuffer = &result; //FIXME: Why does not &device->deviceDescriptor work?
+   request.dataBuffer = &result; 
 
    if(xhcd_sendRequest(device->controllerDevice.xhcDevice, request) != XhcOk){
       return StatusError;

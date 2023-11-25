@@ -23,6 +23,9 @@ on other hardware:
 SERIOUS: interrupts 0-31 are all assumed to be caused by exceptions that generate error codes (stack will get fucked otherwise)
 
    __asm__ volatile ("mov 0x8(%%ebp), %0" : "=r"(v3));*/
+
+Alignment of data referenced by the data buffer lo and hi in a data stage TRB might need to be 64 / 128 bit aligned for
+qemu for example. Although it is only recomended (p.470)
    
 
 APIC:
