@@ -25,7 +25,6 @@ static UsbEndpointDescriptor *getEndpoint(UsbInterface *interface);
 static UsbStatus setProtocol(UsbDevice *device, int interface, int protocol);
 
 KeyboardStatus keyboard_init(UsbDevice *usbDevice){
-
    UsbConfiguration *configuration = getConfiguration(usbDevice);
    if(configuration == 0){
       return KeyboardInvalidConfiguration;
@@ -33,7 +32,7 @@ KeyboardStatus keyboard_init(UsbDevice *usbDevice){
    UsbInterface *interface  = getInterface(configuration);
    UsbEndpointDescriptor *endpoint = getEndpoint(interface);
 
-   if(usb_setConfiguration(usbDevice, usbDevice->configuration) != StatusSuccess){
+   if(usb_setConfiguration(usbDevice, configuration) != StatusSuccess){
       return KeyboardConfigureError;
    }
    int interfaceNumber = interface->descriptor.bInterfaceNumber;

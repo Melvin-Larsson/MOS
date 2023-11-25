@@ -56,6 +56,7 @@ int usb_getNewlyAttachedDevices(Usb *usb, UsbDevice *resultBuffer, int bufferSiz
       resultBuffer[i] = initUsbDevice(usb, device);
    }
    free(deviceBuffer);
+
    return attachedPortsCount;
 }
 
@@ -99,7 +100,9 @@ UsbStatus usb_readData(UsbDevice *device, int endpoint, void *dataBuffer, int da
 static UsbDevice initUsbDevice(Usb *usb, UsbControllerDevice device){
    XhcDevice *xhcDevice = malloc(sizeof(XhcDevice));
    *xhcDevice = *device.xhcDevice;
+   device.xhcDevice = xhcDevice;
    UsbDevice usbDevice = {.controllerDevice = device, .usb = usb};
+
    getDeviceDescriptor(&usbDevice);
 
    int configCount = usbDevice.deviceDescriptor.bNumConfigurations;
@@ -120,6 +123,7 @@ static UsbStatus getDeviceDescriptor(UsbDevice *device){
 //      printf("USB controller not yet implemented");
       return StatusError;
    }
+   UsbDeviceDescriptor result;
 
    UsbRequestMessage request;
    request.bmRequestType = 0x80;
@@ -127,11 +131,12 @@ static UsbStatus getDeviceDescriptor(UsbDevice *device){
    request.wValue = DESCRIPTOR_TYPE_DEVICE << 8;
    request.wIndex = 0;
    request.wLength = sizeof(UsbDeviceDescriptor);
-   request.dataBuffer = &device->deviceDescriptor;
+   request.dataBuffer = &result; //FIXME: Why does not &device->deviceDescriptor work?
 
    if(xhcd_sendRequest(device->controllerDevice.xhcDevice, request) != XhcOk){
       return StatusError;
    }
+   device->deviceDescriptor = result;
    return StatusSuccess;
 }
 static UsbStatus getConfiguration(const UsbDevice *device, int configuration, UsbConfiguration **result){
