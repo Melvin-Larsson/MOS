@@ -26,6 +26,8 @@
 #define ENDPOINT_TYPE_CONTROL 4
 #define ENDPOINT_TYPE_INTERRUPT_IN 7
 #define ENDPOINT_TYPE_INTERRUPT_OUT 3
+#define ENDPOINT_TYPE_BULK_IN 6
+#define ENDPOINT_TYPE_BULK_OUT 2
 
 #define INPUT_CONTEXT_A0A1_MASK 0b11
 
@@ -33,6 +35,7 @@
 #define DESCRIPTOR_TYPE_CONFIGURATION 2
 #define DESCRIPTOR_TYPE_INTERFACE 4
 #define DESCRIPTOR_TYPE_ENDPOINT 5
+#define DESCRIPTOR_TYPE_SUPER_SPEED_ENDPOINT 0x30
 
 static int initBasePointers(const PciGeneralDeviceHeader *pciHeader, Xhci *xhci);
 static void waitForControllerReady(Xhci *xhci);
@@ -240,19 +243,46 @@ static XhcStatus initInterruptEndpoint(Xhci *xhci, int slotId, UsbEndpointDescri
 static XhcStatus initBulkEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor *endpoint){
    int endpointIndex = getEndpointIndex(endpoint);
 
-   XhcdRing transferRing = xhcd_newRing(DEFAULT_TRANSFER_RING_TRB_COUNT);
-   xhci->transferRing[slotId][endpointIndex - 1] = transferRing;
+
+   uint32_t maxBurstSize = 0;
+   uint32_t maxPrimaryStreams = 0;
+   uintptr_t dequePointer = 0;
+   uint32_t hostInitiateDisable = 0;
+   uint32_t linearStreamArray = 0;
+   if(endpoint->superSpeedDescriptor){
+      maxBurstSize = endpoint->superSpeedDescriptor->bMaxBurst;
+
+      if(endpoint->superSpeedDescriptor->maxStreams > 0){
+         printf("Streams not yet implemented\n");
+         return XhcNotYetImplemented;
+
+      }
+      else{
+         XhcdRing transferRing = xhcd_newRing(DEFAULT_TRANSFER_RING_TRB_COUNT);
+         xhci->transferRing[slotId][endpointIndex - 1] = transferRing;
+
+         maxPrimaryStreams = 0;
+         dequePointer = (uintptr_t)transferRing.dequeue | transferRing.pcs;
+     }
+   }
+   else{
+      maxBurstSize = 0;
+   }
 
    XhcEndpointContext endpointContext = (XhcEndpointContext)
    {
-      .endpointType = endpoint->direction == ENDPOINT_DIRECTION_IN ? 0 : 0, //TBD
+      .endpointType = endpoint->direction == ENDPOINT_DIRECTION_IN ? ENDPOINT_TYPE_BULK_IN : ENDPOINT_TYPE_BULK_OUT,
       .maxPacketSize = endpoint->wMaxPacketSize,
-      .maxBurstSize = 0, //TBD
+      .maxBurstSize = maxBurstSize,
       .errorCount = 3,
-      //TBD
+      .maxPrimaryStreams = maxPrimaryStreams,
+      .dequeuePointer = dequePointer,
+      .hostInitiateDisable = hostInitiateDisable,
+      .linearStreamArray = linearStreamArray,
    };
    return runConfigureEndpointCommand(xhci, slotId, endpointIndex, &endpointContext);
 }
+
 
 static int getSlotId(Xhci *xhci){
    xhcd_putTRB(TRB_ENABLE_SLOT(getSlotType(xhci)), &xhci->commandRing);
