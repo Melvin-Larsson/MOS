@@ -61,6 +61,20 @@ typedef struct{
 typedef struct{
    uint8_t bLength;
    uint8_t bDescriptorType;
+   uint8_t bMaxBurst;
+   union{
+      uint8_t bmAttributes;
+      struct{
+         uint8_t maxStreams : 5;
+         uint8_t reserved : 3;
+      };
+   };
+   uint16_t wBytesPerInterval;
+}__attribute__((packed))UsbSuperSpeedEndpointDescriptor;
+
+typedef struct{
+   uint8_t bLength;
+   uint8_t bDescriptorType;
    union{
       uint8_t bEndpointAddress;
       struct{
@@ -80,6 +94,7 @@ typedef struct{
    };
    uint16_t wMaxPacketSize;
    uint8_t bInterval;
+   UsbSuperSpeedEndpointDescriptor *superSpeedDescriptor;
 }__attribute__((packed))UsbEndpointDescriptor;
 
 typedef struct{

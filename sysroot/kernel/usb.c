@@ -9,6 +9,7 @@
 #define DESCRIPTOR_TYPE_CONFIGURATION 2
 #define DESCRIPTOR_TYPE_INTERFACE 4
 #define DESCRIPTOR_TYPE_ENDPOINT 5
+#define DESCRIPTOR_TYPE_SUPER_SPEED_ENDPOINT 0x30
 
 #define REQUEST_SET_CONFIGURATION 9 
 #define REQUEST_GET_DESCRIPTOR 6
@@ -148,7 +149,7 @@ static UsbStatus getConfiguration(const UsbDevice *device, int configuration, Us
    const int bufferSize =
       sizeof(UsbConfigurationDescriptor) +
       sizeof(UsbInterfaceDescriptor) * 32 +
-      sizeof(UsbEndpointDescriptor) * 32 * 15;
+      (sizeof(UsbEndpointDescriptor) - sizeof(uintptr_t)) * 32 * 15;
    uint8_t buffer[bufferSize];
 
    UsbRequestMessage request;
@@ -181,16 +182,30 @@ static UsbConfiguration *parseConfiguration(uint8_t *configBuffer){
 
       for(int j = 0; j < interfaceDescriptor->bNumEndpoints; j++){
          UsbEndpointDescriptor *endpointDescriptor = (UsbEndpointDescriptor*)pos;
+         UsbEndpointDescriptor *endpoint = &interface->endpoints[j];
+
          if(endpointDescriptor->bDescriptorType != DESCRIPTOR_TYPE_ENDPOINT){ //FIXME: kind of a hack to ignore HID descriptors
             j--;
             pos += endpointDescriptor->bLength;
+            continue;
+         }
+
+         *endpoint = *endpointDescriptor;
+         pos += endpointDescriptor->bLength;
+
+         //FIXME: What happens if we read outside the buffer?
+         UsbSuperSpeedEndpointDescriptor *superSpeedDescriptor = (UsbSuperSpeedEndpointDescriptor*)pos;
+         if(superSpeedDescriptor->bDescriptorType == DESCRIPTOR_TYPE_SUPER_SPEED_ENDPOINT){
+            printf("UsbSuperSpeedDescriptor found! This is not really implemented!\n"); //FIXME
+            endpoint->superSpeedDescriptor = malloc(sizeof(UsbSuperSpeedEndpointDescriptor));
+            *endpoint->superSpeedDescriptor = *superSpeedDescriptor;
+            pos += superSpeedDescriptor->bLength;
          }else{
-            UsbEndpointDescriptor *endpoint = &interface->endpoints[j];
-            *endpoint = *endpointDescriptor;
-            pos += sizeof(UsbEndpointDescriptor);
+            endpoint->superSpeedDescriptor = 0;
          }
       }
    }
+   printf("Parsed");
    return config;
 }
 static void freeConfiguration(UsbConfiguration *config){
