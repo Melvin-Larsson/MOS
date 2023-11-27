@@ -17,6 +17,7 @@ OBJS= ${BUILD}/boot.o \
 	   ${BUILD}/xhcd-event-ring.o \
 	   ${BUILD}/keyboard.o \
 	   ${BUILD}/usb.o \
+	   ${BUILD}/scsi.o \
 
 ${BUILD}/kernel.o : ${BUILD} ${OBJS} 
 	${COMPILER} -T linker.ld ${LINK_FLAGS} ${OBJS} -o ${BUILD}/kernel.out
@@ -55,6 +56,9 @@ ${BUILD}/usb.o : usb.c include/kernel/usb.h
 
 ${BUILD}/keyboard.o : keyboard.c include/kernel/keyboard.h
 	${COMPILER} ${CFLAGS} -c keyboard.c -o ${BUILD}/keyboard.o
+
+${BUILD}/scsi.o : scsi.c include/kernel/scsi.h
+	${COMPILER} ${CFLAGS} -c scsi.c -o ${BUILD}/scsi.o
 
 include/kernel/xhcd.h: include/kernel/xhcd-registers.h include/kernel/usb-messages.h
 include/kernel/xhcd-ring.h: include/kernel/xhcd-registers.h
