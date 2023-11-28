@@ -1,3 +1,3 @@
 #!/bin/sh
-export PREFIX="$HOME/Programming/OS"
-export COMPILER="$HOME/opt/cross/bin/i686-elf-gcc"
+export PREFIX="$HOME/Programmering/OS"
+export COMPILER="$HOME/opt/cross2/bin/i686-elf-gcc"

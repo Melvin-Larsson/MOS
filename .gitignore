@@ -8,3 +8,5 @@ test
 tags
 .cache
 compile_commands.json
+*.pdf
+config.sh

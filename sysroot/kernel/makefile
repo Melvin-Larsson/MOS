@@ -16,6 +16,7 @@ OBJS= ${BUILD}/boot.o \
 	   ${BUILD}/xhcd-ring.o \
 	   ${BUILD}/xhcd-event-ring.o \
 	   ${BUILD}/keyboard.o \
+	   ${BUILD}/usb-mass-storage.o \
 	   ${BUILD}/usb.o \
 	   ${BUILD}/scsi.o \
 
@@ -56,6 +57,9 @@ ${BUILD}/usb.o : usb.c include/kernel/usb.h
 
 ${BUILD}/keyboard.o : keyboard.c include/kernel/keyboard.h
 	${COMPILER} ${CFLAGS} -c keyboard.c -o ${BUILD}/keyboard.o
+	
+${BUILD}/usb-mass-storage.o : usb-mass-storage.c include/kernel/usb-mass-storage.h
+	${COMPILER} ${CFLAGS} -c usb-mass-storage.c -o ${BUILD}/usb-mass-storage.o
 
 ${BUILD}/scsi.o : scsi.c include/kernel/scsi.h
 	${COMPILER} ${CFLAGS} -c scsi.c -o ${BUILD}/scsi.o
@@ -64,6 +68,7 @@ include/kernel/xhcd.h: include/kernel/xhcd-registers.h include/kernel/usb-messag
 include/kernel/xhcd-ring.h: include/kernel/xhcd-registers.h
 include/kernel/xhcd-event-ring.h: include/kernel/xhcd-registers.h
 include/kernel/usb.h : include/kernel/usb-descriptors.h include/kernel/xhcd.h include/kernel/usb-messages.h
+include/kernel/usb-mass-storage.h: include/kernel/usb.h
 
 ${BUILD}/boot.o :
 	cd ${PREFIX}/sysroot/kernel/i686 && \

@@ -49,6 +49,7 @@ UsbStatus usb_setConfiguration(
       UsbDevice *device,
       UsbConfiguration *configuration);
 UsbDeviceDescriptor usb_getDeviceDescriptor(UsbDevice *deviceor);
+//TODO: implement
 UsbStatus usb_clearFeature(UsbDevice *device, uint16_t featureSelector);
 UsbStatus usb_getConfiguration(UsbDevice *device, uint8_t result[1]);
 UsbStatus usb_getDescriptor(UsbDevice *device, void *buffer, uint16_t bufferSize);
