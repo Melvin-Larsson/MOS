@@ -94,6 +94,8 @@ typedef struct{
       ScsiCdb6 cdb10;
       ScsiCdb6 cdb12;
       ScsiCdb6 cdb16;
+      ScsiCdbVariable cdbVariable;
+      uint8_t bytes[16];
    };
 }ScsiCDB;
 
