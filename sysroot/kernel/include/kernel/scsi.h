@@ -102,5 +102,7 @@ typedef struct{
 ScsiCDB Scsi_CDB_INQUIRY(uint8_t pageCode, uint16_t allocationLength);
 ScsiCDB Scsi_CDB_READ10(uint32_t logicalBlockAddress, uint16_t transferLenght);
 ScsiCDB Scsi_CDB_WRITE10(uint32_t logicalBlockAddress, uint16_t transferLenght);
+ScsiCDB Scsi_CDB_TestUnitReady();
+ScsiCDB Scsi_CDB_ReadCapacity();
 
 #endif

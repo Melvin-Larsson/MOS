@@ -78,7 +78,7 @@ XhcStatus xhcd_sendRequest(const XhcDevice *device, UsbRequestMessage request);
   @return XhcOk if successful. An error code otherwise.
 
  */
-XhcStatus xhcd_readData(const XhcDevice *device, int endpoint, void *dataBuffer, uint16_t bufferSize);
+XhcStatus xhcd_readData(const XhcDevice *device, UsbEndpointDescriptor endpoint, void *dataBuffer, uint16_t bufferSize);
 /*
   Detects and initializes devices that have not been initialized.
 
@@ -100,6 +100,9 @@ int xhcd_getDevices(Xhci *xhci, XhcDevice *resultBuffer, int bufferSize);
 XhcStatus xhcd_setConfiguration(XhcDevice *device, const UsbConfiguration *configuration);
 
 //TODO: Implement:
-int xhcd_writeData(const XhcDevice *device, int endpoint, void *dataBuffer, uint16_t bufferSize);
+XhcStatus xhcd_writeData(const XhcDevice *device,
+      UsbEndpointDescriptor endpoint,
+      void *dataBuffer,
+      uint16_t bufferSize);
 
 #endif

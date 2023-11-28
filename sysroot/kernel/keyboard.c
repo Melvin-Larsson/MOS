@@ -40,14 +40,13 @@ KeyboardStatus keyboard_init(UsbDevice *usbDevice){
       return KeyboardProtocolError;
    }
 
-   int index = endpoint->endpointNumber * 2 + 1;
    uint8_t buffer[8];
    memset(buffer, 0, sizeof(buffer));
 
    printf("listening for keypresses:\n");
    uint8_t last = 0;
    while(1){
-      usb_readData(usbDevice, index, buffer, sizeof(buffer));
+      usb_readData(usbDevice, *endpoint, buffer, sizeof(buffer));
       for(int i = 0; i < 6 && buffer[2] != last; i++){
          uint8_t keypress = buffer[2 + i];
          if(keypress == 0){

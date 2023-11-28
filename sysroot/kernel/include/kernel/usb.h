@@ -64,7 +64,8 @@ UsbStatus usb_syncFrame(UsbDevice *device, uint16_t endpoint, uint8_t frameNumbe
 
 UsbStatus usb_configureDevice(UsbDevice *device, UsbRequestMessage message);
 
-UsbStatus usb_readData(UsbDevice *device, int endpoint, void *dataBuffer, int dataBufferSize);
+UsbStatus usb_readData(UsbDevice *device, UsbEndpointDescriptor endpoint, void *dataBuffer, int dataBufferSize);
+UsbStatus usb_writeData(UsbDevice *device, UsbEndpointDescriptor endpoint, void *dataBuffer, int dataBufferSize);
 
 
 #endif

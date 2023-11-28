@@ -86,7 +86,7 @@ UsbStatus usb_configureDevice(UsbDevice *device, UsbRequestMessage message){
 UsbDeviceDescriptor usb_getDeviceDescriptor(UsbDevice *device){
    return device->deviceDescriptor;
 }
-UsbStatus usb_readData(UsbDevice *device, int endpoint, void *dataBuffer, int dataBufferSize){
+UsbStatus usb_readData(UsbDevice *device, UsbEndpointDescriptor endpoint, void *dataBuffer, int dataBufferSize){
    if(device->usb->type != UsbControllerXhci){
 //      printf("USB controller not yet implemented");
       return StatusError;
@@ -97,6 +97,16 @@ UsbStatus usb_readData(UsbDevice *device, int endpoint, void *dataBuffer, int da
    }
    return StatusSuccess;
 
+}
+UsbStatus usb_writeData(UsbDevice *device, UsbEndpointDescriptor endpoint, void *dataBuffer, int dataBufferSize){
+   if(device->usb->type != UsbControllerXhci){
+//      printf("USB controller not yet implemented");
+      return StatusError;
+   }
+   if(xhcd_writeData(device->controllerDevice.xhcDevice, endpoint, dataBuffer, dataBufferSize) != XhcOk){
+      return StatusError;
+   }
+   return StatusSuccess;
 }
 static UsbDevice initUsbDevice(Usb *usb, UsbControllerDevice device){
    XhcDevice *xhcDevice = malloc(sizeof(XhcDevice));

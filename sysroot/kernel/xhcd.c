@@ -178,12 +178,34 @@ static XhcStatus configureEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor
          return XhcNotYetImplemented;
    }
 }
-XhcStatus xhcd_readData(const XhcDevice *device, int endpoint, void *dataBuffer, uint16_t bufferSize){
+XhcStatus xhcd_readData(const XhcDevice *device, UsbEndpointDescriptor endpoint, void *dataBuffer, uint16_t bufferSize){
+   int endpointIndex = getEndpointIndex(&endpoint);
+
    Xhci *xhci = device->xhci;
    TRB trb = TRB_NORMAL(dataBuffer, bufferSize);
-   XhcdRing *transferRing = &xhci->transferRing[device->slotId][endpoint - 1];
+   XhcdRing *transferRing = &xhci->transferRing[device->slotId][endpointIndex - 1];
    xhcd_putTRB(trb, transferRing);
-   xhcd_ringDoorbell(xhci, device->slotId, endpoint);
+   xhcd_ringDoorbell(xhci, device->slotId, endpointIndex);
+
+   XhcEventTRB event;
+   while(!xhcd_readEvent(&xhci->eventRing, &event, 1));
+   if(event.completionCode != Success){
+      return XhcReadDataError;
+   }
+   return XhcOk;
+}
+XhcStatus xhcd_writeData(const XhcDevice *device,
+      UsbEndpointDescriptor endpoint,
+      void *dataBuffer,
+      uint16_t bufferSize){
+
+   int endpointIndex = getEndpointIndex(&endpoint);
+   Xhci *xhci = device->xhci;
+   TRB trb = TRB_NORMAL(dataBuffer, bufferSize);
+   XhcdRing *transferRing = &xhci->transferRing[device->slotId][endpointIndex - 1];
+   xhcd_putTRB(trb, transferRing);
+   printf("Writing on endpoint %d\n", endpointIndex);
+   xhcd_ringDoorbell(xhci, device->slotId, endpointIndex);
 
    XhcEventTRB event;
    while(!xhcd_readEvent(&xhci->eventRing, &event, 1));
