@@ -9,3 +9,5 @@ qemu-system-x86_64 -hda build/os.img \
 --trace events=trace.event
 
 
+#-drive if=none,id=stick,format=raw,file=stick.img \
+#-device usb-storage,bus=xhci.0,drive=stick \
