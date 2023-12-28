@@ -81,7 +81,7 @@ void printf(const char* str, ...){
             if(*str == 'X'){
                 str++;
                 char buff[32];
-                strReadIntHex(va_arg(args, unsigned int), buff);
+                strReadIntHex(va_arg(args, uint32_t), buff);
                 printf(buff);
             }
         }

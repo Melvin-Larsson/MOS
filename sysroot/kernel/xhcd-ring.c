@@ -50,7 +50,7 @@ XhcdRing xhcd_newRing(int trbCount){
 }
 int xhcd_attachCommandRing(XhciOperation *operation, XhcdRing *ring){
    uintptr_t address = (uintptr_t)ring->dequeue;
-   operation->commandRingControll  = address | ring->pcs;
+   operation->commandRingControll = address | ring->pcs;
    return 1;
 }
 void xhcd_putTD(TD td, XhcdRing *ring){
@@ -179,8 +179,8 @@ static void initSegment(Segment segment, Segment nextSegment, int isLast){
    memset((void*)segment.address, 0, segment.trbCount * sizeof(TRB));
    TRB *trbs = (TRB*)segment.address;
    if(!DEFAULT_PCS){
-      for(int i = 0; i < segment.trbCount; i ++){
-         trbs[i].r3 |= DEFAULT_PCS; 
+      for(int i = 0; i < segment.trbCount; i++){
+         trbs[i].r3 |= 1;
       }
    }
    LinkTRB *link = (LinkTRB*)&trbs[segment.trbCount - 1];

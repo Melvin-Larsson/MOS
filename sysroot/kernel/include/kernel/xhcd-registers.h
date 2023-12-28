@@ -47,7 +47,9 @@ typedef volatile struct{
    uint32_t warmPortResetChange : 1;
    uint32_t overCurrentChange : 1;
    uint32_t portResetChange : 1;
-   uint32_t other : 10;
+   uint32_t portLinkStateChange : 1;
+   uint32_t portConfigErrorChange : 1;
+   uint32_t other : 8;
 }__attribute__((packed))PortStatusAndControll;
 
 typedef volatile struct{

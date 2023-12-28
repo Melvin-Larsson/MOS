@@ -4,6 +4,7 @@
 #include "kernel/usb-descriptors.h"
 #include "stdio.h"
 #include "stdlib.h"
+#include "string.h"
 
 //DC = Device context
 //p.168. TRB rings shall not cross 64KB boundary
@@ -13,7 +14,7 @@
 
 #define MAX_DEVICE_SLOTS_ENABLED 16
 #define DEFAULT_COMMAND_RING_SIZE 32
-#define DEFAULT_EVENT_SEGEMNT_TRB_COUNT 16
+#define DEFAULT_EVENT_SEGEMNT_TRB_COUNT 32
 #define DEFAULT_TRANSFER_RING_TRB_COUNT 16
 
 #define USBCMD_RUN_STOP_BIT 1
@@ -81,23 +82,119 @@ __attribute__((aligned(64)))
 static XhcInputContext inputContext[MAX_DEVICE_SLOTS_ENABLED];
 
 XhcStatus xhcd_init(const PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
+   void *stack = 0;
+   printf("addr: %X\n", printf);
+   printf("stack: %X\n", &stack);
    int errorCode = 0;
    if((errorCode = initBasePointers(pciHeader, xhci)) != 0){
       return errorCode;
    }
 
+   waitForControllerReady(xhci);
    resetXhc(xhci);
    waitForControllerReady(xhci);
    setMaxEnabledDeviceSlots(xhci);
    initDCAddressArray(xhci);
-   initCommandRing(xhci);
-   initEventRing(xhci);
    initScratchPad(xhci);
-   turnOnController(xhci);
 
-   printf("xhc running %b\n", xhci->operation->USBCommand & USBCMD_RUN_STOP_BIT);
-   printf("xhc halted %b\n", xhci->operation->USBStatus & 1);
-   printf("Error? %d\n", xhci->operation->USBStatus & (1 << 12));
+   initCommandRing(xhci);
+   printf("init eventring status %X\n", xhci->operation->USBStatus);
+   initEventRing(xhci);
+//    for(int i = 1; i < 1024; i++){
+//       InterrupterRegisters *interrupter = &xhci->interrupterRegisters[i];
+//       interrupter->eventRingSegmentTableSize = 0;
+//       interrupter->interruptEnable = 0;
+//    }
+//
+   turnOnController(xhci);
+   
+
+   uint32_t v = 0;
+   while(1){
+    uint16_t charInfo = 0x0F00 | (v + '0');
+    ((volatile uint16_t*)0xb8000)[5 * 80 + 50] = charInfo;
+      v++;
+      v %= 10;
+   }
+
+
+
+   xhci->operation->USBStatus |= 1 << 3;
+   while(xhci->operation->USBStatus & (1<<3));
+//    printf("xhc running %b\n", xhci->operation->USBCommand & USBCMD_RUN_STOP_BIT);
+//    printf("xhc halted %b\n", xhci->operation->USBStatus & 1);
+//    printf("Error? %d\n", xhci->operation->USBStatus & (1 << 12));
+
+
+//    for(int i = 0; i < 100; i++){
+//       printf("-");
+//       printf("\b");
+//    }
+   printf("Conf %X\n", xhci->operation->configure);
+   printf("stat %X\n", xhci->operation->USBStatus);
+   printf("cmd %X\n", xhci->operation->USBCommand);
+
+   uint32_t low = xhci->operation->commandRingControll;
+   printf("cmdr: %X\n", low);
+
+//    printf("op: %X\n", xhci->operation);
+//    printf("xhci: %X\n", xhci);
+
+//    uint32_t *ptr = (uint32_t*)&xhci->interrupterRegisters[0];
+//    printf("intr: ");
+//    for(int i = 0; i < 8; i++){
+//       printf("%X ", *ptr);
+//       ptr++;
+//    }
+//    printf("\n");
+
+   printf("Testing command ring\n");
+   void *curr = 0;
+   printf("curr: %X\n", &curr);
+   printf("func: %X\n", xhcd_init);
+   xhcd_putTRB(TRB_NOOP(), &xhci->commandRing);
+   ringCommandDoorbell(xhci);
+
+//    printf("op: %X\n", xhci->operation);
+//    printf("xhci: %X\n", xhci);
+
+//    for(int i = 0; i < 100; i++){
+//       printf("%d",i);
+//    }
+//    printf("a");
+//    printf("b");
+//    printf("c");
+//    printf("d");
+//    printf("e");
+//    printf("f");
+//    printf("g");
+//    printf("h");
+//    printf("i");
+//    printf("j");
+//    printf("k");
+//    printf("l");
+//    printf("m");
+//    printf("n");
+//    printf("o");
+//    printf("p");
+
+   low = xhci->operation->commandRingControll;
+   printf("cmdr: %X\n", low);
+   uint32_t status = xhci->operation->USBStatus;
+   printf("yes\n");
+   printf("status: %X\n", status);
+   XhcEventTRB event;
+   while(1){
+      if(xhci->operation->USBStatus){
+         printf("status: %X\n", xhci->operation->USBStatus);
+         xhci->operation->USBStatus |= 1 << 3;
+         while(xhci->operation->USBStatus & (1<<3));
+      }
+      if(xhcd_readEvent(&xhci->eventRing, &event, 1)){
+         printf("event: %d, status %d\n", event.trbType, event.completionCode);
+      }
+   }
+
    
    //FIXME: a bit of hack, clearing event ring
    XhcEventTRB result[16];
@@ -307,8 +404,16 @@ static XhcStatus initBulkEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor 
 
 
 static int getSlotId(Xhci *xhci){
+   printf("Getting slot id\n");
+   xhcd_putTRB(TRB_NOOP(), &xhci->commandRing);
    xhcd_putTRB(TRB_ENABLE_SLOT(getSlotType(xhci)), &xhci->commandRing);
    ringCommandDoorbell(xhci);
+   XhcEventTRB event;
+   while(1){
+      if(xhcd_readEvent(&xhci->eventRing, &event, 1)){
+         printf("event: %d\n", event.trbType);
+      }
+   }
    XhcEventTRB trb;
    //FIXME: hack
    while(!xhcd_readEvent(&xhci->eventRing, &trb, 1) || trb.trbType == PortStatusChangeEvent);
@@ -324,6 +429,7 @@ static int getSlotId(Xhci *xhci){
       printf("[xhc] something went wrong (initPort)");
       return -1;
    }
+   printf("Slot id %d\n", trb.slotId);
    return trb.slotId;
 }
 static void initDefaultInputContext(XhcInputContext *inputContext, int portIndex, XhcdRing transferRing){
@@ -351,15 +457,18 @@ static void initDefaultInputContext(XhcInputContext *inputContext, int portIndex
 
 }
 static int addressDevice(Xhci *xhci, int slotId, int portIndex){
+   printf("Address device\n");
    XhcOutputContext *outputContext = callocco(sizeof(XhcOutputContext), 64, 0);
    xhci->dcBaseAddressArray[slotId] = (uintptr_t)outputContext;
 
    XhcdRing transferRing = xhcd_newRing(DEFAULT_TRANSFER_RING_TRB_COUNT);
    xhci->transferRing[slotId][0] = transferRing;
+   printf("New ring\n");
    
    initDefaultInputContext(&inputContext[slotId], portIndex, transferRing);
    xhcd_putTRB(TRB_ADDRESS_DEVICE((uintptr_t)&inputContext[slotId], slotId, 0), &xhci->commandRing);
    ringCommandDoorbell(xhci);
+   printf("init context (waiting)\n");
    XhcEventTRB result;
    while(xhcd_readEvent(&xhci->eventRing, &result, 1) == 0);
    if(result.completionCode != Success){
@@ -384,7 +493,10 @@ static int checkoutPort(Xhci *xhci, int portIndex){
 static void resetXhc(Xhci *xhci){
    xhci->operation->USBCommand &= ~1;
    while(!(xhci->operation->USBStatus & 1));
+//    xhci->operation->USBCommand |= 1 << 9;
+//    while(xhci->operation->USBStatus & (1 << 9));
    xhci->operation->USBCommand |= 1 << 1;
+   while((xhci->operation->USBCommand & (1<<1)));
 }
 static void initCommandRing(Xhci *xhci){
    xhci->commandRing = xhcd_newRing(DEFAULT_COMMAND_RING_SIZE);
@@ -393,6 +505,12 @@ static void initCommandRing(Xhci *xhci){
 static void initEventRing(Xhci *xhci){
    xhci->eventRing = xhcd_newEventRing(DEFAULT_EVENT_SEGEMNT_TRB_COUNT);
    xhcd_attachEventRing(&xhci->eventRing, &xhci->interrupterRegisters[0]);
+   uint32_t rings = xhci->capabilities->structParams1.maxInterrupters;
+//    for(uint32_t i = 1; i < rings; i++){
+//       uint32_t *ptr = (uint32_t*)&xhci->interrupterRegisters[i];
+//       *ptr = 0;
+//    }
+   printf("eventRings: %X\n", rings);
 }
 static int enablePort(Xhci *xhci, int portIndex){
    if(isPortEnabled(xhci, portIndex)){
@@ -406,7 +524,18 @@ static int enablePort(Xhci *xhci, int portIndex){
    printf("Enabling port (USB2)\n");
    PortStatusAndControll *statusAndControll = getPortStatus(xhci, portIndex);
    PortStatusAndControll temp = *statusAndControll;
+
+   temp.portEnabledDisabled = 0;
+   temp.connectStatusChange = 0;
+   temp.portEnableDisableChange = 0;
+   temp.warmPortResetChange = 0;
+   temp.overCurrentChange = 0;
+   temp.portResetChange = 0;
+   temp.portLinkStateChange = 0;
+   temp.portConfigErrorChange = 0;
+
    temp.portReset = 1;
+
    *statusAndControll = temp;
    while(!temp.portResetChange){
       temp = *statusAndControll;
@@ -416,6 +545,16 @@ static int enablePort(Xhci *xhci, int portIndex){
    }
    printf("status: %X\n", *statusAndControll);
    int isEnabled = isPortEnabled(xhci, portIndex);
+
+   temp.portEnabledDisabled = 0;
+   temp.portReset = 0;
+   temp.connectStatusChange = 0;
+   temp.portEnableDisableChange = 0;
+   temp.warmPortResetChange = 0;
+   temp.overCurrentChange = 0;
+   temp.portLinkStateChange = 0;
+   temp.portConfigErrorChange = 0;
+
    temp.portResetChange = 1; //Clear FIXME: this acts strange
    *statusAndControll = temp; 
    printf("old status: %X\n", *statusAndControll);
@@ -599,7 +738,7 @@ static int initBasePointers(const PciGeneralDeviceHeader *pciHeader, Xhci *xhci)
       return -1;
    }
 
-   uint32_t base = pciHeader->baseAddress0 & (~15); //FIXME: what is this?
+   uint32_t base = pciHeader->baseAddress0 & (~0xFF); 
 
    
    xhci->capabilities = (XhciCapabilities *)base;
@@ -611,24 +750,24 @@ static int initBasePointers(const PciGeneralDeviceHeader *pciHeader, Xhci *xhci)
    xhci->doorbells = (XhciDoorbell *) (base + doorbellOffset);
    xhci->interrupterRegisters = (InterrupterRegisters *)(base + runtimeRegOffset + 0x20);
 
-   printf("addressed cap:%X door:%X, interrupt:%X op: %X\n", xhci->capabilities, xhci->doorbells, xhci->interrupterRegisters, xhci->operation);
+//    printf("addressed cap:%X door:%X, interrupt:%X op: %X\n", xhci->capabilities, xhci->doorbells, xhci->interrupterRegisters, xhci->operation);
 
    return 0;
 }
 static void waitForControllerReady(Xhci *xhci){
-   printf("Waiting for xhci controller ready...\n");
+//    printf("Waiting for xhci controller ready...\n");
    while(xhci->operation->USBStatus & CNR_FLAG);
 }
 static void setMaxEnabledDeviceSlots(Xhci *xhci){
    volatile uint32_t *configure = (uint32_t*)&xhci->operation->configure;
    uint32_t val = *configure;
    val &=  ~0xFF;
-   val |= MAX_DEVICE_SLOTS_ENABLED;
+   val |= MAX_DEVICE_SLOTS_ENABLED; //FIXME: What value?
    *configure = val;
 }
 static void initDCAddressArray(Xhci *xhci){
    xhci->dcBaseAddressArray = callocco((MAX_DEVICE_SLOTS_ENABLED + 1) * sizeof(uint64_t), 64, 0);
-   printf("dc array at %X\n", xhci->dcBaseAddressArray);
+//    printf("dc array at %X\n", xhci->dcBaseAddressArray);
    uintptr_t addr = (uintptr_t)xhci->dcBaseAddressArray; 
    xhci->operation->dcAddressArrayPointer = addr;
 }
@@ -643,8 +782,8 @@ static void initScratchPad(Xhci *xhci){
    }*/
 
    uint32_t pageSize = xhci->operation->pageSize << 12;
-   printf("pageSize: %d\n", pageSize);
-   uint64_t *scratchpadPointers = mallocco(scratchpadSize * sizeof(uint64_t), 64, pageSize);
+   printf("pageSize: %d %d\n", pageSize, xhci->operation->pageSize);
+   volatile uint64_t *scratchpadPointers = mallocco(scratchpadSize * sizeof(uint64_t), 64, pageSize);
 
    for(uint32_t i = 0; i < scratchpadSize; i++){
       void* scratchpadStart = callocco(pageSize, 1, pageSize);

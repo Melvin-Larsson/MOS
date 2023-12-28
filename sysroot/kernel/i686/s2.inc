@@ -15,7 +15,7 @@ pmode_main:
     mov fs, ax
     mov gs, ax
     mov ss, ax
-    mov esp, 0x90000
+    mov esp, 0x190000
 
     mov al, 0xff
     out 0xa1, al

@@ -9,6 +9,7 @@
 
 char message[] = "Kernel started!\n";
 static void printPciDevices(PciDescriptor *descriptors, int count){
+    return;
     printf("%d devices detected:\n", count);
     for(int i = 0; i < count; i++){
         PciHeader *header = &(descriptors[i].pciHeader);
@@ -128,12 +129,12 @@ static void testMemoryConstrained(){
 void kernel_main(){
     stdioinit();
     stdlib_init();
-    testMemory();
-    testMemoryConstrained();
+//     testMemory();
+//     testMemoryConstrained();
     printf(message);
     interruptDescriptorTableInit(); 
 
-    printf("APIC present: %b\n", apic_isPresent());
+//     printf("APIC present: %b\n", apic_isPresent());
 
     PciDescriptor devices[20];
     int count = pci_getDevices(devices, 10);

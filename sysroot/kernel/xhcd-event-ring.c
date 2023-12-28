@@ -16,8 +16,12 @@ static int getERSTIndex(XhcEventRing *eventRing);
 static int incrementSegment(XhcEventRing *eventRing);
 
 XhcEventRing xhcd_newEventRing(int trbCount){
-   EventRingSegmentTableEntry *segmentTable = mallocco(sizeof(EventRingSegmentTableEntry), 64, 0);
-   void* segmentPtr = callocco(sizeof(XhcEventTRB) * trbCount, 64, 64000);
+//    EventRingSegmentTableEntry *segmentTable = mallocco(sizeof(EventRingSegmentTableEntry), 64, 0);
+   unsigned int size = sizeof(XhcEventTRB) * trbCount + sizeof(XhcEventTRB) * trbCount % 64;
+   printf("Size: %X\n", size);
+   void* segmentPtr = callocco(size, 64, 64000);
+
+   EventRingSegmentTableEntry *segmentTable = callocco(64, 64, 0);
 
    segmentTable->baseAddress = (uintptr_t)segmentPtr;
    segmentTable->ringSegmentSize = trbCount;
@@ -39,6 +43,30 @@ int xhcd_attachEventRing(XhcEventRing *ring, InterrupterRegisters *interruptor){
    uintptr_t dequeAddr = (uintptr_t)ring->dequeue;
    interruptor->eventRingDequePointer = dequeAddr;
    interruptor->eventRingSegmentTableAddress = (uintptr_t)ring->currSegment;
+   interruptor->eventRingDequePointer = dequeAddr;
+
+//    interruptor->eventRingSegmentTableAddress = dequeAddr;
+//    interruptor->moderationInterval = 0;
+//    interruptor->interruptEnable = 0;
+
+   uint32_t *ptr = (uint32_t*)interruptor;
+   printf("intr: ");
+   for(int i = 0; i < 8; i++){
+      printf("%X ", *ptr);
+      ptr++;
+   }
+   uint8_t *p1 = (uint8_t*)ring->currSegment;
+   printf("\np1 (%X): ", (uint32_t)p1);
+   for(uint32_t i = 0; i < sizeof(EventRingSegmentTableEntry); i++){
+      printf("%X ", *p1++);
+   }
+   uint32_t *p2 = (uint32_t*)ring->currSegment->baseAddress;
+   printf("\np2: (%X)", (uint32_t)p2);
+   for(uint32_t i = 0; i < sizeof(XhcEventTRB) * ring->currSegment->ringSegmentSize / 4; i++){
+      printf("%X ", *p2++);
+   }
+   printf("\n");
+
    return 1;
 }
 int xhcd_readEvent(XhcEventRing *ring, XhcEventTRB* result, int maxOutput){

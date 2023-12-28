@@ -76,8 +76,20 @@ int pci_getDevices(PciDescriptor* output, int maxHeadersInOutput){
             currHeader->reg2 = pci_configReadRegister(bus, device,0,0x8);
             currHeader->reg3 = pci_configReadRegister(bus, device,0,0xc);
 
+
             currDescriptor->busNr = bus;
             currDescriptor->deviceNr = device;
+
+            if(currHeader->classCode == 0xC &&
+               currHeader->subclass == 0x3 &&
+               currHeader->progIf == 0x30){
+                  uint32_t reg1 = currHeader->reg1;
+                  reg1 |= 1 << 10;
+                  printf("r1: %X\n", reg1);
+                  pci_configWriteRegister(bus, device, 0, 0x4, reg1);
+                  currHeader->reg1 = pci_configReadRegister(bus, device,0,0x4);
+                  printf("regs: %X %X %X %X\n", currHeader->reg0, currHeader->reg1, currHeader->reg2, currHeader->reg3);
+               }
             
             index++;
             
@@ -104,9 +116,9 @@ void pci_getGeneralDevice(PciDescriptor* descriptor,
          0,
          4,
          output->reg[1] | 1 << 2);
-   for(int i = 0; i < 4; i++){
-      printf("read %X ", output->reg[i]);
-   }
+//    for(int i = 0; i < 4; i++){
+//       printf("read %X ", output->reg[i]);
+//    }
 
    for(int i = 0x4; i <= 0xF; i++){
       uint32_t val = 
@@ -116,8 +128,29 @@ void pci_getGeneralDevice(PciDescriptor* descriptor,
             0,
             i * 4);
       output->reg[i] = val;
-      printf("read %X", val);
+//       printf("read %X", val);
    }
+   uint8_t addr = output->capabilitiesPointer & ~0b11;
+   printf("\naddr: %X\n", addr);
+   uint8_t next = 0;
+   while(addr != 0){
+      for(int i = 0; i < 24 / 4; i++){
+          uint32_t val = pci_configReadRegister(
+               descriptor->busNr,
+               descriptor->deviceNr,
+               0,
+               addr + i * 4
+               );
+         if(i == 0){
+             next = (val >> 8) & 0xFF;
+         }
+         printf("-%X ", val);
+      }
+      printf("\n");
+      addr = next;
+
+   }
+
       printf("\n");
 
 }
