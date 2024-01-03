@@ -48,15 +48,16 @@ static void initXhci(PciGeneralDeviceHeader pci){
         printf("Failed to initialize USB\n");
         return;
     }
-    UsbDevice device;
-    printf("Wait for attach\n");
-    while(usb_getNewlyAttachedDevices(&usb, &device, 1) == 0);
-    printf("device attach\n");
-    KeyboardStatus status = keyboard_init(&device);
-    char buffer[100];
-    keyboard_getStatusCode(status, buffer);
-    printf("%s\n", buffer);
-        
+    while(1){
+        UsbDevice device;
+        printf("Wait for attach\n");
+        while(usb_getNewlyAttachedDevices(&usb, &device, 1) == 0);
+        printf("device attach\n");
+        KeyboardStatus status = keyboard_init(&device);
+        char buffer[100];
+        keyboard_getStatusCode(status, buffer);
+        printf("%s\n", buffer);
+    }
 }
 static int overlaps(uint8_t *p1, int s1, uint8_t *p2, int s2){
     return p1 + s1 > p2 && p1 < p2 + s2;

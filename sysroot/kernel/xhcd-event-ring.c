@@ -47,7 +47,6 @@ int xhcd_attachEventRing(XhcEventRing *ring, InterrupterRegisters *interruptor){
 
 //    interruptor->eventRingSegmentTableAddress = dequeAddr;
 //    interruptor->moderationInterval = 0;
-//    interruptor->interruptEnable = 0;
 
    uint32_t *ptr = (uint32_t*)interruptor;
    printf("intr: ");
@@ -55,17 +54,18 @@ int xhcd_attachEventRing(XhcEventRing *ring, InterrupterRegisters *interruptor){
       printf("%X ", *ptr);
       ptr++;
    }
-   uint8_t *p1 = (uint8_t*)ring->currSegment;
-   printf("\np1 (%X): ", (uint32_t)p1);
-   for(uint32_t i = 0; i < sizeof(EventRingSegmentTableEntry); i++){
-      printf("%X ", *p1++);
-   }
-   uint32_t *p2 = (uint32_t*)ring->currSegment->baseAddress;
-   printf("\np2: (%X)", (uint32_t)p2);
-   for(uint32_t i = 0; i < sizeof(XhcEventTRB) * ring->currSegment->ringSegmentSize / 4; i++){
-      printf("%X ", *p2++);
-   }
    printf("\n");
+//    uint8_t *p1 = (uint8_t*)ring->currSegment;
+//    printf("\np1 (%X): ", (uint32_t)p1);
+//    for(uint32_t i = 0; i < sizeof(EventRingSegmentTableEntry); i++){
+//       printf("%X ", *p1++);
+//    }
+//    uint32_t *p2 = (uint32_t*)ring->currSegment->baseAddress;
+//    printf("\np2: (%X)", (uint32_t)p2);
+//    for(uint32_t i = 0; i < sizeof(XhcEventTRB) * ring->currSegment->ringSegmentSize / 4; i++){
+//       printf("%X ", *p2++);
+//    }
+//    printf("\n");
 
    return 1;
 }

@@ -100,6 +100,7 @@ XhcStatus xhcd_init(const PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
    initCommandRing(xhci);
    printf("init eventring status %X\n", xhci->operation->USBStatus);
    initEventRing(xhci);
+
 //    for(int i = 1; i < 1024; i++){
 //       InterrupterRegisters *interrupter = &xhci->interrupterRegisters[i];
 //       interrupter->eventRingSegmentTableSize = 0;
@@ -108,15 +109,6 @@ XhcStatus xhcd_init(const PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
 //
    turnOnController(xhci);
    
-
-   uint32_t v = 0;
-   while(1){
-    uint16_t charInfo = 0x0F00 | (v + '0');
-    ((volatile uint16_t*)0xb8000)[5 * 80 + 50] = charInfo;
-      v++;
-      v %= 10;
-   }
-
 
 
    xhci->operation->USBStatus |= 1 << 3;
@@ -152,8 +144,8 @@ XhcStatus xhcd_init(const PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
    void *curr = 0;
    printf("curr: %X\n", &curr);
    printf("func: %X\n", xhcd_init);
-   xhcd_putTRB(TRB_NOOP(), &xhci->commandRing);
-   ringCommandDoorbell(xhci);
+//    xhcd_putTRB(TRB_NOOP(), &xhci->commandRing);
+//    ringCommandDoorbell(xhci);
 
 //    printf("op: %X\n", xhci->operation);
 //    printf("xhci: %X\n", xhci);
@@ -184,16 +176,16 @@ XhcStatus xhcd_init(const PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
    printf("yes\n");
    printf("status: %X\n", status);
    XhcEventTRB event;
-   while(1){
-      if(xhci->operation->USBStatus){
-         printf("status: %X\n", xhci->operation->USBStatus);
-         xhci->operation->USBStatus |= 1 << 3;
-         while(xhci->operation->USBStatus & (1<<3));
-      }
-      if(xhcd_readEvent(&xhci->eventRing, &event, 1)){
-         printf("event: %d, status %d\n", event.trbType, event.completionCode);
-      }
-   }
+//    while(1){
+//       if(xhci->operation->USBStatus){
+//          printf("status: %X\n", xhci->operation->USBStatus);
+//          xhci->operation->USBStatus |= 1 << 3;
+//          while(xhci->operation->USBStatus & (1<<3));
+//       }
+//       if(xhcd_readEvent(&xhci->eventRing, &event, 1)){
+//          printf("event: %d, status %d\n", event.trbType, event.completionCode);
+//       }
+//    }
 
    
    //FIXME: a bit of hack, clearing event ring
@@ -276,6 +268,7 @@ static XhcStatus configureEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor
    }
 }
 XhcStatus xhcd_readData(const XhcDevice *device, UsbEndpointDescriptor endpoint, void *dataBuffer, uint16_t bufferSize){
+   printf("read\n");
    int endpointIndex = getEndpointIndex(&endpoint);
 
    Xhci *xhci = device->xhci;
@@ -285,10 +278,13 @@ XhcStatus xhcd_readData(const XhcDevice *device, UsbEndpointDescriptor endpoint,
    xhcd_ringDoorbell(xhci, device->slotId, endpointIndex);
 
    XhcEventTRB event;
+   printf("wait\n");
    while(!xhcd_readEvent(&xhci->eventRing, &event, 1));
    if(event.completionCode != Success){
+      printf("compcode: %X, type: %X\n", event.completionCode, event.trbType);
       return XhcReadDataError;
    }
+   printf("event ok\n");
    return XhcOk;
 }
 XhcStatus xhcd_writeData(const XhcDevice *device,
@@ -405,15 +401,8 @@ static XhcStatus initBulkEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor 
 
 static int getSlotId(Xhci *xhci){
    printf("Getting slot id\n");
-   xhcd_putTRB(TRB_NOOP(), &xhci->commandRing);
    xhcd_putTRB(TRB_ENABLE_SLOT(getSlotType(xhci)), &xhci->commandRing);
    ringCommandDoorbell(xhci);
-   XhcEventTRB event;
-   while(1){
-      if(xhcd_readEvent(&xhci->eventRing, &event, 1)){
-         printf("event: %d\n", event.trbType);
-      }
-   }
    XhcEventTRB trb;
    //FIXME: hack
    while(!xhcd_readEvent(&xhci->eventRing, &trb, 1) || trb.trbType == PortStatusChangeEvent);
@@ -743,12 +732,47 @@ static int initBasePointers(const PciGeneralDeviceHeader *pciHeader, Xhci *xhci)
    
    xhci->capabilities = (XhciCapabilities *)base;
    uint32_t capLength = xhci->capabilities->capabilityRegistersLength;
-   uint32_t doorbellOffset = xhci->capabilities->doorbellOffset;
-   uint32_t runtimeRegOffset = xhci->capabilities->runtimeRegisterSpaceOffset;
+   uint32_t doorbellOffset = xhci->capabilities->doorbellOffset & ~0x3;
+   uint32_t runtimeRegOffset = xhci->capabilities->runtimeRegisterSpaceOffset  & ~0x1F;
 
    xhci->operation = (XhciOperation *) (base + capLength);
    xhci->doorbells = (XhciDoorbell *) (base + doorbellOffset);
    xhci->interrupterRegisters = (InterrupterRegisters *)(base + runtimeRegOffset + 0x20);
+
+   printf("cap1: %X\n", xhci->capabilities->capabilityParams1);
+   uint32_t xECP = (xhci->capabilities->capabilityParams1.extendedCapabilitiesPointer << 2);
+   printf("xECP: %X\n", xECP);
+   volatile uint32_t *cap = (uint32_t *)(base + xECP);
+   if(xECP != 0){
+      uint32_t i = 0;
+      while(i < 5){
+         i++;
+         printf("cap: %X\n", *cap);
+         if((*cap & 0xFF) == 1){
+            printf("%X\n", *(cap));
+            printf("%X\n", *(cap + 1));
+
+            *cap |= 1 << 24;
+            while((*cap & (1 << 24)) == 0);
+            while((*cap & (1 << 16)));
+
+            *(cap + 1) = 0;
+
+            printf("%X\n", *(cap));
+            printf("%X\n", *(cap + 1));
+         }
+
+
+         uint8_t next = ((*cap >> 8) & 0xFF);
+         printf("next: %X\n", next);
+         if(next == 0){
+            break;
+         }
+         cap += next;
+      }
+
+   }
+
 
 //    printf("addressed cap:%X door:%X, interrupt:%X op: %X\n", xhci->capabilities, xhci->doorbells, xhci->interrupterRegisters, xhci->operation);
 

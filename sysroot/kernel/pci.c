@@ -115,12 +115,13 @@ void pci_getGeneralDevice(PciDescriptor* descriptor,
          descriptor->deviceNr,
          0,
          4,
-         output->reg[1] | 1 << 2);
+         (output->reg[1] | 1 << 2 | 1 << 1) & ~(1 | 1 << 10));
 //    for(int i = 0; i < 4; i++){
 //       printf("read %X ", output->reg[i]);
 //    }
 
-   for(int i = 0x4; i <= 0xF; i++){
+   printf("read: ");
+   for(int i = 0; i <= 0xF; i++){
       uint32_t val = 
        pci_configReadRegister(
             descriptor->busNr,
@@ -128,8 +129,9 @@ void pci_getGeneralDevice(PciDescriptor* descriptor,
             0,
             i * 4);
       output->reg[i] = val;
-//       printf("read %X", val);
+      printf("%X ", val);
    }
+   printf("\n");
    uint8_t addr = output->capabilitiesPointer & ~0b11;
    printf("\naddr: %X\n", addr);
    uint8_t next = 0;

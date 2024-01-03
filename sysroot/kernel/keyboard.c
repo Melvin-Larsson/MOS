@@ -46,7 +46,9 @@ KeyboardStatus keyboard_init(UsbDevice *usbDevice){
    printf("listening for keypresses:\n");
    uint8_t last = 0;
    while(1){
-      usb_readData(usbDevice, *endpoint, buffer, sizeof(buffer));
+      if(usb_readData(usbDevice, *endpoint, buffer, sizeof(buffer)) == StatusError){
+         continue;
+      }
       for(int i = 0; i < 6 && buffer[2] != last; i++){
          uint8_t keypress = buffer[2 + i];
          if(keypress == 0){
