@@ -174,8 +174,8 @@ TRB TRB_CONFIGURE_ENDPOINT(void *inputContext, uint32_t slotId);
 TRB TRB_NORMAL(void *dataBuffer, uint16_t bufferSize);
 
 TRB TRB_SETUP_STAGE(SetupStageHeader header);
-TRB TRB_DATA_STAGE(uint64_t dataBufferPointer, int bufferSize);
-TRB TRB_STATUS_STAGE();
+TRB TRB_DATA_STAGE(uint64_t dataBufferPointer, int bufferSize, uint8_t direction);
+TRB TRB_STATUS_STAGE(uint8_t direction);
 
 TD TD_GET_DESCRIPTOR(void *dataBufferPointer, int descriptorLengt);
 

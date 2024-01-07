@@ -13,6 +13,8 @@
 
 #define REQUEST_SET_CONFIGURATION 9 
 #define REQUEST_GET_DESCRIPTOR 6
+#define REQUEST_GET_CONFIGURATION 8
+#define REQUEST_GET_STATUS 0
 #define DESCRIPTOR_TYPE_DEVICE 1 
 
 static UsbDevice initUsbDevice(Usb *usb, UsbControllerDevice device);
@@ -68,6 +70,48 @@ UsbStatus usb_setConfiguration(UsbDevice *device, UsbConfiguration *configuratio
    }
 
    if(xhcd_setConfiguration(device->controllerDevice.xhcDevice, configuration) != XhcOk){
+      return StatusError;
+   }
+   return StatusSuccess;
+}
+UsbStatus usb_getConfiguration(UsbDevice *device, uint8_t *result){
+   if(device->usb->type != UsbControllerXhci){
+//      printf("USB controller not yet implemented");
+      return StatusError;
+   }
+   UsbRequestMessage request;
+   request.bmRequestType = 0x80;
+   request.bRequest = REQUEST_GET_CONFIGURATION;
+   request.wValue = 0;
+   request.wIndex = 0;
+   request.wLength = 1;
+   request.dataBuffer = result;
+   if(xhcd_sendRequest(device->controllerDevice.xhcDevice, request) != XhcOk){
+      return StatusError;
+   }
+   return StatusSuccess;
+}
+UsbStatus usb_getStatus(
+      UsbDevice *device,
+      Recipient recipient,
+      StatusType statusType,
+      uint16_t index,
+      uint8_t *result
+){
+
+   if(device->usb->type != UsbControllerXhci){
+//      printf("USB controller not yet implemented");
+      return StatusError;
+   }
+   UsbRequestMessage request;
+   request.bmRequestType = 0x80 | recipient;
+   request.bRequest = REQUEST_GET_STATUS;
+   request.wValue = statusType;
+   request.wIndex = index;
+   request.wLength = statusType == StatusTypeStandard ? 2 : 4;
+   request.dataBuffer = result;
+
+   if(xhcd_sendRequest(device->controllerDevice.xhcDevice, request) != XhcOk){
       return StatusError;
    }
    return StatusSuccess;
@@ -195,6 +239,7 @@ static UsbConfiguration *parseConfiguration(uint8_t *configBuffer){
          UsbEndpointDescriptor *endpoint = &interface->endpoints[j];
 
          if(endpointDescriptor->bDescriptorType != DESCRIPTOR_TYPE_ENDPOINT){ //FIXME: kind of a hack to ignore HID descriptors
+            printf("ignoring endpoint descriptor type: %X\n", endpointDescriptor->bDescriptorType);
             j--;
             pos += endpointDescriptor->bLength;
             continue;

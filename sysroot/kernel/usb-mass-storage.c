@@ -69,18 +69,22 @@ static CBW newCBW(uint8_t *cbwcb, uint8_t cbwcbLength);
 UsbMassStorageStatus usbMassStorage_init(UsbDevice *usbDevice, UsbMassStorageDevice *result){
    UsbConfiguration *config = getConfiguration(usbDevice);
    if(!config){
+      printf("nocfg\n");
       return UsbMassStorageInvalidDevice;
    }
    UsbInterface *interface = getInterface(config);
    if(!interface){
+      printf("noif\n");
       return UsbMassStorageInvalidDevice;
    }
    UsbEndpointDescriptor *bulkInEndpoint = getBulkInEndpoint(interface);
    UsbEndpointDescriptor *bulkOutEndpoint = getBulkOutEndpoint(interface);
    if(!bulkInEndpoint || !bulkOutEndpoint){
+      printf("nobulkin/bulkout\n");
       return UsbMassStorageInvalidDevice;
    }
    if(usb_setConfiguration(usbDevice, config) != StatusSuccess){
+      printf("failedconfig\n");
       return UsbMassStorageConfigError;
    }
 
@@ -92,15 +96,19 @@ UsbMassStorageStatus usbMassStorage_init(UsbDevice *usbDevice, UsbMassStorageDev
       .bulkInEndpoint = *bulkInEndpoint
    };
 
+   printf("1\n");
    UsbMassStorageStatus s1 = bulkOnlyMassStorageReset(result);
    if(s1 != UsbMassStorageSuccess) {return s1;}
 
+   printf("2\n");
    UsbMassStorageStatus s2 = readInquiryData(result);
    if(s2 != UsbMassStorageSuccess) {return s2;}
 
+   printf("3\n");
    UsbMassStorageStatus s3 = testUnitReady(result);
    if(s3 != UsbMassStorageSuccess) {return s3;}
 
+   printf("4\n");
    UsbMassStorageStatus s4 = readCapacity(result);
    if(s4 != UsbMassStorageSuccess) {return s4;}
 

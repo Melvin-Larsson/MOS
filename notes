@@ -71,3 +71,11 @@ Muse convert.
 
 _____________________FUCKING IMPORTANT______________________
 IF A PCI DEVICE USES DMA IT MUST HAVE THE BUS MASTER (PCI COMMAND REGISTER BIT 2) SET TO 1 IN ORDER TO ACCESS THE BUS AND READ MEMORY!!!!!!!!!
+TAKE CONTROLL OVER XHCI FROM BIOS EXPLICITLY!!!
+SPEED MUST BE SET IN SLOT CONTEXT!!!!!!
+
+FLADJ? (In case BIOS did not write to it for me)
+Xhci should config pci itself
+
+
+

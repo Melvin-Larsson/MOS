@@ -40,6 +40,7 @@ static void initSegment(Segment segment, Segment nextSegment, int isLast);
 
 XhcdRing xhcd_newRing(int trbCount){
    void* ringAddress = callocco(trbCount * sizeof(TRB), 64, 64000);
+   printf("ring Address %d\n", ringAddress);
    Segment segment = {(uintptr_t)ringAddress, trbCount};
    initSegment(segment, segment, 1); //FIXME: isLast = 1
 
@@ -129,12 +130,18 @@ TRB TRB_SETUP_STAGE(SetupStageHeader header){
    setupTrb.immediateData = 1;
    setupTrb.interruptOnCompletion = 0;
    setupTrb.type = TRB_TYPE_SETUP;
-   setupTrb.transferType = InDataStage;
+   if(header.wLength == 0){
+      setupTrb.transferType = NoDataStage;
+   }else if(header.bmRequestType & (1<<7)){ //Device-to-host
+      setupTrb.transferType = InDataStage;
+   }else{
+      setupTrb.transferType = OutDataStage;
+   }
    TRB result;
    memcpy(&result, &setupTrb, sizeof(TRB));
    return result;
 }
-TRB TRB_DATA_STAGE(uint64_t dataBufferPointer, int bufferSize){
+TRB TRB_DATA_STAGE(uint64_t dataBufferPointer, int bufferSize, uint8_t direction){
    DataStageTRB dataTrb = {{{0,0,0,0}}};
 
    dataTrb.dataBuffer = dataBufferPointer;
@@ -143,16 +150,16 @@ TRB TRB_DATA_STAGE(uint64_t dataBufferPointer, int bufferSize){
    dataTrb.interruptOnCompletion = 0;
    dataTrb.immediateData = 0;
    dataTrb.type = TRB_TYPE_DATA;
-   dataTrb.direction = DIRECTION_IN;
+   dataTrb.direction = direction;
    TRB result;
    memcpy(&result, &dataTrb, sizeof(TRB));
    return result;
 }
-TRB TRB_STATUS_STAGE(){
+TRB TRB_STATUS_STAGE(uint8_t direction){
    StatusStageTRB statusTrb = {{{0,0,0,0}}};
    statusTrb.interruptOnCompletion = 1;
    statusTrb.type = TRB_TYPE_STATUS;
-   statusTrb.direction = DIRECTION_OUT; //Questionable 
+   statusTrb.direction = direction; 
    statusTrb.chainBit = 0;
 
    TRB result;
@@ -169,8 +176,8 @@ TD TD_GET_DESCRIPTOR(void *dataBufferPointer, int descriptorLength){
    setupHeader.wLength = descriptorLength;
 
    TRB setupTrb = TRB_SETUP_STAGE(setupHeader);
-   TRB dataTrb = TRB_DATA_STAGE((uintptr_t)dataBufferPointer, descriptorLength);
-   TRB statusTrb = TRB_STATUS_STAGE();
+   TRB dataTrb = TRB_DATA_STAGE((uintptr_t)dataBufferPointer, descriptorLength, DIRECTION_IN);
+   TRB statusTrb = TRB_STATUS_STAGE(DIRECTION_OUT);
 
    TD result = {{setupTrb, dataTrb, statusTrb}, 3};
    return result;

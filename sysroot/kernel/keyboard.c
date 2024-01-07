@@ -18,11 +18,17 @@
 #define TRANSFER_TYPE_POS 0
 
 #define REQUEST_SET_PROTOCOL 0xB
+#define REQUEST_SET_IDLE 0xA
+#define REQUEST_GET_IDLE 0x2
+#define REQUEST_GET_PROTOCOL 0x03
 
 static UsbConfiguration *getConfiguration(UsbDevice *device);
 static UsbInterface *getInterface(UsbConfiguration *configuration);
 static UsbEndpointDescriptor *getEndpoint(UsbInterface *interface);
 static UsbStatus setProtocol(UsbDevice *device, int interface, int protocol);
+static UsbStatus setIdleRequest(UsbDevice *device, int interface, uint8_t duration);
+static UsbStatus getIdleRequest(UsbDevice *device, int interface, uint8_t *result);
+static UsbStatus getReportRequest(UsbDevice *device, int interface, uint8_t *result);
 
 KeyboardStatus keyboard_init(UsbDevice *usbDevice){
    UsbConfiguration *configuration = getConfiguration(usbDevice);
@@ -32,23 +38,83 @@ KeyboardStatus keyboard_init(UsbDevice *usbDevice){
    UsbInterface *interface  = getInterface(configuration);
    UsbEndpointDescriptor *endpoint = getEndpoint(interface);
 
+
    if(usb_setConfiguration(usbDevice, configuration) != StatusSuccess){
       return KeyboardConfigureError;
    }
    int interfaceNumber = interface->descriptor.bInterfaceNumber;
+   uint8_t p1 = 3;
+   if(getReportRequest(usbDevice, interfaceNumber, &p1) != StatusSuccess){
+      printf("Unable to get protocol\n");
+   }
+   printf("boot protocol? : %b\n", p1 == BOOT_PROTOCOL);
    if(setProtocol(usbDevice, interfaceNumber, BOOT_PROTOCOL) != StatusSuccess){
       return KeyboardProtocolError;
    }
+//    uint8_t idleRate = 0;
+//    if(getIdleRequest(usbDevice, interfaceNumber, &idleRate) != StatusSuccess){
+//       printf("Could not get idle request\n");
+//    }
+//    printf("idlerate %d\n", idleRate);
+//    if(setIdleRequest(usbDevice, interfaceNumber, 0xFF) != StatusSuccess){
+//       printf("Could not set idle request\n");
+//    }
+   
+    uint8_t protocol = 3;
+    if(getReportRequest(usbDevice, interfaceNumber, &protocol) != StatusSuccess){
+       printf("Unable to get protocol\n");
+    }
+    printf("boot protocol? : %b\n", protocol == BOOT_PROTOCOL);
 
-   uint8_t buffer[8];
+//     uint8_t config;
+//     if(usb_getConfiguration(usbDevice, &config) != StatusSuccess){
+//        printf("U1\n");
+//     }
+//     printf("config: %d\n", config);
+
+//     uint8_t status[2] = {69, 69};
+//     if(usb_getStatus(usbDevice, RecipientDevice, StatusTypeStandard, 0, status) != StatusSuccess){
+//        printf("U2\n");
+//     }
+//     printf("status: %X %X\n", status[0], status[1]);
+   
+//     printf("gc: %d\n", configuration->descriptor.bConfigurationValue);
+//
+
+
+   
+
+   printf("v %X\n", usbDevice->deviceDescriptor.bcd);
+   
+   uint8_t buffer[8] __attribute__((aligned(16)));
    memset(buffer, 0, sizeof(buffer));
+   uint8_t buffer2[8] __attribute__((aligned(16)));
+   memset(buffer2, 0, sizeof(buffer2));
+
+   for(int i = 0; i < 10000; i++){
+      printf("-\b");
+   }
 
    printf("listening for keypresses:\n");
    uint8_t last = 0;
    while(1){
+//       for(int i = 0; i < 1; i++){
+//          uint8_t endpointStatus[2] = {2,2};
+//          if(usb_getStatus(usbDevice, RecipientEndpoint, StatusTypeStandard, 2, endpointStatus) != StatusSuccess){
+//             printf("U2\n");
+//          }
+
+//          printf("endpoint Status %d: %X %X\n", i, endpointStatus[0], endpointStatus[1]);
+//       }
       if(usb_readData(usbDevice, *endpoint, buffer, sizeof(buffer)) == StatusError){
+         printf("Error!\n");
          continue;
       }
+//       printf("read\n");
+//       for(int i = 0; i < 8 ;i++){
+//          uint32_t v = buffer[i];
+//          printf("%X, ", v);
+//       }
       for(int i = 0; i < 6 && buffer[2] != last; i++){
          uint8_t keypress = buffer[2 + i];
          if(keypress == 0){
@@ -92,6 +158,35 @@ static UsbStatus setProtocol(UsbDevice *device, int interface, int protocol){
    request.wValue = protocol;
    request.wIndex = interface;
    request.wLength = 0;
+   return usb_configureDevice(device, request);
+}
+static UsbStatus setIdleRequest(UsbDevice *device, int interface, uint8_t duration){
+   UsbRequestMessage request;
+   request.bmRequestType = 0x21;
+   request.bRequest = REQUEST_SET_IDLE;
+   request.wValue = duration << 8;
+   request.wIndex = interface;
+   request.wLength = 0;
+   return usb_configureDevice(device, request);
+}
+static UsbStatus getIdleRequest(UsbDevice *device, int interface, uint8_t *result){
+   UsbRequestMessage request;
+   request.bmRequestType = 0xA1;
+   request.bRequest = REQUEST_GET_IDLE;
+   request.wValue = 0;
+   request.wIndex = interface;
+   request.wLength = 1;
+   request.dataBuffer = result;
+   return usb_configureDevice(device, request);
+}
+static UsbStatus getReportRequest(UsbDevice *device, int interface, uint8_t *result){
+   UsbRequestMessage request;
+   request.bmRequestType = 0xA1;
+   request.bRequest = REQUEST_GET_PROTOCOL;
+   request.wValue = 0;
+   request.wIndex = interface;
+   request.wLength = 1;
+   request.dataBuffer = result;
    return usb_configureDevice(device, request);
 }
 static UsbConfiguration *getConfiguration(UsbDevice *device){

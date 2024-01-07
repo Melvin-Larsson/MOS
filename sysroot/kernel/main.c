@@ -7,6 +7,8 @@
 #include "kernel/keyboard.h"
 #include "string.h"
 
+#include "kernel/usb-mass-storage.h"
+
 char message[] = "Kernel started!\n";
 static void printPciDevices(PciDescriptor *descriptors, int count){
     return;
@@ -53,6 +55,22 @@ static void initXhci(PciGeneralDeviceHeader pci){
         printf("Wait for attach\n");
         while(usb_getNewlyAttachedDevices(&usb, &device, 1) == 0);
         printf("device attach\n");
+//         UsbMassStorageDevice res;
+//         UsbMassStorageStatus status = usbMassStorage_init(&device, &res);
+//         if(status == UsbMassStorageSuccess){
+//             printf("Found deice!\n");
+//             uint32_t buffer[64];
+//             usbMassStorage_read(&res, 0, buffer, sizeof(buffer));
+//             printf("buffer: ");
+//             for(int i = 0; i < sizeof(buffer); i++){
+//                 printf("%X ", buffer[i]);
+//             }
+//             printf("\n");
+//             while(1);
+//         }else{
+//             printf("Failed to init: %X\n", status);
+//         }
+
         KeyboardStatus status = keyboard_init(&device);
         char buffer[100];
         keyboard_getStatusCode(status, buffer);

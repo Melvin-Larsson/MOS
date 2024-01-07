@@ -11,10 +11,10 @@ typedef volatile struct{
 }__attribute__((packed))XhcConfigRegister;
 
 typedef volatile struct{
-   uint8_t maxDeviceSlots;
-   uint16_t maxInterrupters : 11;
-   uint8_t reserved : 5;
-   uint8_t maxPorts;
+   uint32_t maxDeviceSlots : 8;
+   uint32_t maxInterrupters : 11;
+   uint32_t reserved : 5;
+   uint32_t maxPorts : 8;
 }__attribute__((packed))StructParams1;
 
 typedef volatile struct{
@@ -64,8 +64,21 @@ typedef volatile struct{
    uint8_t nextExtendedCapabilityPointer;
    uint16_t r0High;
    uint32_t body[1];
-
 }__attribute__((packed))XhciExtendedCapabilities;
+
+typedef volatile struct{
+   uint8_t capabilityId;
+   uint8_t nextExtendedCapabilityPointer;
+   uint8_t revisionMinor;
+   uint8_t revisionMajor;
+   uint32_t nameString;
+   uint8_t compatiblePortOffset;
+   uint8_t compatiblePortCount;
+   uint16_t protocolDefined : 12;
+   uint8_t protocolSpeedCount : 4;
+   uint32_t protocolSlotType : 4;
+   uint32_t reserved : 28;
+}__attribute__((packed))XhciXCapSupportedProtocol;
 
 typedef volatile struct{
    uint32_t capabilityRegistersLength : 8;
@@ -168,12 +181,12 @@ typedef volatile struct{
 typedef volatile struct{
    XhcInputControlContext inputControlContext;
    XhcSlotContext slotContext;
-   XhcEndpointContext endpointContext[30];
+   XhcEndpointContext endpointContext[31];
 }__attribute__((packed))XhcInputContext;
 
 typedef volatile struct{
    XhcSlotContext slotContext;
-   XhcEndpointContext endpointContext[30];
+   XhcEndpointContext endpointContext[31];
 }__attribute__((packed))XhcOutputContext;
 
 

@@ -8,6 +8,17 @@
 #include "usb-descriptors.h"
 #include "usb-messages.h"
 
+typedef enum{
+   PortUsbTypeUnknown = 0,
+   PortUsbType2 = 2,
+   PortUsbType3 = 3,
+}PortUsbType;
+
+typedef struct{
+   PortUsbType usbType;
+   uint8_t protocolSlotType;
+}UsbPortInfo;
+
 typedef struct{
    PciHeader *pciHeader;
    XhciCapabilities *capabilities;
@@ -15,14 +26,20 @@ typedef struct{
    XhciDoorbell *doorbells;
    InterrupterRegisters* interrupterRegisters;
 
+   UsbPortInfo *portInfo;
+   uint8_t enabledPorts;
+
    volatile uint64_t *dcBaseAddressArray;
    XhcdRing transferRing[16 + 1][31]; //indexed from 1 //FIXME
    XhcEventRing eventRing;
    XhcdRing commandRing;
+
 }Xhci;
 
 typedef struct{
-   int slotId;
+   uint8_t slotId;
+   uint8_t portIndex;
+   uint8_t portSpeed;
    Xhci *xhci;
 }XhcDevice;
 
@@ -98,6 +115,9 @@ int xhcd_getDevices(Xhci *xhci, XhcDevice *resultBuffer, int bufferSize);
  *
  */
 XhcStatus xhcd_setConfiguration(XhcDevice *device, const UsbConfiguration *configuration);
+
+void xhc_dumpCapabilityRegs(Xhci *xhci);
+void xhc_dumpOperationalRegs(Xhci *xhci);
 
 //TODO: Implement:
 XhcStatus xhcd_writeData(const XhcDevice *device,

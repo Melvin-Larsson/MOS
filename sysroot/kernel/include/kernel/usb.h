@@ -8,7 +8,6 @@
 
 typedef enum{
    UsbControllerXhci,
-
 }UsbController;
 
 typedef struct{
@@ -35,12 +34,25 @@ typedef struct{
 }UsbDevice;
 
 typedef enum{
+   RecipientDevice = 0,
+   RecipientInterface = 1,
+   RecipientEndpoint = 2,
+}Recipient;
+
+typedef enum{
+   StatusTypeStandard = 0,
+   StatusTypePtm = 1,
+}StatusType;
+
+typedef enum{
    StatusSuccess = 0,
    StatusError = 1
 }UsbStatus;
 
 UsbStatus usb_init(PciGeneralDeviceHeader *pci, Usb *result);
 int usb_getNewlyAttachedDevices(Usb *usb, UsbDevice *resultBuffer, int bufferSize);
+
+UsbStatus usb_getStatus(UsbDevice *device, Recipient recipient, StatusType statusType, uint16_t index, uint8_t result[2]);
 
 //TODO: implement
 void usb_freeUsbDevice(UsbDevice *device);
@@ -54,7 +66,6 @@ UsbStatus usb_clearFeature(UsbDevice *device, uint16_t featureSelector);
 UsbStatus usb_getConfiguration(UsbDevice *device, uint8_t result[1]);
 UsbStatus usb_getDescriptor(UsbDevice *device, void *buffer, uint16_t bufferSize);
 UsbStatus usb_getInterface(UsbDevice *device, uint16_t interface, uint8_t *result);
-UsbStatus usb_getStatus(UsbDevice *device, uint8_t statusType, uint16_t index, uint8_t result[2]);
 UsbStatus usb_setAddress(UsbDevice *device, uint16_t address);
 UsbStatus usb_setFeature(UsbDevice *device, uint16_t feature, uint16_t index);
 UsbStatus usb_setInterface(UsbDevice *device, uint16_t alternateSetting, uint16_t interface);
