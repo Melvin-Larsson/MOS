@@ -11,6 +11,7 @@ static FatStatus writeFile(FatDisk *disk, FatFile *file, void *data, uint32_t si
 static FatFile* readRootDirectory(FatDisk *disk, uint32_t *resultCount);
 static FatFile* readRootDirectoryFat32(FatDisk *disk, uint32_t *resultCount);
 static FatFile* readRootDirectoryFat12_16(FatDisk *disk, uint32_t *resultCount);
+static FatFile* readDirectory(FatDisk *disk, uint32_t cluster, uint32_t *resultCount);
 static uint32_t parseDirectoryEntries(void *files, uint32_t size, FatFile *result, uint32_t resultCount, uint32_t startSector, uint32_t sectorSize);
 static uint32_t countDirectoryEntries(void *data, uint32_t size);
 static uint8_t* readClusterChain(FatDisk *disk, uint32_t dataCluster, uint32_t maxClusterCount, uint32_t *clusterCountResult);
@@ -112,22 +113,6 @@ FatStatus fat_init(MassStorageDevice* device, FatDisk *result){
    return FatStatusSuccess;
 }
 
-
-FatStatus fat_readFile(FatDisk *fatDisk, char *filename, void *buffer, uint32_t bufferSize){
-   uint32_t activeCluster = fatDisk->diskInfo.extendedBootRecordFat32.rootCluster;
-   uint32_t firstSector = 0; //FIXME
-   uint32_t fatOffset = 0;
-   uint32_t sectorSize = fatDisk->diskInfo.parameterBlock.bytesPerSector;
-   if(fatDisk->version == Fat32){
-      uint8_t FAT_table[sectorSize]; //FIXME
-      uint32_t fatOffset = activeCluster * 4;
-      uint32_t fatSector = firstSector + (fatOffset / sectorSize);
-      uint32_t entOffset = fatOffset % sectorSize;
-      uint32_t tableValue = FAT_table[entOffset] & 0x0FFFFFFF;
-   } 
-   return FatStatusSuccess;
-}
-
 static uint8_t* readFile(FatDisk *disk, FatFile *file, uint32_t maxClusterCount, uint32_t *resultSize){
    uint32_t cluster = file->directoryEntry.firstClusterLow | (file->directoryEntry.firstClusterHigh << 16);
    uint32_t clusterCount;
@@ -179,24 +164,8 @@ static FatFile* readRootDirectory(FatDisk *disk, uint32_t *resultCount){
    return readRootDirectoryFat12_16(disk, resultCount);
 }
 static FatFile* readRootDirectoryFat32(FatDisk *disk, uint32_t *resultCount){
-   BiosParameterBlock *bpb = &disk->diskInfo.parameterBlock;
    uint32_t cluster = disk->diskInfo.extendedBootRecordFat32.rootCluster;
-   uint32_t startSector = bpb->reservedSectorsCount + bpb->fatCount * getSectorsPerFat(disk) + cluster * bpb->sectorsPerCluster;
-   uint32_t sectorSize = bpb->bytesPerSector;
-
-   uint32_t clusterCount;
-   uint8_t *clusters = readClusterChain(disk, cluster, (uint32_t)-1, &clusterCount);
-
-   uint32_t sizeOfClusters = clusterCount * getClusterSize(disk);
-   uint32_t fileCount = countDirectoryEntries(clusters, sizeOfClusters);
-
-   FatFile *result = malloc(fileCount * sizeof(FatFile));
-   parseDirectoryEntries(clusters, sizeOfClusters, result, fileCount, startSector, sectorSize);
-
-   free(clusters);
-
-   *resultCount = fileCount;
-   return result;
+   return readDirectory(disk, cluster, resultCount);
 }
 static FatFile* readRootDirectoryFat12_16(FatDisk *disk, uint32_t *resultCount){
       BiosParameterBlock *bpb = &disk->diskInfo.parameterBlock;
@@ -214,6 +183,27 @@ static FatFile* readRootDirectoryFat12_16(FatDisk *disk, uint32_t *resultCount){
 
       *resultCount = fileCount;
       return result;
+}
+
+static FatFile* readDirectory(FatDisk *disk, uint32_t cluster, uint32_t *resultCount){
+   BiosParameterBlock *bpb = &disk->diskInfo.parameterBlock;
+   uint32_t startSector = bpb->reservedSectorsCount + bpb->fatCount * getSectorsPerFat(disk) + cluster * bpb->sectorsPerCluster;
+   uint32_t sectorSize = bpb->bytesPerSector;
+
+   uint32_t clusterCount;
+   uint8_t *clusters = readClusterChain(disk, cluster, (uint32_t)-1, &clusterCount);
+
+   uint32_t sizeOfClusters = clusterCount * getClusterSize(disk);
+   uint32_t fileCount = countDirectoryEntries(clusters, sizeOfClusters);
+
+   FatFile *result = malloc(fileCount * sizeof(FatFile));
+   parseDirectoryEntries(clusters, sizeOfClusters, result, fileCount, startSector, sectorSize);
+
+   free(clusters);
+
+   *resultCount = fileCount;
+   return result;
+
 }
 static uint32_t parseDirectoryEntries(void *files, uint32_t size, FatFile *result, uint32_t resultCount, uint32_t startSector, uint32_t sectorSize){
       FatDirectoryEntry *buffer = (FatDirectoryEntry*)files;
