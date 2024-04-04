@@ -3,6 +3,7 @@
 
 #include "stdint.h"
 #include "mass-storage.h"
+#include "file-system.h"
 
 #define ATTR_READ_ONLY   0x01
 #define ATTR_HIDDEN      0x02
@@ -17,6 +18,7 @@ typedef enum{
     FatStatusFailure,
     FatStatusInvalidDataCluster,
     FatStatusCouldNotFindEnoughClusters,
+    FatInvalidFileName
 }FatStatus;
 
 typedef enum{
@@ -120,7 +122,7 @@ typedef struct{
     uint32_t entryIndex;
 }FatFile;
 
-FatStatus fat_init(MassStorageDevice* device, FatDisk *result);
+FatStatus fat_init(MassStorageDevice* device, FileSystem *result);
 
 FatStatus fat_getFileSize(FatDisk *fatDisk, char *filename, uint32_t *result);
 FatStatus fat_readFile(FatDisk *fatDisk, char *filename, void *buffer, uint32_t bufferSize);
