@@ -19,6 +19,8 @@ OBJS= ${BUILD}/boot.o \
 	   ${BUILD}/usb-mass-storage.o \
 	   ${BUILD}/usb.o \
 	   ${BUILD}/scsi.o \
+	   ${BUILD}/mass-storage.o \
+	   ${BUILD}/fat.o \
 
 ${BUILD}/kernel.o : ${BUILD} ${OBJS} 
 	${COMPILER} -T linker.ld ${LINK_FLAGS} ${OBJS} -o ${BUILD}/kernel.out
@@ -63,6 +65,12 @@ ${BUILD}/usb-mass-storage.o : usb-mass-storage.c include/kernel/usb-mass-storage
 
 ${BUILD}/scsi.o : scsi.c include/kernel/scsi.h
 	${COMPILER} ${CFLAGS} -c scsi.c -o ${BUILD}/scsi.o
+
+${BUILD}/mass-storage.o : mass-storage.c usb-mass-storage.c include/kernel/usb-mass-storage.h include/kernel/mass-storage.h
+	${COMPILER} ${CFLAGS} -c mass-storage.c -o ${BUILD}/mass-storage.o
+
+${BUILD}/fat.o : fat.c include/kernel/fat.h
+	${COMPILER} ${CFLAGS} -c fat.c -o ${BUILD}/fat.o
 
 include/kernel/xhcd.h: include/kernel/xhcd-registers.h include/kernel/usb-messages.h
 include/kernel/xhcd-ring.h: include/kernel/xhcd-registers.h

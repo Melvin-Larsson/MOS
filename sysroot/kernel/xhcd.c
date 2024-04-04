@@ -395,7 +395,6 @@ XhcStatus xhcd_writeData(const XhcDevice *device,
    TRB trb = TRB_NORMAL(dataBuffer, bufferSize);
    XhcdRing *transferRing = &xhci->transferRing[device->slotId][endpointIndex - 1];
    xhcd_putTRB(trb, transferRing);
-   printf("Writing on endpoint %d\n", endpointIndex);
    xhcd_ringDoorbell(xhci, device->slotId, endpointIndex);
 
    XhcEventTRB event;

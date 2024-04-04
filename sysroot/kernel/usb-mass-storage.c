@@ -202,7 +202,7 @@ static UsbMassStorageStatus readCapacity(UsbMassStorageDevice *device){
 
    if(status == UsbMassStorageSuccess){
       uint32_t *maxLogicalBlockAddress = (uint32_t*)&capacityBuffer;
-      uint32_t *capacity = (uint32_t*)(&capacityBuffer + 4);
+      uint32_t *capacity = (uint32_t*)(capacityBuffer + 4);
 
       device->maxLogicalBlockAddress = __builtin_bswap32(*maxLogicalBlockAddress);
       device->capacity = __builtin_bswap32(*capacity);

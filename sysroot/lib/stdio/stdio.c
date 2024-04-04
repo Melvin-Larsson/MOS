@@ -84,6 +84,11 @@ void printf(const char* str, ...){
                 strReadIntHex(va_arg(args, uint32_t), buff);
                 printf(buff);
             }
+            if(*str == 'c'){
+                str++;
+                char c = va_arg(args, int);
+                printChar(c);
+            }
         }
         else{
             printChar(*str);
