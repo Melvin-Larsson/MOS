@@ -112,7 +112,13 @@ typedef struct{
     uint16_t writeDate;             // Last modification (write) date
     uint16_t firstClusterLow;       // Low word of first data cluster number
     uint32_t fileSize;              // Size in bytes of file/directory
-}__attribute__((packed))FatFile;
+}__attribute__((packed))FatDirectoryEntry;
+
+typedef struct{
+    FatDirectoryEntry directoryEntry;
+    uint32_t sector;
+    uint32_t entryIndex;
+}FatFile;
 
 FatStatus fat_init(MassStorageDevice* device, FatDisk *result);
 

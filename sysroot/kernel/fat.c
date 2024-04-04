@@ -11,7 +11,7 @@ static FatStatus writeFile(FatDisk *disk, FatFile *file, void *data, uint32_t si
 static FatFile* readRootDirectory(FatDisk *disk, uint32_t *resultCount);
 static FatFile* readRootDirectoryFat32(FatDisk *disk, uint32_t *resultCount);
 static FatFile* readRootDirectoryFat12_16(FatDisk *disk, uint32_t *resultCount);
-static uint32_t parseDirectoryEntries(void *files, uint32_t size, FatFile *result, uint32_t resultCount);
+static uint32_t parseDirectoryEntries(void *files, uint32_t size, FatFile *result, uint32_t resultCount, uint32_t startSector, uint32_t sectorSize);
 static uint32_t countDirectoryEntries(void *data, uint32_t size);
 static uint8_t* readClusterChain(FatDisk *disk, uint32_t dataCluster, uint32_t maxClusterCount, uint32_t *clusterCountResult);
 static uint32_t readClusterNumbers(FatDisk* disk, uint32_t dataCluster, uint32_t *result, uint32_t resultCount);
@@ -44,7 +44,6 @@ FatStatus fat_init(MassStorageDevice* device, FatDisk *result){
    BiosParameterBlock *bpb = &diskInfo->parameterBlock;
    ExtendedBootRecordFat32 *fat32 = &diskInfo->extendedBootRecordFat32;
 
-   //TODO: Get fat version
 
    result->version = getFatType(result);
    printf("version: %d \n", result->version);
@@ -86,8 +85,10 @@ FatStatus fat_init(MassStorageDevice* device, FatDisk *result){
       printf("%s\n", nameBuffer);
 
       uint32_t size; 
-      uint8_t outputText[2048 * 3];
+      uint8_t outputText[10];
       memset(outputText, 'X', sizeof(outputText));
+      outputText[0] = 'A';
+      outputText[sizeof(outputText)] = 'B';
       writeFile(result, &files[i], outputText, sizeof(outputText));
       printf("sz: %d\n", getClusterSize(result));
       uint8_t *text= readFile(result, &files[i], 4, &size);
@@ -128,21 +129,22 @@ FatStatus fat_readFile(FatDisk *fatDisk, char *filename, void *buffer, uint32_t 
 }
 
 static uint8_t* readFile(FatDisk *disk, FatFile *file, uint32_t maxClusterCount, uint32_t *resultSize){
-   uint32_t cluster = file->firstClusterLow | (file->firstClusterHigh << 16);
+   uint32_t cluster = file->directoryEntry.firstClusterLow | (file->directoryEntry.firstClusterHigh << 16);
    uint32_t clusterCount;
    uint8_t *contents = readClusterChain(disk, cluster, maxClusterCount, &clusterCount);
    printf("read %X clusters\n", clusterCount);
    
-   if(clusterCount * getClusterSize(disk) < file->fileSize){
+   if(clusterCount * getClusterSize(disk) < file->directoryEntry.fileSize){
       *resultSize = clusterCount * getClusterSize(disk);
    }else{
-      *resultSize = file->fileSize;
+      *resultSize = file->directoryEntry.fileSize;
    }
    return contents;
 }
 static FatStatus writeFile(FatDisk *disk, FatFile *file, void *data, uint32_t size){
+   BiosParameterBlock *bpb = &disk->diskInfo.parameterBlock;
    uint32_t clusterCount = (size + getClusterSize(disk) - 1) / getClusterSize(disk);
-   uint32_t cluster = file->firstClusterHigh << 16 | file->firstClusterLow;
+   uint32_t cluster = file->directoryEntry.firstClusterHigh << 16 | file->directoryEntry.firstClusterLow;
    uint32_t *clusterNumbers = malloc(clusterCount * sizeof(uint32_t));
    uint32_t newClusterCount = resizeClusterChain(disk, cluster, clusterNumbers, clusterCount);
 
@@ -157,7 +159,12 @@ static FatStatus writeFile(FatDisk *disk, FatFile *file, void *data, uint32_t si
 
    free(clusterNumbers);
 
-   file->fileSize = size;
+   file->directoryEntry.fileSize = size;
+
+   FatDirectoryEntry *entries = malloc(bpb->bytesPerSector);
+   readSectors(disk, (uint8_t*)entries, file->sector, 1);
+   entries[file->entryIndex] = file->directoryEntry;
+   writeSectors(disk, (uint8_t*)entries, file->sector, 1);
 
    if(newClusterCount < clusterCount){
       return FatStatusCouldNotFindEnoughClusters;
@@ -172,7 +179,10 @@ static FatFile* readRootDirectory(FatDisk *disk, uint32_t *resultCount){
    return readRootDirectoryFat12_16(disk, resultCount);
 }
 static FatFile* readRootDirectoryFat32(FatDisk *disk, uint32_t *resultCount){
+   BiosParameterBlock *bpb = &disk->diskInfo.parameterBlock;
    uint32_t cluster = disk->diskInfo.extendedBootRecordFat32.rootCluster;
+   uint32_t startSector = bpb->reservedSectorsCount + bpb->fatCount * getSectorsPerFat(disk) + cluster * bpb->sectorsPerCluster;
+   uint32_t sectorSize = bpb->bytesPerSector;
 
    uint32_t clusterCount;
    uint8_t *clusters = readClusterChain(disk, cluster, (uint32_t)-1, &clusterCount);
@@ -181,7 +191,7 @@ static FatFile* readRootDirectoryFat32(FatDisk *disk, uint32_t *resultCount){
    uint32_t fileCount = countDirectoryEntries(clusters, sizeOfClusters);
 
    FatFile *result = malloc(fileCount * sizeof(FatFile));
-   parseDirectoryEntries(clusters, sizeOfClusters, result, fileCount);
+   parseDirectoryEntries(clusters, sizeOfClusters, result, fileCount, startSector, sectorSize);
 
    free(clusters);
 
@@ -198,16 +208,16 @@ static FatFile* readRootDirectoryFat12_16(FatDisk *disk, uint32_t *resultCount){
 
       uint32_t fileCount = countDirectoryEntries(sectorBuffer, sizeOfSectors);
       void *result = malloc(fileCount * sizeof(FatFile));
-      parseDirectoryEntries(sectorBuffer, sizeOfSectors, result, fileCount); 
+      parseDirectoryEntries(sectorBuffer, sizeOfSectors, result, fileCount, sectorNumber, sizeOfSectors); 
 
       free(sectorBuffer);
 
       *resultCount = fileCount;
       return result;
 }
-static uint32_t parseDirectoryEntries(void *files, uint32_t size, FatFile *result, uint32_t resultCount){
-      FatFile *buffer = (FatFile*)files;
-      uint32_t bufferCount = size / sizeof(FatFile);
+static uint32_t parseDirectoryEntries(void *files, uint32_t size, FatFile *result, uint32_t resultCount, uint32_t startSector, uint32_t sectorSize){
+      FatDirectoryEntry *buffer = (FatDirectoryEntry*)files;
+      uint32_t bufferCount = size / sizeof(FatDirectoryEntry);
 
       uint32_t count = 0;
       for(uint32_t i = 0; i < bufferCount && count < resultCount; i++){
@@ -217,15 +227,17 @@ static uint32_t parseDirectoryEntries(void *files, uint32_t size, FatFile *resul
          if(buffer[i].fileName[0] == 0xE5){
             continue;
          }
-         memcpy(&result[count], &buffer[i], sizeof(FatFile));
+         memcpy(&(result[count].directoryEntry), &buffer[i], sizeof(FatDirectoryEntry));
+         result[count].sector = startSector + i / (sectorSize / 32);
+         result[count].entryIndex = i % (sectorSize / 32);
          count++;
       }
       return count;
 }
 static uint32_t countDirectoryEntries(void *data, uint32_t size){
-   uint32_t maxFileCount = size / sizeof(FatFile);
+   uint32_t maxFileCount = size / sizeof(FatDirectoryEntry);
    uint32_t count = 0;
-   FatFile *files = (FatFile*)data;
+   FatDirectoryEntry *files = (FatDirectoryEntry*)data;
    for(uint32_t i = 0; i < maxFileCount; i++){
       if(files[i].fileName[0] == 0x00){
          break;
@@ -420,10 +432,20 @@ static FatStatus readSectors(FatDisk *disk, uint8_t *result, uint32_t sectorNumb
 }
 static FatStatus writeSectors(FatDisk *disk, uint8_t *data, uint32_t sectorNumber, uint32_t count){
    uint32_t sectorSize = disk->diskInfo.parameterBlock.bytesPerSector;
-   uint32_t logicalBlockAddress = (sectorNumber * sectorSize) / disk->device->blockSize;
-   if(disk->device->write(disk->device->data, logicalBlockAddress, data, sectorSize * count) != 0){
+   uint32_t blockSize = disk->device->blockSize;
+   uint32_t blockCount = (sectorSize * count + blockSize - 1) / blockSize;
+   uint32_t logicalBlockAddress = (sectorNumber * sectorSize) / blockSize;
+   uint32_t blockOffset = (sectorNumber * sectorSize) % blockSize;
+
+   uint8_t *buffer = malloc(blockCount * blockSize);
+   disk->device->read(disk->device->data, logicalBlockAddress, buffer, blockCount * blockSize);
+   memcpy(buffer + blockOffset, data, sectorSize * count);
+
+   if(disk->device->write(disk->device->data, logicalBlockAddress, buffer, blockCount * blockSize) != 0){
+      free(buffer);
       return FatStatusFailure;
    }
+   free(buffer);
    return FatStatusSuccess;
 }
 
@@ -513,8 +535,8 @@ void toLower(uint8_t *str){
 }
 void getFileName(const FatFile *file, uint8_t result[13]){
    uint8_t name[8],  extension[3];
-   memcpy(name, &file->fileName[0], 8);
-   memcpy(extension, &file->fileName[8], 3);
+   memcpy(name, &file->directoryEntry.fileName[0], 8);
+   memcpy(extension, &file->directoryEntry.fileName[8], 3);
 
    uint32_t length = removeTrailingSpaces(name, 8, result);
    result[length++] = '.';
