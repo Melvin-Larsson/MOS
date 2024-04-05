@@ -21,6 +21,7 @@ OBJS= ${BUILD}/boot.o \
 	   ${BUILD}/scsi.o \
 	   ${BUILD}/mass-storage.o \
 	   ${BUILD}/fat.o \
+	   ${BUILD}/file-system.o \
 
 ${BUILD}/kernel.o : ${BUILD} ${OBJS} 
 	${COMPILER} -T linker.ld ${LINK_FLAGS} ${OBJS} -o ${BUILD}/kernel.out
@@ -69,8 +70,11 @@ ${BUILD}/scsi.o : scsi.c include/kernel/scsi.h
 ${BUILD}/mass-storage.o : mass-storage.c usb-mass-storage.c include/kernel/usb-mass-storage.h include/kernel/mass-storage.h
 	${COMPILER} ${CFLAGS} -c mass-storage.c -o ${BUILD}/mass-storage.o
 
-${BUILD}/fat.o : fat.c include/kernel/fat.h
+${BUILD}/fat.o : fat.c include/kernel/fat.h include/kernel/mass-storage.h 
 	${COMPILER} ${CFLAGS} -c fat.c -o ${BUILD}/fat.o
+
+${BUILD}/file-system.o : file-system.c include/kernel/file-system.h
+	${COMPILER} ${CFLAGS} -c file-system.c -o ${BUILD}/file-system.o
 
 include/kernel/xhcd.h: include/kernel/xhcd-registers.h include/kernel/usb-messages.h
 include/kernel/xhcd-ring.h: include/kernel/xhcd-registers.h
@@ -78,7 +82,7 @@ include/kernel/xhcd-event-ring.h: include/kernel/xhcd-registers.h
 include/kernel/usb.h : include/kernel/usb-descriptors.h include/kernel/xhcd.h include/kernel/usb-messages.h
 include/kernel/usb-mass-storage.h: include/kernel/usb.h
 
-${BUILD}/boot.o :
+${BUILD}/boot.o : ${PREFIX}/sysroot/kernel/i686
 	cd ${PREFIX}/sysroot/kernel/i686 && \
 	nasm -f elf program.s -o boot.o && \
 	mv boot.o ${BUILD}/boot.o && \

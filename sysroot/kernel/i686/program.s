@@ -1,6 +1,7 @@
 [BITS 16]
-xor ax,ax 
+mov ax, 0x2000
 mov ss, ax
+xor ax,ax 
 mov ds, ax
 mov sp, 0xfc00
 %include "s1.inc"
