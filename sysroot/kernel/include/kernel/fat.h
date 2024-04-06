@@ -116,13 +116,30 @@ typedef struct{
     uint32_t fileSize;              // Size in bytes of file/directory
 }__attribute__((packed))FatDirectoryEntry;
 
+
+typedef struct Cluster{
+    uint32_t number;
+    uint32_t clusterNumberInFile;
+    void *data;
+}Cluster;
+
+typedef struct{
+    void *data;
+    uint32_t nrInFile;
+    uint32_t count;
+    uint32_t maxCount;
+}ClusterBuffer;
+
+
 typedef struct{
     FatDirectoryEntry directoryEntry;
     uint32_t sector;
     uint32_t entryIndex;
+    
+    ClusterBuffer buffer;
 }FatFile;
 
-FatStatus fat_init(MassStorageDevice* device, FileSystem *result);
+FatStatus fat_init(MassStorageDevice* device, FileSystem2 *result);
 
 FatStatus fat_getFileSize(FatDisk *fatDisk, char *filename, uint32_t *result);
 FatStatus fat_readFile(FatDisk *fatDisk, char *filename, void *buffer, uint32_t bufferSize);

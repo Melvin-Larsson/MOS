@@ -714,3 +714,106 @@ void getFileName(const FatFile *file, uint8_t result[13]){
    result[length] = 0;
    toLower(result);
 }
+
+static uint32_t getDataAddress(FatDisk *disk){
+   BiosParameterBlock *bpb = &disk->diskInfo.parameterBlock;
+   return (bpb->reservedSectorsCount +
+          bpb->fatCount * getSectorsPerFat(disk) +
+          getRootDirSectorCount(disk))
+       * bpb->bytesPerSector;
+}
+static uint32_t getClusterAddress(FatDisk *disk, uint32_t cluster){
+   return getDataAddress(disk) + (cluster - 2) * getClusterSize(disk);
+}
+
+static void bufferClusters(FatDisk *disk, ClusterBuffer *buffer, uint32_t startCluster, uint32_t clusterNumberInFile){
+      buffer->nrInFile = clusterNumberInFile;
+      uint32_t *clusterNumbers = malloc(buffer->maxCount * sizeof(uint32_t));
+      uint32_t clusterCount = readClusterNumbers(disk, startCluster, clusterNumbers, buffer->maxCount);
+
+      uint32_t clusterAddress = getClusterAddress(disk, startCluster);
+      uint32_t logicalBlockAddress = clusterAddress / disk->device->blockSize;
+      uint32_t blockCount = (buffer->maxCount * getClusterSize(disk) + disk->device->blockSize - 1) / disk->device->blockSize;
+      void *blockBuffer = malloc(blockCount * disk->device->blockSize);
+      disk->device->read(disk->device->data, logicalBlockAddress, blockBuffer, blockCount * disk->device->blockSize);
+
+      uint32_t blockStart = logicalBlockAddress * disk->device->blockSize;
+      uint32_t blockEnd = blockStart + blockCount * disk->device->blockSize;
+      buffer->count = 0;
+      for(uint32_t i = 0; i < clusterCount; i++){
+         uint32_t clusterBytes = getClusterAddress(disk, clusterNumbers[i]);
+         if(clusterBytes >= blockStart && clusterBytes + getClusterSize(disk) <= blockEnd){
+            memcpy(buffer->data + buffer->count * getClusterSize(disk), blockBuffer + clusterBytes - blockStart, getClusterSize(disk));
+            buffer->count++;
+         }else{
+            break;
+         }
+      }
+      free(blockBuffer);
+      free(clusterNumbers);
+}
+static void writeBufferCluster(FatDisk *disk, FatFile *file, uint32_t startCluster){
+   ClusterBuffer *buffer = &file->buffer; 
+
+   uint32_t clusterAddress = getClusterAddress(disk, startCluster);
+   uint32_t logicalBlockAddress = clusterAddress / disk->device->blockSize;
+
+   uint32_t dataToWrite = buffer->count * getClusterSize(disk);
+   void *ptr = buffer->data;
+   if(disk->device->blockSize < getClusterSize(disk)){
+      while(disk->device->blockSize < dataToWrite){
+         disk->device->write(disk->device->data, logicalBlockAddress, ptr, disk->device->blockSize) ;
+         logicalBlockAddress++;
+         ptr += disk->device->blockSize;
+         dataToWrite -= disk->device->blockSize;
+      }  
+   }
+   if(dataToWrite > 0){
+      printf("[FAT] writeToBuffer error!");
+      while(1);
+   }
+}
+
+static uint32_t b_readData(FatDisk *disk, FatFile *file, uint32_t start, uint32_t size, void *result){
+   uint32_t startClusterInFile = start / getClusterSize(disk);
+
+   uint32_t fileStartCluster = file->directoryEntry.firstClusterHigh << 16 | file->directoryEntry.firstClusterLow;
+   uint32_t startCluster = getClusterNumberInChain(disk, fileStartCluster, startClusterInFile);
+
+   uint32_t offsetIntoCluster = start % getClusterSize(disk);
+
+   ClusterBuffer *buffer = &file->buffer;
+   uint32_t dataToCopy = size;
+   if(file->directoryEntry.fileSize < size + start){
+      dataToCopy = file->directoryEntry.fileSize - start;
+   }
+   uint32_t dataRead = dataToCopy;
+   while(dataToCopy > 0){
+      if(startClusterInFile >= buffer->nrInFile && startClusterInFile < buffer->nrInFile + buffer->count){ 
+         uint32_t offsetIntoBuffer = (startClusterInFile - buffer->nrInFile) * getClusterSize(disk) + offsetIntoCluster;
+         uint32_t dataToCopyFromBuffer = dataToCopy;
+         if(buffer->count * getClusterSize(disk) < size + offsetIntoBuffer){
+            dataToCopy = buffer->count * getClusterSize(disk) - offsetIntoBuffer;
+            startClusterInFile = buffer->nrInFile + buffer->count;
+         }
+         memcpy(result, buffer->data + offsetIntoBuffer, dataToCopyFromBuffer);
+         result += dataToCopyFromBuffer;
+         dataToCopy -= dataToCopyFromBuffer;
+         offsetIntoCluster = 0;
+      }
+      if(dataToCopy > 0){
+         bufferClusters(disk, &file->buffer, startCluster, startClusterInFile);
+      }
+   }
+   return dataRead;
+}
+static uint32_t b_writeData(FatDisk *disk, FatFile *file, uint32_t start, void *data, uint32_t size){
+   
+
+}
+
+
+
+
+
+
