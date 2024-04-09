@@ -95,11 +95,6 @@ typedef struct{
     Fat32FsInfo fat32FsInfo;
 }__attribute__((packed))DiskInfo;//FIXME: rename
 
-typedef struct{
-    MassStorageDevice *device;
-    DiskInfo diskInfo;
-    FatVersion version;
-}FatDisk;
 
 typedef struct{
     uint8_t fileName[11];              // Short file name limited to 11 characters (8.3 format)
@@ -130,16 +125,32 @@ typedef struct{
     uint32_t maxCount;
 }ClusterBuffer;
 
+typedef struct{
+    void *data;
+    uint32_t startAddress;
+    uint32_t size;
+    uint32_t maxCount;
+    uint8_t hasNewData;
+}BlockBuffer;
 
 typedef struct{
+    uint8_t isRoot;
     FatDirectoryEntry directoryEntry;
     uint32_t sector;
     uint32_t entryIndex;
+    uint32_t directoryEntryAddress;
     
-    ClusterBuffer buffer;
+    BlockBuffer blockBuffer;
 }FatFile;
 
-FatStatus fat_init(MassStorageDevice* device, FileSystem2 *result);
+typedef struct{
+    MassStorageDevice *device;
+    DiskInfo diskInfo;
+    FatVersion version;
+    BlockBuffer fatTable;
+}FatDisk;
+
+FatStatus fat_init(MassStorageDevice* device, FileSystem *result);
 
 FatStatus fat_getFileSize(FatDisk *fatDisk, char *filename, uint32_t *result);
 FatStatus fat_readFile(FatDisk *fatDisk, char *filename, void *buffer, uint32_t bufferSize);

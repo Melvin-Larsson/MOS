@@ -1,5 +1,32 @@
 #include "string.h"
 #include "stdarg.h"
+int equals(char *s1, char *s2){
+   while(*s1 && *s2){
+      if(*s1 != *s2){
+         return 0;
+      }
+      s1++;
+      s2++;
+   }
+   return *s1 == *s2;
+}
+
+void tolower(char* str){
+    while(*str){
+        if(*str >= 'A' && *str <= 'Z'){
+            *str += 'a' - 'A';
+        }
+        str++;
+    }
+}
+void toupper(char* str){
+    while(*str){
+        if(*str >= 'a' && *str <= 'z'){
+            *str += 'A' - 'a';
+        }
+        str++;
+    }
+}
 int strlen(const char* str){
     int length = 0;
     while(*str){
