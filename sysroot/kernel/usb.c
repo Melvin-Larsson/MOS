@@ -35,6 +35,7 @@ UsbStatus usb_init(PciGeneralDeviceHeader *pci, Usb *result){
    }
    if(pci->pciHeader.progIf == PCI_PROG_IF_XHCI){
       Xhci *xhci = malloc(sizeof(Xhci));
+      printf("xhci %X\n", xhci);
       if(xhcd_init(pci, xhci) != XhcOk){
          free(xhci);
          return StatusError;

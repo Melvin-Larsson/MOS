@@ -27,6 +27,27 @@ void toupper(char* str){
         str++;
     }
 }
+int strContains(char *str, char *seq){
+    if(*seq == 0){
+        return 1;
+    }
+    while(*str){
+        int i = 0;
+        for(; seq[i]; i++){
+            if(str[i] == 0){
+                return 0;
+            }
+            if(seq[i] != str[i]){
+                break;
+            }
+        }
+        if(seq[i] == 0){
+            return 1;
+        }
+        str++;
+    }
+    return 0;
+}
 int strlen(const char* str){
     int length = 0;
     while(*str){

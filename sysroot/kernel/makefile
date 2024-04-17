@@ -22,6 +22,7 @@ OBJS= ${BUILD}/boot.o \
 	   ${BUILD}/mass-storage.o \
 	   ${BUILD}/fat.o \
 	   ${BUILD}/file-system.o \
+	   ${BUILD}/buffered-storage.o \
 
 ${BUILD}/kernel.o : ${BUILD} ${OBJS} 
 	${COMPILER} -T linker.ld ${LINK_FLAGS} ${OBJS} -o ${BUILD}/kernel.out
@@ -75,6 +76,9 @@ ${BUILD}/fat.o : fat.c include/kernel/fat.h include/kernel/mass-storage.h
 
 ${BUILD}/file-system.o : file-system.c include/kernel/file-system.h
 	${COMPILER} ${CFLAGS} -c file-system.c -o ${BUILD}/file-system.o
+
+${BUILD}/buffered-storage.o : buffered-storage.c include/kernel/buffered-storage.h
+	${COMPILER} ${CFLAGS} -c buffered-storage.c -o ${BUILD}/buffered-storage.o
 
 include/kernel/xhcd.h: include/kernel/xhcd-registers.h include/kernel/usb-messages.h
 include/kernel/xhcd-ring.h: include/kernel/xhcd-registers.h

@@ -8,12 +8,20 @@
 #define VIDEO_MEMORY ((uint16_t*)0xb8000)
 
 
-static int x = 0;
-static int y = 0;
+static int x;
+static int y;
+static StdioColor color;
 void stdioinit(){
     x = 0;
     y = 0;
+    color = StdioColorWhite;
     clear();
+}
+void stdio_setColor(StdioColor newColor){
+   color = newColor; 
+}
+StdioColor stdio_getColor(){
+    return color;
 }
 static void rollTerminal(){
     for(int y = 1; y < TERM_HEIGHT; y++){
@@ -98,7 +106,7 @@ void printf(const char* str, ...){
     va_end(args);
 }
 void printc(char c, int x, int y){
-    uint16_t charInfo = 0x0F00 | c;
+    uint16_t charInfo = (color << 8) | c;
     VIDEO_MEMORY[y * TERM_WIDTH + x] = charInfo;
 }
 char getc(int x, int y){
@@ -110,4 +118,6 @@ void clear(){
             VIDEO_MEMORY[y * TERM_WIDTH + x] = 0;
         }    
     }
+    x = 0;
+    y = 0;
 }

@@ -4,6 +4,7 @@
 #include "stdint.h"
 #include "mass-storage.h"
 #include "file-system.h"
+#include "kernel/buffered-storage.h"
 
 #define ATTR_READ_ONLY   0x01
 #define ATTR_HIDDEN      0x02
@@ -119,35 +120,20 @@ typedef struct Cluster{
 }Cluster;
 
 typedef struct{
-    void *data;
-    uint32_t nrInFile;
-    uint32_t count;
-    uint32_t maxCount;
-}ClusterBuffer;
-
-typedef struct{
-    void *data;
-    uint32_t startAddress;
-    uint32_t size;
-    uint32_t maxCount;
-    uint8_t hasNewData;
-}BlockBuffer;
-
-typedef struct{
     uint8_t isRoot;
     FatDirectoryEntry directoryEntry;
-    uint32_t sector;
+    uint32_t sector; //FIXME: Remove
     uint32_t entryIndex;
     uint32_t directoryEntryAddress;
     
-    BlockBuffer blockBuffer;
+    BufferedStorageBuffer *buffer;
 }FatFile;
 
 typedef struct{
     MassStorageDevice *device;
     DiskInfo diskInfo;
     FatVersion version;
-    BlockBuffer fatTable;
+    BufferedStorageBuffer *buffer;
 }FatDisk;
 
 FatStatus fat_init(MassStorageDevice* device, FileSystem *result);

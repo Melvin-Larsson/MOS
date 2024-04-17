@@ -33,7 +33,7 @@ typedef struct FileSystem{
    File *(*openFile)(struct FileSystem *fileSystem, char* filename);
    File *(*createFile)(struct FileSystem *fileSytem, char* filename);
    void (*closeFile)(File *file);
-   void (*remove)(struct FileSystem *fileSystem, char* file);
+   int (*remove)(struct FileSystem *fileSystem, char* file);
 
    uint32_t (*readFile)(File *file, void *buffer, uint32_t size);
    void (*writeFile)(File *file, void *buffer, uint32_t size);
@@ -45,5 +45,7 @@ typedef struct FileSystem{
    DirectoryEntry* (*readDirectory)(Directory *dir);
 
 }FileSystem;
+
+void directoryEntry_free(DirectoryEntry *entry);
 
 #endif
