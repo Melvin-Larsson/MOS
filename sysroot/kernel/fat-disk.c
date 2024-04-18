@@ -9,7 +9,6 @@ static void dealocateClusterChain(FatDisk* disk, uint32_t startCluster);
 static uint32_t getClusterNumberInChain(FatDisk *disk, uint32_t startCluster, uint32_t clusterNumber);
 static int isEmpty(FatDirectoryEntry entry);
 static int isEndOfDirectory(FatDirectoryEntry entry);
-static uint32_t getBaseAddress(FatDisk *disk, FatFile *file);
 static FatFile* addDirectoryEntry(FatDisk *disk, FatFile *parent, FatDirectoryEntry newEntry);
 
 static uint32_t readRoot12_16(FatDisk *disk, BufferedStorageBuffer *buffer, uint32_t offset, uint32_t size, void *result);
@@ -42,7 +41,7 @@ FatStatus fatDisk_init(MassStorageDevice *device, FatDisk *result){
       .device = device,
       .buffer = bufferedStorage_newBuffer(BLOCK_BUFFER_SIZE, device->blockSize),
    };
-   device->read(device, 0, &result->diskInfo, sizeof(DiskInfo));
+   device->read(device->data, 0, &result->diskInfo, sizeof(DiskInfo));
 
    result->version = getFatType(result);
    return FatStatusSuccess;

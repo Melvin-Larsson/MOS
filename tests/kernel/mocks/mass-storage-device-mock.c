@@ -4,6 +4,7 @@
 #include "stdio.h"
 
 static uint32_t  _dataSize;
+static void *_data;
 
 
 int read(void *d,
@@ -18,7 +19,7 @@ int read(void *d,
       dataToRead = _dataSize - logicalBlockAddress * device->blockSize;
    }
 
-   memcpy(result, device->data + logicalBlockAddress * device->blockSize, dataToRead);
+   memcpy(result, _data + logicalBlockAddress * device->blockSize, dataToRead);
 
    return dataToRead;
 }
@@ -34,21 +35,25 @@ int write(void *d,
       dataToWrite = _dataSize - logicalBlockAddress * device->blockSize;
    }
 
-   memcpy(device->data+ logicalBlockAddress * device->blockSize, data, dataToWrite);
+   memcpy(_data + logicalBlockAddress * device->blockSize, data, dataToWrite);
 
    return dataToWrite;
 }
 
-MassStorageDevice massStorageDeviceMock_init(void *data, uint32_t dataSize, uint32_t blockSize){
-   MassStorageDevice device = {
+MassStorageDevice *massStorageDeviceMock_init(void *data, uint32_t dataSize, uint32_t blockSize){
+   MassStorageDevice *device = malloc(sizeof(MassStorageDevice));
+   *device = (MassStorageDevice){
       .blockSize = blockSize,
-      .data = data,
       .read = read,
       .write = write,
    };
+   device->data = device;
 
+   _data = data;
    _dataSize = dataSize;
 
    return device;
 }
-void massStorageDeviceMock_free(MassStorageDevice device){}
+void massStorageDeviceMock_free(MassStorageDevice *device){
+   free(device);
+}

@@ -4,7 +4,7 @@
 #include "stdint.h"
 #include "kernel/mass-storage.h"
 
-MassStorageDevice  massStorageDeviceMock_init(void *data, uint32_t dataSize, uint32_t blockSize);
-void massStorageDeviceMock_free(MassStorageDevice device);
+MassStorageDevice  *massStorageDeviceMock_init(void *data, uint32_t dataSize, uint32_t blockSize);
+void massStorageDeviceMock_free(MassStorageDevice *device);
 
 #endif
