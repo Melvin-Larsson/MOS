@@ -92,23 +92,18 @@ static File* createGenericFile(FileSystem *fileSystem, char *path, uint8_t attri
       free(fileName);
       return 0;
    }
-   if(strlen(fileName) > 12){
-      free(fileName);
-      printf("Invalid filename\n");
-      return 0;
-   }
    char fatFileName[11];
    strToFilename(fileName, fatFileName);
    
    char *parentPath = parentFromPath(path);
    FatFile *parent;
-   if(!*parentPath){
+   if(!parentPath[0]){
       parent = fatDisk_openRoot(disk);
    }else{
       FatFile *root = fatDisk_openRoot(disk);
       parent = findChild(disk, root, parentPath);
       if(parent == 0){
-         printf("no parent\n");
+         printf("[FAT] no parent\n");
          return 0;
       }
       fatDisk_closeFile(disk, root);
@@ -162,7 +157,7 @@ static void writeFile(File *file, void *buffer, uint32_t size){
 }
 
 static Directory *openDirectory(struct FileSystem *fileSystem, char *directoryName){
-   if(strlen(directoryName) == 1 && *directoryName == '/'){
+   if(strlen(directoryName) == 1 && directoryName[0] == '/'){
       FatDisk *disk = fileSystem->data;
       FatFile *file = fatDisk_openRoot(disk);
       Directory *result = malloc(sizeof(Directory));
@@ -332,7 +327,8 @@ static int isValidFileName(char *name){
       count(name, '.') > 1 ||
       equals(name, ".") ||
       strContains(name, " ") ||
-      strlen(name) == 0){
+      strlen(name) == 0 ||
+      strlen(name) > 12){
       return 0;
    }
    return 1;
