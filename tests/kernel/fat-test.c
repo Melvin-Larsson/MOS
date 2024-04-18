@@ -13,7 +13,7 @@
 
 static uint8_t *data;
 static FileSystem fatSystem;
-static MassStorageDevice device;
+static MassStorageDevice *device;
 
 
 
@@ -92,7 +92,7 @@ TEST_GROUP_SETUP(read_write){
     device = massStorageDeviceMock_init(data, MEMORY_SIZE, 512);
 
 
-    fat_init(&device, &fatSystem);
+    fat_init(device, &fatSystem);
 }
 TEST_GROUP_TEARDOWN(read_write){
     free(data); 
@@ -103,7 +103,9 @@ TEST_GROUP_TEARDOWN(read_write){
 TESTS
 
 TEST(read_write, createDirectory_okName_resultCorrectName){
+  printf("a\n");
   Directory *directory = fatSystem.createDirectory(&fatSystem, "dir");
+  printf("c\n");
   assertString(directory->name, "dir");
   fatSystem.closeDirectory(directory);
 }
@@ -166,6 +168,38 @@ TEST(read_write, createDirectory_createGrandChilds){
   assertInt((int)grandchildEntry, 0);
   fatSystem.closeDirectory(child);
   directoryEntry_free(grandchildEntry);
+}
+TEST(read_write, createDirectory_createWhileParentOpen_readChildSuccessfully){
+  Directory *parent = fatSystem.createDirectory(&fatSystem, "parent");
+  Directory *sub = fatSystem.createDirectory(&fatSystem, "parent/sub");
+  fatSystem.closeDirectory(sub);
+
+  DirectoryEntry *entry = fatSystem.readDirectory(parent);
+  if(assertIntNotEquals((uintptr_t)entry, 0)){
+    directoryEntry_free(entry);
+  }
+  fatSystem.closeDirectory(parent);
+}
+TEST(read_write, createDirectory_createSiblingsWithoutClose_readSiblingsSuccessfully){
+  Directory *parent = fatSystem.createDirectory(&fatSystem, "parent");
+  fatSystem.closeDirectory(parent);
+
+  Directory *sub1 = fatSystem.createDirectory(&fatSystem, "parent/sub");
+  Directory *sub2 = fatSystem.createDirectory(&fatSystem, "parent/sub2");
+  fatSystem.closeDirectory(sub1);
+  fatSystem.closeDirectory(sub2);
+
+  parent = fatSystem.openDirectory(&fatSystem, "parent");
+  DirectoryEntry *entry1 = fatSystem.readDirectory(parent);
+  DirectoryEntry *entry2 = fatSystem.readDirectory(parent);
+
+  if(assertIntNotEquals((uintptr_t)entry1, 0)){
+    directoryEntry_free(entry1);
+  }
+  if(assertIntNotEquals((uintptr_t)entry2, 0)){
+    directoryEntry_free(entry2);
+  }
+  fatSystem.closeDirectory(parent);
 }
 TEST(read_write, createTree){
   createTreeHelper("/", 5);

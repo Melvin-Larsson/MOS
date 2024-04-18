@@ -3,11 +3,16 @@
 #include "stdlib.h"
 #include "stdio.h"
 
+
 static uint8_t *_data;
 
 void bufferedStorageMock_init(void *data){
    _data = data;
 }
+
+#define ENABLED
+
+#ifdef ENABLED
 
 uint32_t bufferedStorage_read(
       MassStorageDevice *device,
@@ -51,3 +56,6 @@ void bufferedStorage_writeBuffer(
 
     return;
 }
+#else
+#include "buffered-storage.c"
+#endif
