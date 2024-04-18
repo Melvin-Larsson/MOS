@@ -21,6 +21,7 @@ OBJS= ${BUILD}/boot.o \
 	   ${BUILD}/scsi.o \
 	   ${BUILD}/mass-storage.o \
 	   ${BUILD}/fat.o \
+	   ${BUILD}/fat-disk.o \
 	   ${BUILD}/file-system.o \
 	   ${BUILD}/buffered-storage.o \
 
@@ -71,7 +72,7 @@ ${BUILD}/scsi.o : scsi.c include/kernel/scsi.h
 ${BUILD}/mass-storage.o : mass-storage.c usb-mass-storage.c include/kernel/usb-mass-storage.h include/kernel/mass-storage.h
 	${COMPILER} ${CFLAGS} -c mass-storage.c -o ${BUILD}/mass-storage.o
 
-${BUILD}/fat.o : fat.c include/kernel/fat.h include/kernel/mass-storage.h 
+${BUILD}/fat.o : fat.c include/kernel/fat.h include/kernel/mass-storage.h
 	${COMPILER} ${CFLAGS} -c fat.c -o ${BUILD}/fat.o
 
 ${BUILD}/file-system.o : file-system.c include/kernel/file-system.h
@@ -79,6 +80,9 @@ ${BUILD}/file-system.o : file-system.c include/kernel/file-system.h
 
 ${BUILD}/buffered-storage.o : buffered-storage.c include/kernel/buffered-storage.h
 	${COMPILER} ${CFLAGS} -c buffered-storage.c -o ${BUILD}/buffered-storage.o
+
+${BUILD}/fat-disk.o : fat-disk.c include/kernel/fat-disk.h
+	${COMPILER} ${CFLAGS} -c fat-disk.c -o ${BUILD}/fat-disk.o
 
 include/kernel/xhcd.h: include/kernel/xhcd-registers.h include/kernel/usb-messages.h
 include/kernel/xhcd-ring.h: include/kernel/xhcd-registers.h

@@ -122,8 +122,6 @@ typedef struct Cluster{
 typedef struct{
     uint8_t isRoot;
     FatDirectoryEntry directoryEntry;
-    uint32_t sector; //FIXME: Remove
-    uint32_t entryIndex;
     uint32_t directoryEntryAddress;
     
     BufferedStorageBuffer *buffer;

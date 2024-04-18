@@ -1,4 +1,5 @@
 #include "fat.c"
+#include "fat-disk.c"
 #include "file-system.c"
 #include "testrunner.h"
 #include "empty-disk.h"
@@ -16,23 +17,30 @@ static MassStorageDevice device;
 
 
 
-void createTreeHelper(char *parent, int depth){
+int createTreeHelper(char *parent, int depth){
   if(depth == 0){
-    return;
+    return 1;
   }
   for(int i = 0; i < 3; i++){
     char path[100];
     sprintf(path, "%sc%d", parent, i);
     Directory *directory = fatSystem.createDirectory(&fatSystem, path);
-    assertIntNotEquals((uint32_t)directory, 0);
+    int status = assertIntNotEquals((uint32_t)directory, 0);
     fatSystem.closeDirectory(directory);
+    if(!status){
+      return 0;
+    }
     sprintf(path, "%sc%d/", parent, i);
-    createTreeHelper(path, depth - 1);
+
+    if(!createTreeHelper(path, depth - 1)){
+      return 0;
+    }
   }
+  return 1;
 }
-void verifyTree(char *parent, int depth){
+int verifyTree(char *parent, int depth){
   if(depth == 0){
-    return;
+    return 1;
   } 
 
 
@@ -40,21 +48,31 @@ void verifyTree(char *parent, int depth){
   uint32_t found = 0;
   for(int i = 0; i < 3; i++){
     DirectoryEntry *entry = fatSystem.readDirectory(parentDir);
-    assertIntNotEquals((uint32_t)entry, 0);
-    assertInt(entry->filename[0], 'c');
+    int status = assertIntNotEquals((uint32_t)entry, 0);
+    status |= assertInt(entry->filename[0], 'c');
     uint32_t curr = entry->filename[1] - '0';
     found |= 1 << curr;
     directoryEntry_free(entry);
+    if(!status){
+      fatSystem.closeDirectory(parentDir);
+      return 0;
+    }
   }
-  assertInt(found, 0b111);
+  if(!assertInt(found, 0b111)){
+    fatSystem.closeDirectory(parentDir);
+    return 0;
+  }
 
   for(int i = 0; i < 3; i++){
     char path[100];
     sprintf(path, "%sc%d/", parent, i);
-    verifyTree(path, depth - 1);
+    if(!verifyTree(path, depth - 1)){
+      fatSystem.closeDirectory(parentDir);
+      return 0;
+    }
   }
-
   fatSystem.closeDirectory(parentDir);
+  return 1;
 }
 
 TEST_GROUP_SETUP(string){}
@@ -124,12 +142,16 @@ TEST(read_write, createDirectory_reservedNames_nullPointers){
 }
 TEST(read_write, createDirectory_createGrandChilds){
   Directory *child = fatSystem.createDirectory(&fatSystem, "child");  
+  assertIntNotEquals((uintptr_t)child, 0);
   fatSystem.closeDirectory(child);
   Directory *grandchild = fatSystem.createDirectory(&fatSystem, "child/gc");  
+  assertIntNotEquals((uintptr_t)grandchild, 0);
   fatSystem.closeDirectory(grandchild);
 
   Directory *root = fatSystem.openDirectory(&fatSystem, "/");
   DirectoryEntry *childEntry = fatSystem.readDirectory(root);
+
+  assertIntNotEquals((uintptr_t)childEntry, 0);
   assertString(childEntry->filename, "child");
   childEntry = fatSystem.readDirectory(root);
   assertInt((uint32_t)childEntry, 0);
@@ -138,6 +160,7 @@ TEST(read_write, createDirectory_createGrandChilds){
 
   child = fatSystem.openDirectory(&fatSystem, "child");
   DirectoryEntry *grandchildEntry = fatSystem.readDirectory(child);
+  assertIntNotEquals((uintptr_t)grandchildEntry, 0);
   assertString(grandchildEntry->filename, "gc");
   grandchildEntry = fatSystem.readDirectory(child);
   assertInt((int)grandchildEntry, 0);
@@ -304,6 +327,7 @@ TEST(read_write, openFile_correctName){
   File *file = fatSystem.createFile(&fatSystem, "test.txt");
   fatSystem.closeFile(file);
 
+
   file = fatSystem.openFile(&fatSystem, "test.txt");
   assertString(file->name, "test.txt");
 
@@ -336,7 +360,7 @@ TEST(read_write, writeReadFile_readEqualsWriteBig){
   char result[sizeof(buffer)];
   for(int i = 0; i < 1000; i++){
     fatSystem.readFile(file, result, sizeof(result));
-    assertArray(result, sizeof(result), buffer, sizeof(buffer));
+    if(!assertArray(result, sizeof(result), buffer, sizeof(buffer)));
   }
 
   fatSystem.closeFile(file);
