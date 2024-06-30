@@ -7,6 +7,35 @@
 #define PCI_PROG_IF_XHCI 0x30
 
 #include "stdint.h"
+
+typedef enum{
+   MsiDeliveryModeFixed = 0b000,
+   MsiDeliveryModeLowestPriority = 0b001,
+   MsiDeliveryModeSMI = 0b010,
+   MsiDeliveryModeNMI = 0b100,
+   MsiDeliveryModeInit = 0b101,
+   MsiDeliveryModeExtInt = 0b111,
+}MsiDeliveryMode;
+
+typedef union{
+   struct{
+      uint16_t reserved3: 3;
+      uint16_t interruptStatus: 1;
+      uint16_t capabilitiesList: 1;
+      uint16_t capable66MHz: 1;
+      uint16_t reserved4: 1;
+      uint16_t fastBackToBackCapable: 1;
+      uint16_t masterDataParityError: 1;
+      uint16_t devselTiming: 2;
+      uint16_t signaledTargetAbort: 1;
+      uint16_t receivedTargetAbort: 1;
+      uint16_t receivedMasterAbort: 1;
+      uint16_t signaledSystemError: 1;
+      uint16_t detectedParityError: 1;
+   };
+   uint16_t status;
+}__attribute__((packed)) PciStatus;
+
 typedef struct{
    union{
       struct{
@@ -18,8 +47,24 @@ typedef struct{
       struct{
          uint16_t vendorId;
          uint16_t deviceId;
-         uint16_t command;
-         uint16_t status;
+         union{
+            uint16_t command;
+            struct{
+               uint16_t ioSpace: 1;
+               uint16_t memorySpace: 1;
+               uint16_t busMaster: 1;
+               uint16_t specialCycles: 1;
+               uint16_t memoryWriteInvalidate: 1;
+               uint16_t vgaPaletteSnoop: 1;
+               uint16_t parityErrorResponse: 1;
+               uint16_t reserved1: 1;
+               uint16_t serrEnable: 1;
+               uint16_t fastBackToBackEnable: 1;
+               uint16_t interruptDisable: 1;
+               uint16_t reserved2: 5;
+            };
+         };
+         PciStatus status;
          uint8_t revisionId;
          uint8_t progIf;
          uint8_t subclass;
@@ -40,15 +85,23 @@ typedef struct{
 }PciDescriptor;
 
 typedef struct{
+   uint8_t capabilityId;
+   uint8_t nextPointer;
+   uint16_t tableSize : 11; //N-1 encoded. i.e. tableSize = 0 -> 1 entry.
+   uint16_t reserved : 3;
+   uint16_t functionMask : 1;
+   uint16_t enable : 1;
+   uint32_t messageBir : 3;
+   uint32_t tableOffsetHigh : 29; //The high 29 bits
+   uint32_t pendingBir : 3;
+   uint32_t pendingOffsetHigh : 29; //The high 29 bits
+}__attribute__((packed))MsiXCapability;
+
+typedef struct{
    union{
       struct{
          PciHeader pciHeader;
-         uint32_t baseAddress0;
-         uint32_t baseAddress1;
-         uint32_t baseAddress2;
-         uint32_t baseAddress3;
-         uint32_t baseAddress4;
-         uint32_t baseAddress5;
+         uint32_t baseAddress[6];
          uint32_t cardbusCisPointer;
          uint16_t subsystemVendorId;
          uint16_t subsytemId;
@@ -65,6 +118,11 @@ typedef struct{
    };
 }__attribute__((packed))PciGeneralDeviceHeader;
 
+typedef struct{
+   uint32_t offset;
+   uint32_t id;
+}PciCapability;
+
 void pciConfigWriteAddress(uint32_t address);
 void pci_configWriteData(uint32_t data);
 void pci_configWrite(uint32_t address, uint32_t data);
@@ -74,8 +132,25 @@ uint32_t pci_configReadDevice(uint8_t busNr, uint8_t deviceNr,
          uint8_t funcNr, uint8_t registerOffset);
 
 int pci_getDevices(PciDescriptor* output, int maxHeadersInOutput);
-int pci_getDevice(uint8_t classCode, uint8_t subclass, uint8_t progIf,
-                  PciHeader* output, int maxHeadersInOutput);
+
+PciStatus pci_getStatus(PciDescriptor* pci);
+uint8_t pci_getCacheLineSize(PciDescriptor *pci);
+void pci_setCacheLineSize(PciDescriptor* pci, uint8_t cacheLineSize);
+uint8_t pci_getLatencyTimer(PciDescriptor *pci);
+void pci_setLatencyTimer(PciDescriptor* pci, uint8_t latencyTimer);
+
+/**
+ * Invokes a built-in self test on the device
+ * @param pci the device to test
+ * @return 0 if successful or BIST not suported. -1 if device did not respond.
+ * Other values are device specific.
+ */
+int pci_doBIST(PciDescriptor *pci);
+int pci_searchCapabilityList(const PciDescriptor *pci, uint8_t id, PciCapability *result);
+int pci_readCapabilityData(const PciDescriptor *pci, PciCapability capability, void *result, int capabilitySize);
+
+int pci_initMsiX(const PciDescriptor *pci);
+
 void pci_getGeneralDevice(PciDescriptor* descriptor, PciGeneralDeviceHeader* output);
 void pci_getClassName(PciHeader* pci, char* output);
 void pci_getSubclassName(PciHeader* pci, char* output);

@@ -2,8 +2,15 @@
 #include "stdio.h"
 #include "string.h"
 
+#define ASSERTS_ENABLED
+#include "utils/assert.h"
+
 #define CONFIG_ADDRESS 0xCF8
 #define CONFIG_DATA 0xCFC
+
+#define HEADER_TYPE_GENERAL_DEVICE 0x00
+#define HEADER_TYPE_PCI_TO_PCI_BRIDGE 0x01
+#define HEADER_TYPE_CARD_BUS_BRIDGE 0x02
 
 void pci_configWriteAddress(uint32_t address){
    __asm__ volatile("out %[data], %[reg_addr]"
@@ -152,10 +159,195 @@ void pci_getGeneralDevice(PciDescriptor* descriptor,
       addr = next;
 
    }
-
       printf("\n");
-
 }
+
+PciStatus pci_getStatus(PciDescriptor* pci){
+  uint32_t commandAndStatus = pci_configReadRegister(pci->busNr, pci->deviceNr, 0, 0x04); 
+  uint16_t status = commandAndStatus >> 16;
+  return (PciStatus){.status = status};
+}
+
+uint8_t pci_getCacheLineSize(PciDescriptor *pci){
+   uint32_t reg = pci_configReadRegister(pci->busNr, pci->deviceNr, 0, 0x0C); 
+   return reg & ~0xFF;
+}
+void pci_setCacheLineSize(PciDescriptor* pci, uint8_t cacheLineSize){
+  uint32_t reg = pci_configReadRegister(pci->busNr, pci->deviceNr, 0, 0x0C); 
+  reg &= ~0xFF;
+  reg |= cacheLineSize;
+  pci_configWriteRegister(pci->busNr, pci->deviceNr, 0, 0x0C, reg); 
+}
+
+uint8_t pci_getLatencyTimer(PciDescriptor *pci){
+   uint32_t reg = pci_configReadRegister(pci->busNr, pci->deviceNr, 0, 0x0C); 
+   return (reg >> 8) & ~0xFF;
+}
+void pci_setLatencyTimer(PciDescriptor* pci, uint8_t latencyTimer){
+  uint32_t reg = pci_configReadRegister(pci->busNr, pci->deviceNr, 0, 0x0C); 
+  reg &= ~0xFF00;
+  reg |= (latencyTimer << 8);
+  pci_configWriteRegister(pci->busNr, pci->deviceNr, 0, 0x0C, reg); 
+}
+/**
+ * Invokes a built-in self test on the device
+ * @param pci the device to test
+ * @return 0 if successful or BIST not suported. -1 if device did not respond.
+ * Other values are device specific.
+ */
+int pci_doBIST(PciDescriptor *pci){
+   uint32_t reg = pci_configReadRegister(pci->busNr, pci->deviceNr, 0, 0x0C); 
+   if(!(reg & (1<<31))){
+      return 0;
+   }
+   reg |= 1 << 30;
+   pci_configWriteRegister(pci->busNr, pci->deviceNr, 0, 0x0C, reg); 
+   //FIMXE: Timer should be 2 seconds
+   uint32_t timer = 1;
+   while((reg & (1<<30)) && timer < 0xFFFFFFFF){
+      timer++;
+      reg = pci_configReadRegister(pci->busNr, pci->deviceNr, 0, 0x0C); 
+   }
+   if(timer == 0xFFFFFFFF){
+      return -1;
+   }
+   return (reg >> 24) & 0xF;
+}
+
+static uint8_t getCapabilitiesPointer(const PciDescriptor *pci){
+   assert(pci->pciHeader.headerType == HEADER_TYPE_GENERAL_DEVICE);
+   assert(pci->pciHeader.status.capabilitiesList);
+
+   uint32_t reg = pci_configReadRegister(pci->busNr, pci->deviceNr, 0, 0x34);
+   return (reg & 0xFF) & ~0b11; 
+}
+static uint8_t getNextPointer(uint16_t capabilitiesHeader){
+   return (capabilitiesHeader >> 8) & ~0b11;
+}
+static uint8_t getCapabilitiesId(uint16_t capabilitiesHeader){
+   return capabilitiesHeader & 0xFF;
+}
+
+int pci_searchCapabilityList(const PciDescriptor *pci, uint8_t id, PciCapability *result){
+   assert(pci->pciHeader.headerType == HEADER_TYPE_GENERAL_DEVICE);
+
+   if(!pci->pciHeader.status.capabilitiesList){
+      return 0;
+   }
+
+   uint8_t offset = getCapabilitiesPointer(pci);
+   uint16_t capabilityHeader = pci_configReadRegister(pci->busNr, pci->deviceNr, 0, offset) & 0xFFFF;
+   while(getCapabilitiesId(capabilityHeader) != id){
+      offset = getNextPointer(capabilityHeader);
+
+      if(offset == 0){
+         return 0;
+      }
+
+      capabilityHeader = pci_configReadRegister(pci->busNr, pci->deviceNr, 0, offset) & 0xFFFF;
+   }
+
+   *result = (PciCapability){
+      .id = id,
+      .offset = offset
+   };
+
+   return 1;
+}
+int pci_readCapabilityData(const PciDescriptor *pci, PciCapability capability, void *result, int capabilitySize){
+   assert(capabilitySize % 4 == 0); //Not necessarely true, leave here for now though
+
+   uint32_t *result32 = result;
+   uint8_t offset = capability.offset;
+
+   while(capabilitySize > 0){
+      *result32 = pci_configReadRegister(pci->busNr, pci->deviceNr, 0, offset);
+      offset += 4;
+      result32++;
+      capabilitySize -= 4;
+   }
+
+   return offset - capability.offset;
+}
+
+static uintptr_t getMessageTableBaseAddress(const PciDescriptor *pci, MsiXCapability capability){
+   assert(pci->pciHeader.headerType == HEADER_TYPE_GENERAL_DEVICE);
+
+   uint32_t barAddressOffset = 0x10 + capability.messageBir * 4;
+   uint32_t address = pci_configReadRegister(pci->busNr, pci->deviceNr, 0, barAddressOffset) & ~0xF;
+   uint32_t offset = capability.tableOffsetHigh << 3;
+   printf("offset %X\n", offset);
+   return address + offset;
+}
+static uintptr_t getPendingTableBaseAddress(const PciDescriptor *pci, MsiXCapability capability){
+   assert(pci->pciHeader.headerType == HEADER_TYPE_GENERAL_DEVICE);
+
+   uint32_t barAddressOffset = 0x10 + capability.pendingBir * 4;
+   uint32_t address = pci_configReadRegister(pci->busNr, pci->deviceNr, 0, barAddressOffset) & ~0xF;
+   uint32_t offset = capability.pendingOffsetHigh << 3;
+   return address + offset;
+}
+
+static uint64_t formatMsgAddr(uint32_t targetProcessor, int redirectionHint, int destinationMode){
+   return (0xFEE << 20) | (targetProcessor << 12) | (redirectionHint != 0) << 3 | (destinationMode != 0) << 2;
+}
+static uint64_t formatMsgData(uint8_t vector, MsiDeliveryMode deliveryMode, int assert, int levelSensitive){
+   return (levelSensitive != 0) << 15 | (assert != 0) << 14 | deliveryMode << 8 | vector;
+}
+
+static void enableMsiX(const PciDescriptor *pci, PciCapability capability){
+   assert(capability.id == 0x11);
+   assert(pci->pciHeader.headerType == HEADER_TYPE_GENERAL_DEVICE);
+
+   uint32_t reg = pci_configReadRegister(pci->busNr, pci->deviceNr, 0, capability.offset);
+   reg |= (1 << 31);
+   pci_configWriteRegister(pci->busNr, pci->deviceNr, 0, capability.offset, reg);
+}
+
+int getCpuId(){
+   uint32_t eax, ebx = 0, ecx = 0, edx = 0;
+   eax = 0x01;
+   __asm__ ("cpuid"
+         : "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx)
+         : "a"(eax)
+         : 
+         );
+   return ebx >> 24;
+}
+
+int pci_initMsiX(const PciDescriptor *pci){
+   assert(pci->pciHeader.headerType == HEADER_TYPE_GENERAL_DEVICE);
+
+   PciCapability capability;
+   int status = pci_searchCapabilityList(pci, 0x11, &capability);
+   if(!status){
+      printf("MsiX not found\n");
+      return 0;
+   }
+   MsiXCapability msiCapability;
+   pci_readCapabilityData(pci, capability, &msiCapability, sizeof(MsiXCapability));
+
+   uint16_t tableSize = msiCapability.tableSize;
+   volatile uint64_t *messageTableBaseAddress = (uint64_t*)getMessageTableBaseAddress(pci, msiCapability);
+   uintptr_t pendingTableBaseAddress = getPendingTableBaseAddress(pci, msiCapability);
+
+   uint8_t cpu = getCpuId();
+   printf("cpu :%d\n", cpu);
+   printf("writing to address %X\n", messageTableBaseAddress);
+
+   for(int i = 0; i < tableSize; i++){
+      messageTableBaseAddress[2*i] = formatMsgAddr(cpu, 0, 0);
+      messageTableBaseAddress[2*i + 1] = formatMsgData(33, MsiDeliveryModeFixed, 0, 0);
+   }
+
+   enableMsiX(pci, capability);
+
+   return 1;
+}
+
+
+
+
 
 void pci_getClassName(PciHeader* pci, char* output){
    char *names[] = {"Unclassified", "Mass Storage Controller",

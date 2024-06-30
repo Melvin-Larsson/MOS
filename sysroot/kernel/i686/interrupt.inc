@@ -49,11 +49,13 @@ interrupt_handler_m 28
 interrupt_handler_m 29
 interrupt_handler_m 30
 interrupt_handler_m 31
+interrupt_handler_m 32
+interrupt_handler_m 33
 
 global interrupt_addr_table
 interrupt_addr_table:
 %assign i 0
-%rep 32
+%rep 34
     dd interrupt_handler_%+i
 %assign i i+1
 %endrep
