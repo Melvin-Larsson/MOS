@@ -118,7 +118,6 @@ static void handler(void *data){
    printf("count %d\n", count++);
 }
 
-static int first;
 XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
    int errorCode = 0;
    PciGeneralDeviceHeader pciHeader;
@@ -126,7 +125,6 @@ XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
    if((errorCode = initBasePointers(&pciHeader, xhci)) != 0){
       return errorCode;
    }
-   first = 0; //FIXME: remove
 
    MsiXVectorData vectorData = pci_getDefaultMsiXVectorData(handler, xhci);
    MsiXDescriptor msiDescriptor;
@@ -144,100 +142,17 @@ XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
 
    readPortInfo(xhci);
    initCommandRing(xhci);
-//    printf("init eventring status %X\n", xhci->operation->USBStatus);
    initEventRing(xhci);
 
-
-//    for(int i = 1; i < 1024; i++){
-//       InterrupterRegisters *interrupter = &xhci->interrupterRegisters[i];
-//       interrupter->eventRingSegmentTableSize = 0;
-//       interrupter->interruptEnable = 0;
-//    }
-//
    xhci->operation->USBCommand |= (1 << 2);
    turnOnController(xhci);
    
 
    xhci->operation->USBStatus |= 1 << 3;
    while(xhci->operation->USBStatus & (1<<3));
-//    printf("xhc running %b\n", xhci->operation->USBCommand & USBCMD_RUN_STOP_BIT);
-//    printf("xhc halted %b\n", xhci->operation->USBStatus & 1);
-//    printf("Error? %d\n", xhci->operation->USBStatus & (1 << 12));
 
-
-//    for(int i = 0; i < 100; i++){
-//       printf("-");
-//       printf("\b");
-//    }
-//    printf("Conf %X\n", xhci->operation->configure);
-//    printf("stat %X\n", xhci->operation->USBStatus);
-//    printf("cmd %X\n", xhci->operation->USBCommand);
-
-   uint32_t low = xhci->operation->commandRingControll;
-   printf("cmdr: %X\n", low);
-
-//    printf("op: %X\n", xhci->operation);
-//    printf("xhci: %X\n", xhci);
-
-//    uint32_t *ptr = (uint32_t*)&xhci->interrupterRegisters[0];
-//    printf("intr: ");
-//    for(int i = 0; i < 8; i++){
-//       printf("%X ", *ptr);
-//       ptr++;
-//    }
-//    printf("\n");
-
-   printf("Testing command ring\n");
-   void *curr = 0;
-   printf("curr: %X\n", &curr);
-   printf("func: %X\n", xhcd_init);
-
-//    printf("op: %X\n", xhci->operation);
-//    printf("xhci: %X\n", xhci);
-
-//    for(int i = 0; i < 100; i++){
-//       printf("%d",i);
-//    }
-//    printf("a");
-//    printf("b");
-//    printf("c");
-//    printf("d");
-//    printf("e");
-//    printf("f");
-//    printf("g");
-//    printf("h");
-//    printf("i");
-//    printf("j");
-//    printf("k");
-//    printf("l");
-//    printf("m");
-//    printf("n");
-//    printf("o");
-//    printf("p");
-
-   low = xhci->operation->commandRingControll;
-   printf("cmdr: %X\n", low);
-   uint32_t status = xhci->operation->USBStatus;
-   printf("yes\n");
-   printf("status: %X\n", status);
-//    XhcEventTRB event;
-//    xhcd_putTRB(TRB_NOOP(), &xhci->commandRing);
-//    ringCommandDoorbell(xhci);;
-//    while(1){
-//       if(xhci->operation->USBStatus){
-//          printf("status: %X\n", xhci->operation->USBStatus);
-//          xhci->operation->USBStatus |= 1 << 3;
-//          while(xhci->operation->USBStatus & (1<<3));
-//       }
-//       if(xhcd_readEvent(&xhci->eventRing, &event, 1)){
-//          printf("event: %d, status %d\n", event.trbType, event.completionCode);
-//       }
-//    }
-
-   
    //FIXME: a bit of hack, clearing event ring
    XhcEventTRB result[16];
-//    while(!xhcd_readEvent(&xhci->eventRing, &result, 1) || result.trbType != 33);
    while(xhcd_readEvent(&xhci->eventRing, result, 16));
 
    return XhcOk;
