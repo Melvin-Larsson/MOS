@@ -49,7 +49,7 @@ typedef enum{
    StatusError = 1
 }UsbStatus;
 
-UsbStatus usb_init(PciGeneralDeviceHeader *pci, Usb *result);
+UsbStatus usb_init(PciDescriptor pci, Usb *result);
 int usb_getNewlyAttachedDevices(Usb *usb, UsbDevice *resultBuffer, int bufferSize);
 
 UsbStatus usb_getStatus(UsbDevice *device, Recipient recipient, StatusType statusType, uint16_t index, uint8_t result[2]);

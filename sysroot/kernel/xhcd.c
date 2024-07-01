@@ -5,10 +5,18 @@
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
+#include "kernel/interrupt.h"
 
+
+//FIXME: remove
+#include "kernel/pci.h"
+
+#define ASSERTS_ENABLED
+#include "utils/assert.h"
 //DC = Device context
 //p.168. TRB rings shall not cross 64KB boundary
 //p82 UBS LS FS HS requres port process to advance to enabled state
+
 
 #define CNR_FLAG (1<<11)
 
@@ -52,7 +60,8 @@ typedef enum{
 static int initBasePointers(const PciGeneralDeviceHeader *pciHeader, Xhci *xhci);
 static void readPortInfo(Xhci *xhci);
 static void waitForControllerReady(Xhci *xhci);
-static void setMaxEnabledDeviceSlots(Xhci *xhci);
+static void setMaxEnabledDeviceSlots(Xhci *xhci, int maxSlots);
+static int getMaxEnabledDeviceSlots(Xhci *xhci);
 static void resetXhc(Xhci *xhci);
 static void initCommandRing(Xhci *xhci);
 static void initEventRing(Xhci *xhci);
@@ -97,26 +106,45 @@ static int port = 0;
 __attribute__((aligned(64)))
 static XhcInputContext inputContext[MAX_DEVICE_SLOTS_ENABLED];
 
-XhcStatus xhcd_init(const PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
-   void *stack = 0;
-   printf("addr: %X\n", printf);
-   printf("stack: %X\n", &stack);
+static int count = 0;
+
+static void handler(void *data){
+//    XhcEventTRB result;
+//    if(xhcd_readEvent(&xhci->eventRing, &result, 1)){
+//       uintptr_t trbPtr = result.trbPointerLow | result.trbPointerHigh << 32;
+//       TRB trb = *((TRB*)trbPtr);
+//       printf("trb: %d\n", trb.type);
+//    }
+   printf("count %d\n", count++);
+}
+
+static int first;
+XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
    int errorCode = 0;
-   if((errorCode = initBasePointers(pciHeader, xhci)) != 0){
+   PciGeneralDeviceHeader pciHeader;
+   pci_getGeneralDevice(descriptor, &pciHeader);
+   if((errorCode = initBasePointers(&pciHeader, xhci)) != 0){
       return errorCode;
    }
+   first = 0; //FIXME: remove
+
+   MsiXVectorData vectorData = pci_getDefaultMsiXVectorData(handler, xhci);
+   MsiXDescriptor msiDescriptor;
+   pci_initMsiX(&descriptor, &msiDescriptor);
+   pci_setMsiXVector(msiDescriptor, 0, 33, vectorData);
+   pci_enableMsiX(descriptor, msiDescriptor);
 
    waitForControllerReady(xhci);
    resetXhc(xhci);
    waitForControllerReady(xhci);
-   setMaxEnabledDeviceSlots(xhci);
+   setMaxEnabledDeviceSlots(xhci, getMaxEnabledDeviceSlots(xhci));
    initDCAddressArray(xhci);
    initScratchPad(xhci);
 
 
    readPortInfo(xhci);
    initCommandRing(xhci);
-   printf("init eventring status %X\n", xhci->operation->USBStatus);
+//    printf("init eventring status %X\n", xhci->operation->USBStatus);
    initEventRing(xhci);
 
 
@@ -126,9 +154,9 @@ XhcStatus xhcd_init(const PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
 //       interrupter->interruptEnable = 0;
 //    }
 //
+   xhci->operation->USBCommand |= (1 << 2);
    turnOnController(xhci);
    
-
 
    xhci->operation->USBStatus |= 1 << 3;
    while(xhci->operation->USBStatus & (1<<3));
@@ -141,9 +169,9 @@ XhcStatus xhcd_init(const PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
 //       printf("-");
 //       printf("\b");
 //    }
-   printf("Conf %X\n", xhci->operation->configure);
-   printf("stat %X\n", xhci->operation->USBStatus);
-   printf("cmd %X\n", xhci->operation->USBCommand);
+//    printf("Conf %X\n", xhci->operation->configure);
+//    printf("stat %X\n", xhci->operation->USBStatus);
+//    printf("cmd %X\n", xhci->operation->USBCommand);
 
    uint32_t low = xhci->operation->commandRingControll;
    printf("cmdr: %X\n", low);
@@ -163,8 +191,6 @@ XhcStatus xhcd_init(const PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
    void *curr = 0;
    printf("curr: %X\n", &curr);
    printf("func: %X\n", xhcd_init);
-//    xhcd_putTRB(TRB_NOOP(), &xhci->commandRing);
-//    ringCommandDoorbell(xhci);
 
 //    printf("op: %X\n", xhci->operation);
 //    printf("xhci: %X\n", xhci);
@@ -213,7 +239,6 @@ XhcStatus xhcd_init(const PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
    XhcEventTRB result[16];
 //    while(!xhcd_readEvent(&xhci->eventRing, &result, 1) || result.trbType != 33);
    while(xhcd_readEvent(&xhci->eventRing, result, 16));
-
 
    return XhcOk;
 }
@@ -370,19 +395,15 @@ XhcStatus xhcd_readData(const XhcDevice *device, UsbEndpointDescriptor endpoint,
    int endpointIndex = getEndpointIndex(&endpoint);
 
    Xhci *xhci = device->xhci;
+
    TRB trb = TRB_NORMAL(dataBuffer, bufferSize);
    XhcdRing *transferRing = &xhci->transferRing[device->slotId][endpointIndex - 1];
    xhcd_putTRB(trb, transferRing);
    xhcd_ringDoorbell(xhci, device->slotId, endpointIndex);
 
-
    XhcEventTRB event;
    while(!xhcd_readEvent(&xhci->eventRing, &event, 1));
 
-   if(event.completionCode != Success){
-      printf("compcode: %d, type: %d\n", event.completionCode, event.trbType);
-      return XhcReadDataError;
-   }
    return XhcOk;
 }
 XhcStatus xhcd_writeData(const XhcDevice *device,
@@ -683,6 +704,8 @@ static void initCommandRing(Xhci *xhci){
 }
 static void initEventRing(Xhci *xhci){
    xhci->eventRing = xhcd_newEventRing(DEFAULT_EVENT_SEGEMNT_TRB_COUNT);
+   uint32_t *ptr = xhci->interrupterRegisters;
+   *ptr |= 2;
    xhcd_attachEventRing(&xhci->eventRing, &xhci->interrupterRegisters[0]);
    uint32_t rings = xhci->capabilities->structParams1.maxInterrupters;
    printf("eventRings: %X\n", rings);
@@ -892,13 +915,13 @@ static PortStatusAndControll *getPortStatus(Xhci *xhci, int portIndex){
    return status;
 }
 static int initBasePointers(const PciGeneralDeviceHeader *pciHeader, Xhci *xhci){
-   if(pciHeader->baseAddress1 != 0){
+   if(pciHeader->baseAddress[1] != 0){
       printf("Error: unable to reach xhcd MMIO in 32 bit mode: %X %X\n",
-            pciHeader->baseAddress0, pciHeader->baseAddress1);
+            pciHeader->baseAddress[0], pciHeader->baseAddress[1]);
       return -1;
    }
 
-   uint32_t base = pciHeader->baseAddress0 & (~0xFF); 
+   uint32_t base = pciHeader->baseAddress[0] & (~0xFF); 
 
    
    xhci->capabilities = (XhciCapabilities *)base;
@@ -949,9 +972,13 @@ static int initBasePointers(const PciGeneralDeviceHeader *pciHeader, Xhci *xhci)
 static void waitForControllerReady(Xhci *xhci){
    while(xhci->operation->USBStatus & CNR_FLAG);
 }
-static void setMaxEnabledDeviceSlots(Xhci *xhci){
+static int getMaxEnabledDeviceSlots(Xhci *xhci){
    StructParams1 structParams1 = xhci->capabilities->structParams1;
-   uint8_t maxSlots = structParams1.maxPorts;
+   return structParams1.maxPorts;
+}
+static void setMaxEnabledDeviceSlots(Xhci *xhci, int maxSlots){
+   assert((xhci->operation->USBCommand & USBCMD_RUN_STOP_BIT) == 0);
+
    xhci->enabledPorts = maxSlots;
    volatile uint32_t *configure = (uint32_t*)&xhci->operation->configure;
    uint32_t val = *configure;
@@ -964,7 +991,9 @@ static uint32_t getPageSize(Xhci *xhci){
    return xhci->operation->pageSize << 12;
 }
 static void initDCAddressArray(Xhci *xhci){
-   uint8_t maxSlots = xhci->enabledPorts;
+   assert((xhci->operation->USBCommand & USBCMD_RUN_STOP_BIT) == 0);
+
+   uint8_t maxSlots = xhci->operation->configure.enabledDeviceSlots;
    uint32_t pageSize = getPageSize(xhci);
    uint32_t arraySize = (maxSlots + 1) * 64;
    xhci->dcBaseAddressArray = callocco(arraySize, 64, pageSize);
@@ -975,10 +1004,10 @@ static void initScratchPad(Xhci *xhci){
    StructParams2 structParams2 = xhci->capabilities->structParams2;
    uint32_t scratchpadSize = structParams2.maxScratchpadBuffersHigh << 5;
    scratchpadSize |= structParams2.maxScratchpadBuffersLow;
-   printf("required scratchpadSize %d\n", scratchpadSize);
+   printf("Required scratchpadSize %d\n", scratchpadSize);
 
    uint32_t pageSize = getPageSize(xhci);
-   printf("pageSize: %d %d\n", pageSize, xhci->operation->pageSize);
+   printf("PageSize: %d %d\n", pageSize, xhci->operation->pageSize);
    volatile uint64_t *scratchpadPointers = mallocco(scratchpadSize * sizeof(uint64_t), 64, pageSize);
 
    for(uint32_t i = 0; i < scratchpadSize; i++){

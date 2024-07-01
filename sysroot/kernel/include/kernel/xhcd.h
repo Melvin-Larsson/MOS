@@ -75,7 +75,7 @@ typedef enum{
   @return XhcOk if successfully initialized the controller. Otherwise,
   an error code will be returned.
  */
-XhcStatus xhcd_init(const PciGeneralDeviceHeader *pciHeader, Xhci *xhci);
+XhcStatus xhcd_init(PciDescriptor pciHeader, Xhci *xhci);
 /*
    Send an USB request message.
 

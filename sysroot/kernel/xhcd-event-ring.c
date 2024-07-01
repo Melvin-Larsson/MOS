@@ -75,9 +75,10 @@ int xhcd_readEvent(XhcEventRing *ring, XhcEventTRB* result, int maxOutput){
       result[i] = *ring->dequeue;
       incrementDequeue(ring);
    }
-   advanceERDP(ring);
+   if(i){
+      advanceERDP(ring);
+   }
    return i;
-
 }
 int hasPendingEvent(XhcEventRing *eventRing){
    return eventRing->dequeue->cycleBit == eventRing->ccs;
@@ -102,7 +103,6 @@ static int advanceERDP(XhcEventRing *eventRing){
       dequeERSTSegmentIndex |
       EVENT_HANDLER_BUSY_BIT;
 
-   
    return 1;
 }
 static int getERSTIndex(XhcEventRing *eventRing){

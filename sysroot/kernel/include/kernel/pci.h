@@ -8,6 +8,7 @@
 
 #include "stdint.h"
 
+
 typedef enum{
    MsiDeliveryModeFixed = 0b000,
    MsiDeliveryModeLowestPriority = 0b001,
@@ -16,6 +17,20 @@ typedef enum{
    MsiDeliveryModeInit = 0b101,
    MsiDeliveryModeExtInt = 0b111,
 }MsiDeliveryMode;
+
+typedef struct{
+   void (*handler)(void *data);
+   void *data;
+
+   uint8_t targetProcessor;
+   int redirectionHint;
+   int destinationMode;
+
+   MsiDeliveryMode deliveryMode;
+   int levelSensitive;
+   int assert;
+}MsiXVectorData;
+
 
 typedef union{
    struct{
@@ -85,19 +100,6 @@ typedef struct{
 }PciDescriptor;
 
 typedef struct{
-   uint8_t capabilityId;
-   uint8_t nextPointer;
-   uint16_t tableSize : 11; //N-1 encoded. i.e. tableSize = 0 -> 1 entry.
-   uint16_t reserved : 3;
-   uint16_t functionMask : 1;
-   uint16_t enable : 1;
-   uint32_t messageBir : 3;
-   uint32_t tableOffsetHigh : 29; //The high 29 bits
-   uint32_t pendingBir : 3;
-   uint32_t pendingOffsetHigh : 29; //The high 29 bits
-}__attribute__((packed))MsiXCapability;
-
-typedef struct{
    union{
       struct{
          PciHeader pciHeader;
@@ -122,6 +124,13 @@ typedef struct{
    uint32_t offset;
    uint32_t id;
 }PciCapability;
+
+typedef struct{
+   volatile uint64_t *messageTable;
+   volatile uint64_t *pendingTable;
+   uint16_t tableSize;
+   PciCapability capability;
+}MsiXDescriptor;
 
 void pciConfigWriteAddress(uint32_t address);
 void pci_configWriteData(uint32_t data);
@@ -149,9 +158,12 @@ int pci_doBIST(PciDescriptor *pci);
 int pci_searchCapabilityList(const PciDescriptor *pci, uint8_t id, PciCapability *result);
 int pci_readCapabilityData(const PciDescriptor *pci, PciCapability capability, void *result, int capabilitySize);
 
-int pci_initMsiX(const PciDescriptor *pci);
+int pci_initMsiX(const PciDescriptor *pci, MsiXDescriptor *result);
+int pci_enableMsiX(PciDescriptor pci, MsiXDescriptor msi);
+MsiXVectorData pci_getDefaultMsiXVectorData(void (*handler)(void *), void *data);
+int pci_setMsiXVector(const MsiXDescriptor msix, int msiVectorNr, int interruptVectorNr, MsiXVectorData vectorData);
 
-void pci_getGeneralDevice(PciDescriptor* descriptor, PciGeneralDeviceHeader* output);
+void pci_getGeneralDevice(const PciDescriptor descriptor, PciGeneralDeviceHeader* output);
 void pci_getClassName(PciHeader* pci, char* output);
 void pci_getSubclassName(PciHeader* pci, char* output);
 void pci_getProgIfName(PciHeader* pci, char* output);

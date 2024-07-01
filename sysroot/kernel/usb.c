@@ -26,14 +26,14 @@ static void freeConfiguration(UsbConfiguration *config);
 static void freeInterface(UsbInterface *interface);
 
 
-UsbStatus usb_init(PciGeneralDeviceHeader *pci, Usb *result){
-   if(pci->pciHeader.classCode != PCI_CLASS_SERIAL_BUS_CONTROLLER){
+UsbStatus usb_init(PciDescriptor pci, Usb *result){
+   if(pci.pciHeader.classCode != PCI_CLASS_SERIAL_BUS_CONTROLLER){
       return StatusError;
    }
-   if(pci->pciHeader.subclass != PCI_SUBCLASS_USB_CONTROLLER){
+   if(pci.pciHeader.subclass != PCI_SUBCLASS_USB_CONTROLLER){
       return StatusError;
    }
-   if(pci->pciHeader.progIf == PCI_PROG_IF_XHCI){
+   if(pci.pciHeader.progIf == PCI_PROG_IF_XHCI){
       Xhci *xhci = malloc(sizeof(Xhci));
       printf("xhci %X\n", xhci);
       if(xhcd_init(pci, xhci) != XhcOk){

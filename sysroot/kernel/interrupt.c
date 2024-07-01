@@ -9,6 +9,9 @@ __attribute__((aligned(0x10)))
 static InterruptDescriptor interruptDescriptorTable[256];
 static InterruptTableDescriptor interruptTableDescriptor;
 
+static void (*interruptHandlers[256])(ExceptionInfo, void *);
+static void *interruptData[256];
+
 extern void (*interrupt_addr_table[32])(void);
 
 
@@ -24,27 +27,46 @@ static void setInterruptDescriptor(uint8_t pos, void (*func)(void), uint8_t flag
 static int interruptNr = 0;
 void exception_handler(unsigned char interruptVector, ExceptionInfo *info){
    interruptNr++;
-   printf("%d: Interrupt %d, %d %d %d\n", interruptNr, interruptVector, info->errorCode, info->instructionOffset, info->codeSegment);
-   while(1);
+   if(interruptHandlers[interruptVector]){
+      interruptHandlers[interruptVector](*info, interruptData[interruptVector]);
+   }else{
+      printf("%d: Interrupt %d, %d %d %d\n", interruptNr, interruptVector, info->errorCode, info->instructionOffset, info->codeSegment);
+   }
 }
 
-/*static void dissablePIC(){
-   __asm__ volatile ("mov 0xff, %%al");
-   __asm__ volatile ("out %%al, 0xa1");
-   __asm__ volatile ("out %%al, 0x21");
-}*/
+static void dissablePIC(){
+   uint8_t mask = 0xFF;
+   __asm__ volatile ("out %[mask], $0xa1" : : [mask]"a"(mask));
+   __asm__ volatile ("out %[mask], $0x21" : : [mask]"a"(mask));
+}
 void interruptDescriptorTableInit(){
    interruptNr = 0;
    interruptTableDescriptor.base = (uint32_t)&interruptDescriptorTable[0];
    interruptTableDescriptor.limit = (uint16_t)sizeof(InterruptDescriptor) * IDT_MAX_DESCRIPTIONS - 1;
+   memset(interruptHandlers, 0, sizeof(interruptHandlers));
+   memset(interruptData, 0, sizeof(interruptData));
 
    memset(interruptDescriptorTable, 0, interruptTableDescriptor.limit);
-   for(uint8_t pos = 0; pos < 32; pos++){
+   for(uint8_t pos = 0; pos < 34; pos++){
       setInterruptDescriptor(pos, interrupt_addr_table[pos], 0x8E);
    }
+
+   dissablePIC();
+
    __asm__ volatile ("lidt %0" : : "m"(interruptTableDescriptor));
    printf("Initialized interrupt table\n");
    printf("Activating interrupts\n");
    __asm__ volatile ("sti");
    printf("Interrupts activated\n");
+}
+
+InterruptStatus interrupt_setHandler(void interruptHandler(ExceptionInfo, void *), void *data,  uint8_t vector){
+   if(interruptHandlers[vector]){
+      return InterruptStatusVectorAlreadyDefined;
+   }
+
+   interruptHandlers[vector] = interruptHandler;
+   interruptData[vector] = data;
+
+   return InterruptStatusSuccess;
 }

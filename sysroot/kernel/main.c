@@ -7,6 +7,9 @@
 #include "kernel/keyboard.h"
 #include "string.h"
 
+#define ASSERTS_ENABLED
+#include "utils/assert.h"
+
 #include "kernel/usb-mass-storage.h"
 
 char message[] = "Kernel started!\n";
@@ -29,8 +32,7 @@ static void printPciDevices(PciDescriptor *descriptors, int count){
     }
 
 }
-static int getXhcdDevice(PciDescriptor* descriptors, int count,
-                        PciGeneralDeviceHeader *output){
+static PciDescriptor* getXhcdDevice(PciDescriptor* descriptors, int count){
     for(int i = 0; i < count; i++){
         PciHeader *header = &(descriptors[i].pciHeader);
 
@@ -38,15 +40,14 @@ static int getXhcdDevice(PciDescriptor* descriptors, int count,
             && header->subclass == PCI_SUBCLASS_USB_CONTROLLER
             && header->progIf == PCI_PROG_IF_XHCI ){
 
-            pci_getGeneralDevice(&descriptors[i], output);
-            return 1;
+            return &(descriptors[i]);
         }
     }
     return 0;
 }
-static void initXhci(PciGeneralDeviceHeader pci){
+static void initXhci(PciDescriptor pci){
     Usb usb;
-    if(usb_init(&pci, &usb) != StatusSuccess){
+    if(usb_init(pci, &usb) != StatusSuccess){
         printf("Failed to initialize USB\n");
         return;
     }
@@ -145,6 +146,14 @@ static void testMemoryConstrained(){
     free(m6);
     printf("Passed constrained memory check");
 }
+void assert_little_endian(){
+    uint32_t i = 0x12345678;
+    uint8_t *ptr = (uint8_t*)&i;
+    assert(ptr[0] == 0x78);
+    assert(ptr[1] == 0x56);
+    assert(ptr[2] == 0x34);
+    assert(ptr[3] == 0x12);
+}
 void kernel_main(){
     stdioinit();
     stdlib_init();
@@ -152,18 +161,19 @@ void kernel_main(){
 //     testMemoryConstrained();
     printf(message);
     interruptDescriptorTableInit(); 
+    assert_little_endian();
 
 //     printf("APIC present: %b\n", apic_isPresent());
 
     PciDescriptor devices[20];
     int count = pci_getDevices(devices, 10);
     printPciDevices(devices, count);
-    PciGeneralDeviceHeader xhc;
-    if(!getXhcdDevice(devices, count, &xhc)){
+    PciDescriptor *xhcDevice = getXhcdDevice(devices, count);
+    if(!xhcDevice){
         printf("Error: Could not find xhc device!");
     }else{
         printf("Found a xhc device!\n");
-        initXhci(xhc);
+        initXhci(*xhcDevice);
     }
 
     printf("end\n");

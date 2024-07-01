@@ -4,6 +4,11 @@
 
 #include "stdint.h"
 
+typedef enum{
+    InterruptStatusVectorAlreadyDefined,
+    InterruptStatusSuccess
+}InterruptStatus;
+
 typedef struct{
     uint16_t isrLow;
     uint16_t segment;
@@ -36,4 +41,5 @@ typedef struct{
 //__attribute__((packed)) 
 
 void interruptDescriptorTableInit();
+InterruptStatus interrupt_setHandler(void interruptHandler(ExceptionInfo, void *), void *data, uint8_t vector);
 #endif

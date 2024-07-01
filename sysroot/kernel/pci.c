@@ -1,6 +1,9 @@
 #include "kernel/pci.h"
 #include "stdio.h"
 #include "string.h"
+#include "kernel/msix-structures.h"
+#include "kernel/interrupt.h"
+#include "stdlib.h"
 
 #define ASSERTS_ENABLED
 #include "utils/assert.h"
@@ -11,6 +14,8 @@
 #define HEADER_TYPE_GENERAL_DEVICE 0x00
 #define HEADER_TYPE_PCI_TO_PCI_BRIDGE 0x01
 #define HEADER_TYPE_CARD_BUS_BRIDGE 0x02
+
+#define APIC_EOI ((volatile uint32_t *)0xFEE000B0)
 
 void pci_configWriteAddress(uint32_t address){
    __asm__ volatile("out %[data], %[reg_addr]"
@@ -45,6 +50,7 @@ uint32_t pci_configReadAt(uint32_t address){
 }
 static uint32_t getAddress(uint8_t busNr, uint8_t deviceNr, uint8_t funcNr, uint8_t registerOffset){
    if(registerOffset & 0b11){
+
       printf("Error: pci register offset has to point do a dword");
       return -1;
    }
@@ -77,7 +83,6 @@ int pci_getDevices(PciDescriptor* output, int maxHeadersInOutput){
          if(reg0 != 0xFFFFFFFF){
             PciDescriptor *currDescriptor = &output[index];
             PciHeader *currHeader = &(currDescriptor->pciHeader);
-           // printf("%d\n",reg0);
             currHeader->reg0 = reg0;
             currHeader->reg1 = pci_configReadRegister(bus, device,0,0x4);
             currHeader->reg2 = pci_configReadRegister(bus, device,0,0x8);
@@ -114,12 +119,12 @@ int pci_getDevices(PciDescriptor* output, int maxHeadersInOutput){
    return 0; //FIXME: not yet implemented
 
 }*/
-void pci_getGeneralDevice(PciDescriptor* descriptor,
+void pci_getGeneralDevice(const PciDescriptor descriptor,
                           PciGeneralDeviceHeader* output){
-   output->pciHeader = descriptor->pciHeader;
+   output->pciHeader = descriptor.pciHeader;
    pci_configWriteRegister( //FIXME: temp
-         descriptor->busNr,
-         descriptor->deviceNr,
+         descriptor.busNr,
+         descriptor.deviceNr,
          0,
          4,
          (output->reg[1] | 1 << 2 | 1 << 1) & ~(1 | 1 << 10));
@@ -131,8 +136,8 @@ void pci_getGeneralDevice(PciDescriptor* descriptor,
    for(int i = 0; i <= 0xF; i++){
       uint32_t val = 
        pci_configReadRegister(
-            descriptor->busNr,
-            descriptor->deviceNr,
+            descriptor.busNr,
+            descriptor.deviceNr,
             0,
             i * 4);
       output->reg[i] = val;
@@ -145,8 +150,8 @@ void pci_getGeneralDevice(PciDescriptor* descriptor,
    while(addr != 0){
       for(int i = 0; i < 24 / 4; i++){
           uint32_t val = pci_configReadRegister(
-               descriptor->busNr,
-               descriptor->deviceNr,
+               descriptor.busNr,
+               descriptor.deviceNr,
                0,
                addr + i * 4
                );
@@ -172,7 +177,7 @@ uint8_t pci_getCacheLineSize(PciDescriptor *pci){
    uint32_t reg = pci_configReadRegister(pci->busNr, pci->deviceNr, 0, 0x0C); 
    return reg & ~0xFF;
 }
-void pci_setCacheLineSize(PciDescriptor* pci, uint8_t cacheLineSize){
+void pci_setCacheLineSize0xFEE000B0(PciDescriptor* pci, uint8_t cacheLineSize){
   uint32_t reg = pci_configReadRegister(pci->busNr, pci->deviceNr, 0, 0x0C); 
   reg &= ~0xFF;
   reg |= cacheLineSize;
@@ -285,6 +290,7 @@ static uintptr_t getPendingTableBaseAddress(const PciDescriptor *pci, MsiXCapabi
    uint32_t barAddressOffset = 0x10 + capability.pendingBir * 4;
    uint32_t address = pci_configReadRegister(pci->busNr, pci->deviceNr, 0, barAddressOffset) & ~0xF;
    uint32_t offset = capability.pendingOffsetHigh << 3;
+   printf("offset %X\n", offset);
    return address + offset;
 }
 
@@ -295,14 +301,6 @@ static uint64_t formatMsgData(uint8_t vector, MsiDeliveryMode deliveryMode, int 
    return (levelSensitive != 0) << 15 | (assert != 0) << 14 | deliveryMode << 8 | vector;
 }
 
-static void enableMsiX(const PciDescriptor *pci, PciCapability capability){
-   assert(capability.id == 0x11);
-   assert(pci->pciHeader.headerType == HEADER_TYPE_GENERAL_DEVICE);
-
-   uint32_t reg = pci_configReadRegister(pci->busNr, pci->deviceNr, 0, capability.offset);
-   reg |= (1 << 31);
-   pci_configWriteRegister(pci->busNr, pci->deviceNr, 0, capability.offset, reg);
-}
 
 int getCpuId(){
    uint32_t eax, ebx = 0, ecx = 0, edx = 0;
@@ -315,7 +313,7 @@ int getCpuId(){
    return ebx >> 24;
 }
 
-int pci_initMsiX(const PciDescriptor *pci){
+int pci_initMsiX(const PciDescriptor *pci, MsiXDescriptor *result){
    assert(pci->pciHeader.headerType == HEADER_TYPE_GENERAL_DEVICE);
 
    PciCapability capability;
@@ -327,20 +325,65 @@ int pci_initMsiX(const PciDescriptor *pci){
    MsiXCapability msiCapability;
    pci_readCapabilityData(pci, capability, &msiCapability, sizeof(MsiXCapability));
 
-   uint16_t tableSize = msiCapability.tableSize;
-   volatile uint64_t *messageTableBaseAddress = (uint64_t*)getMessageTableBaseAddress(pci, msiCapability);
-   uintptr_t pendingTableBaseAddress = getPendingTableBaseAddress(pci, msiCapability);
+   *result = (MsiXDescriptor){
+      .messageTable = (uint64_t*)getMessageTableBaseAddress(pci, msiCapability),
+      .pendingTable = (uint64_t*)getPendingTableBaseAddress(pci, msiCapability),
+      .tableSize = msiCapability.tableSize,
+      .capability = capability
+   };
 
-   uint8_t cpu = getCpuId();
-   printf("cpu :%d\n", cpu);
-   printf("writing to address %X\n", messageTableBaseAddress);
+   return 1;
+}
+int pci_enableMsiX(PciDescriptor pci, MsiXDescriptor msi){
+   PciCapability capability = msi.capability;
+   uint32_t reg = pci_configReadRegister(pci.busNr, pci.deviceNr, 0, capability.offset);
+   reg |= (1 << 31);
+   pci_configWriteRegister(pci.busNr, pci.deviceNr, 0, capability.offset, reg);
+   return 1;
+}
+MsiXVectorData pci_getDefaultMsiXVectorData(void (*handler)(void *), void *data){
+   return (MsiXVectorData){
+      .handler = handler,
+      .data = data,
+      .targetProcessor = getCpuId(),
+      .redirectionHint = 0,
+      .destinationMode = 0,
+      .levelSensitive = 0,
+      .assert = 0,
+      .deliveryMode = MsiDeliveryModeFixed
+   };
+}
+typedef struct{
+   void (*handler)(void *data);
+   void *data;
+}InterruptData;
 
-   for(int i = 0; i < tableSize; i++){
-      messageTableBaseAddress[2*i] = formatMsgAddr(cpu, 0, 0);
-      messageTableBaseAddress[2*i + 1] = formatMsgData(33, MsiDeliveryModeFixed, 0, 0);
-   }
+void handler(ExceptionInfo _, void *data){
+   InterruptData *interruptData = (InterruptData*)data;
+   interruptData->handler(interruptData->data);
 
-   enableMsiX(pci, capability);
+   *APIC_EOI = 1;
+}
+//FIXME: Should not be allowed to specify interruptVectorNr
+int pci_setMsiXVector(const MsiXDescriptor msix, int msiVectorNr, int interruptVectorNr, MsiXVectorData vectorData){
+   msix.messageTable[msiVectorNr * 2] = formatMsgAddr(
+         vectorData.targetProcessor,
+         vectorData.redirectionHint,
+         vectorData.destinationMode);
+   msix.messageTable[msiVectorNr * 2 + 1] = formatMsgData(
+         interruptVectorNr,
+         vectorData.deliveryMode,
+         vectorData.assert,
+         vectorData.levelSensitive);
+
+   //FIXME:!!Can not just create and forget here
+   InterruptData *data = malloc(sizeof(InterruptData));
+   *data = (InterruptData){
+      .data = vectorData.data,
+      .handler = vectorData.handler
+   };
+
+   interrupt_setHandler(handler, data, interruptVectorNr);
 
    return 1;
 }

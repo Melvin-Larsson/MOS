@@ -97,6 +97,17 @@ KeyboardStatus keyboard_init(UsbDevice *usbDevice){
 
    printf("listening for keypresses:\n");
    uint8_t last = 0;
+
+//    uint64_t *removeMe = (uint64_t*)0xFEBB7000;
+//    while(1){
+//       printf("-");
+//       printf("\b");
+
+//       if(*removeMe != 0){
+//          printf("\n%X\n", *removeMe);
+//          while(1);
+//       }
+//    }
    while(1){
 //       for(int i = 0; i < 1; i++){
 //          uint8_t endpointStatus[2] = {2,2};

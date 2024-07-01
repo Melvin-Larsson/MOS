@@ -1,6 +1,6 @@
 COMPILER?=${HOME}/opt/cross2/bin/i686-elf-gcc
 PREFIX?= ${HOME}/Programmering/OS
-INCLUDE=-I ${PREFIX}/sysroot/kernel/include -I ${PREFIX}/sysroot/lib/include 
+INCLUDE=-I ${PREFIX}/sysroot/kernel/include -I ${PREFIX}/sysroot/lib/include -I ${PREFIX}/utils/include
 CFLAGS?= -O2 -std=gnu99 -ffreestanding -mno-red-zone -Wall -Wextra ${INCLUDE}
 BUILD=${PREFIX}/sysroot/kernel/build
 
@@ -25,7 +25,7 @@ OBJS= ${BUILD}/boot.o \
 	   ${BUILD}/file-system.o \
 	   ${BUILD}/buffered-storage.o \
 
-${BUILD}/kernel.o : ${BUILD} ${OBJS} 
+${BUILD}/kernel.o : ${BUILD} ${OBJS} ${PREFIX}/utils/include/utils/assert.h
 	${COMPILER} -T linker.ld ${LINK_FLAGS} ${OBJS} -o ${BUILD}/kernel.out
 
 ${BUILD} : 
@@ -43,7 +43,7 @@ ${BUILD}/registers.o : registers.c include/kernel/registers.h
 ${BUILD}/apic.o : apic.c include/kernel/apic.h
 	${COMPILER} ${CFLAGS} -c apic.c -o ${BUILD}/apic.o
 
-${BUILD}/pci.o : pci.c include/kernel/pci.h
+${BUILD}/pci.o : pci.c include/kernel/pci.h include/kernel/msix-structures.h
 	${COMPILER} ${CFLAGS} -c pci.c -o ${BUILD}/pci.o
 
 

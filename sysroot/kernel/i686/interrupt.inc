@@ -12,7 +12,7 @@ interrupt_handler_%1:
     add esp, 8
     popad
     pop eax
-    add esp, 4
+;    add esp, 4
     iret
 %endmacro
 
