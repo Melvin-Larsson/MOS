@@ -41,5 +41,5 @@ typedef struct{
 //__attribute__((packed)) 
 
 void interruptDescriptorTableInit();
-InterruptStatus interrupt_setHandler(void interruptHandler(ExceptionInfo, void *), void *data, uint8_t vector);
+InterruptStatus interrupt_setHandler(void (*interruptHandler)(ExceptionInfo, void *), void *data, uint8_t vector);
 #endif

@@ -60,8 +60,9 @@ void interruptDescriptorTableInit(){
    printf("Interrupts activated\n");
 }
 
-InterruptStatus interrupt_setHandler(void interruptHandler(ExceptionInfo, void *), void *data,  uint8_t vector){
+InterruptStatus interrupt_setHandler(void (*interruptHandler)(ExceptionInfo, void *), void *data, uint8_t vector){
    if(interruptHandlers[vector]){
+      printf("Interrupt handler already defined\n");
       return InterruptStatusVectorAlreadyDefined;
    }
 

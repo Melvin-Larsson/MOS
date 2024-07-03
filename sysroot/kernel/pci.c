@@ -354,12 +354,13 @@ MsiXVectorData pci_getDefaultMsiXVectorData(void (*handler)(void *), void *data)
    };
 }
 typedef struct{
-   void (*handler)(void *data);
+   void (*handler)(void *);
    void *data;
 }InterruptData;
 
 void handler(ExceptionInfo _, void *data){
-   InterruptData *interruptData = (InterruptData*)data;
+   InterruptData *interruptData = (InterruptData *)data;
+
    interruptData->handler(interruptData->data);
 
    *APIC_EOI = 1;
@@ -382,7 +383,7 @@ int pci_setMsiXVector(const MsiXDescriptor msix, int msiVectorNr, int interruptV
       .data = vectorData.data,
       .handler = vectorData.handler
    };
-
+   printf("func %X\n", data->handler);
    interrupt_setHandler(handler, data, interruptVectorNr);
 
    return 1;

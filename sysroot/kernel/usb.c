@@ -35,7 +35,6 @@ UsbStatus usb_init(PciDescriptor pci, Usb *result){
    }
    if(pci.pciHeader.progIf == PCI_PROG_IF_XHCI){
       Xhci *xhci = malloc(sizeof(Xhci));
-      printf("xhci %X\n", xhci);
       if(xhcd_init(pci, xhci) != XhcOk){
          free(xhci);
          return StatusError;
@@ -63,6 +62,7 @@ int usb_getNewlyAttachedDevices(Usb *usb, UsbDevice *resultBuffer, int bufferSiz
 
    return attachedPortsCount;
 }
+
 
 UsbStatus usb_setConfiguration(UsbDevice *device, UsbConfiguration *configuration){
    if(device->usb->type != UsbControllerXhci){

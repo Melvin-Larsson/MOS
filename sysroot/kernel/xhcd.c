@@ -108,23 +108,61 @@ static XhcInputContext inputContext[MAX_DEVICE_SLOTS_ENABLED];
 
 static int count = 0;
 
+XhcStatus xhcd_setInterrupter(XhcDevice *device, int endpoint, void (*handler)(void *), void *data){
+   XhcInterruptHandler interruptHandler = {
+      .handler = handler,
+      .data = data
+   };
+   device->xhci->handlers[device->slotId * 32 + endpoint] = interruptHandler;
+   return XhcOk;
+}
+
+static int dequeEventTrb(Xhci *xhci, XhcEventTRB *result){
+   uint32_t advancedDequeue = (xhci->eventBufferDequeueIndex + 1) % xhci->eventBufferSize;
+   if(advancedDequeue == xhci->eventBufferEnqueueIndex){
+      return 0;
+   }
+   *result = xhci->eventBuffer[advancedDequeue];
+   xhci->eventBufferDequeueIndex = advancedDequeue;
+   return 1;
+}
+
 static void handler(void *data){
-//    XhcEventTRB result;
-//    if(xhcd_readEvent(&xhci->eventRing, &result, 1)){
-//       uintptr_t trbPtr = result.trbPointerLow | result.trbPointerHigh << 32;
-//       TRB trb = *((TRB*)trbPtr);
-//       printf("trb: %d\n", trb.type);
-//    }
-   printf("count %d\n", count++);
+   Xhci *xhci = (Xhci*)data;
+   do{
+      XhcEventTRB events[32];
+      int count = xhcd_readEvent(&xhci->eventRing, events, 32);
+      for(int i = 0; i < count; i++){
+         uint32_t endpoint = events[i].endpointId;
+         uint32_t slotId = events[i].slotId;
+
+         XhcInterruptHandler handler = xhci->handlers[slotId * 32 + endpoint];
+         if(handler.handler && handler.data){
+            handler.handler(handler.data);
+         }
+         //This whole buffer thing is a temporary solution
+         assert(xhci->eventBufferDequeueIndex == xhci->eventBufferDequeueIndex); 
+
+         xhci->eventBuffer[xhci->eventBufferEnqueueIndex] = events[i];
+         xhci->eventBufferEnqueueIndex = (xhci->eventBufferEnqueueIndex + 1) % xhci->eventBufferSize;
+         
+      }
+   }while(count != 0);
 }
 
 XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
+   xhci->eventBuffer = malloc(sizeof(XhcEventTRB) * 32);
+   xhci->eventBufferSize = 32;
+   xhci->eventBufferDequeueIndex = 0;
+   xhci->eventBufferEnqueueIndex = 1;
+
    int errorCode = 0;
    PciGeneralDeviceHeader pciHeader;
    pci_getGeneralDevice(descriptor, &pciHeader);
    if((errorCode = initBasePointers(&pciHeader, xhci)) != 0){
       return errorCode;
    }
+
 
    MsiXVectorData vectorData = pci_getDefaultMsiXVectorData(handler, xhci);
    MsiXDescriptor msiDescriptor;
@@ -135,7 +173,13 @@ XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
    waitForControllerReady(xhci);
    resetXhc(xhci);
    waitForControllerReady(xhci);
-   setMaxEnabledDeviceSlots(xhci, getMaxEnabledDeviceSlots(xhci));
+
+   uint32_t devices = getMaxEnabledDeviceSlots(xhci);
+   setMaxEnabledDeviceSlots(xhci, devices);
+   xhci->handlers = calloc(devices * 32 * sizeof(XhcInterruptHandler));
+
+
+
    initDCAddressArray(xhci);
    initScratchPad(xhci);
 
@@ -291,7 +335,6 @@ XhcStatus xhcd_setConfiguration(XhcDevice *device, const UsbConfiguration *confi
    if(!putConfigTD(device->xhci, device->slotId, td)){
       printf("[xhc] failed to set configuration\n");
       return XhcNotYetImplemented; //FIXME: Wrong error code
-
    }
    return XhcOk;
 }
@@ -317,7 +360,7 @@ XhcStatus xhcd_readData(const XhcDevice *device, UsbEndpointDescriptor endpoint,
    xhcd_ringDoorbell(xhci, device->slotId, endpointIndex);
 
    XhcEventTRB event;
-   while(!xhcd_readEvent(&xhci->eventRing, &event, 1));
+   while(!dequeEventTrb(xhci, &event));
 
    return XhcOk;
 }
@@ -334,7 +377,7 @@ XhcStatus xhcd_writeData(const XhcDevice *device,
    xhcd_ringDoorbell(xhci, device->slotId, endpointIndex);
 
    XhcEventTRB event;
-   while(!xhcd_readEvent(&xhci->eventRing, &event, 1));
+   while(!dequeEventTrb(xhci, &event));
    if(event.completionCode != Success){
       return XhcReadDataError;
    }
@@ -367,7 +410,6 @@ XhcStatus xhcd_sendRequest(const XhcDevice *device, UsbRequestMessage request){
    }
    if(!putConfigTD(device->xhci, device->slotId, td)){
       return XhcSendRequestError;
-
    }
    return XhcOk;
 }
@@ -478,22 +520,21 @@ static XhcStatus initBulkEndpoint(Xhci *xhci, int slotId, UsbEndpointDescriptor 
 
 static int getSlotId(Xhci *xhci, uint8_t portNumber){
    printf("Getting slot id\n");
+   XhcEventTRB trb;
+
    xhcd_putTRB(TRB_ENABLE_SLOT(getProtocolSlotType(xhci, portNumber)), &xhci->commandRing);
    ringCommandDoorbell(xhci);
-   XhcEventTRB trb;
    //FIXME: hack
    printf("waiting!");
-   while(!xhcd_readEvent(&xhci->eventRing, &trb, 1) || trb.trbType == PortStatusChangeEvent);
-   if(trb.trbType != CommandCompletionEvent){
-      printf("[xhc] unknown event %X %X %X %X (event %d)\n", trb, trb.trbType);
-      return -1;
-   }
+
+
+   while(!dequeEventTrb(xhci, &trb) || trb.trbType != CommandCompletionEvent);
    if(trb.completionCode == NoSlotsAvailiableError){
       printf("[xhc] no slots availiable\n");
       return -1;
    }
    if(trb.completionCode != Success){
-      printf("[xhc] something went wrong (initPort)");
+      printf("[xhc] something went wrong %d (initPort)", trb.completionCode);
       return -1;
    }
    printf("Slot id %d\n", trb.slotId);
@@ -565,7 +606,7 @@ static int addressDevice(Xhci *xhci, int slotId, int portIndex){
 
    printf("init context (waiting)\n");
    XhcEventTRB result;
-   while(xhcd_readEvent(&xhci->eventRing, &result, 1) == 0);
+   while(dequeEventTrb(xhci, &result) == 0);
    if(result.completionCode != Success){
       printf("[xhc] failed to addres device (Event: %X %X %X %X, code: %d)\n", result, result.completionCode);
       return 0;
@@ -685,7 +726,7 @@ static int runCommand(Xhci *xhci, TRB trb){
    ringCommandDoorbell(xhci);
 
    XhcEventTRB result;
-   while(!xhcd_readEvent(&xhci->eventRing, &result, 1));
+   while(!dequeEventTrb(xhci, &result));
    if(result.completionCode != Success){
       return 0;
    }
@@ -731,13 +772,13 @@ static XhcOutputContext *getOutputContext(Xhci *xhci, int slotId){
 
 static int putConfigTD(Xhci *xhci, int slotId, TD td){
    XhcEventTRB event;
-   while(xhcd_readEvent(&xhci->eventRing, &event, 1)); //FIXME: Hack
+   while(dequeEventTrb(xhci, &event)); //FIXME: Hack
 
    XhcdRing *transferRing = &xhci->transferRing[slotId][0];
    xhcd_putTD(td, transferRing);
    xhcd_ringDoorbell(xhci, slotId, 1);
 
-   while(!xhcd_readEvent(&xhci->eventRing, &event, 1));
+   while(!dequeEventTrb(xhci, &event));
    if(event.completionCode != Success){
       return 0;
    }
@@ -750,7 +791,7 @@ static int setMaxPacketSize(Xhci *xhci, int slotId){
    xhcd_ringDoorbell(xhci, slotId, 1);
 
    XhcEventTRB result;
-   while(!xhcd_readEvent(&xhci->eventRing, &result, 1));
+   while(!dequeEventTrb(xhci, &result));
    if(result.completionCode != Success){
       printf("[xhc] failed to get max packet size\n");
       return 0;
@@ -771,7 +812,7 @@ static int setMaxPacketSize(Xhci *xhci, int slotId){
       xhcd_putTRB(TRB_EVALUATE_CONTEXT((void*)input, slotId), &xhci->commandRing);
       ringCommandDoorbell(xhci);
       XhcEventTRB result;
-      while(!xhcd_readEvent(&xhci->eventRing, &result, 1));
+      while(!dequeEventTrb(xhci, &result));
       if(result.completionCode != Success){
          printf("[xhc] failed to set max packet size\n");
          return 0;
@@ -791,7 +832,7 @@ static void test(Xhci *xhci){
 
    XhcEventTRB result;
    printf("Waiting for interruptor\n");
-   while(!xhcd_readEvent(&xhci->eventRing, &result, 1));
+   while(!dequeEventTrb(xhci, &result));
    printf("event posted %X %X %X %X\n", result);
    printf("completion code: %d (success: %b)\n", result.completionCode, result.completionCode == Success);
 }

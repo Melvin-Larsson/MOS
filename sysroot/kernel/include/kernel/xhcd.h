@@ -20,6 +20,11 @@ typedef struct{
 }UsbPortInfo;
 
 typedef struct{
+   void (*handler)(void *data);
+   void *data;
+}XhcInterruptHandler;
+
+typedef struct{
    PciHeader *pciHeader;
    XhciCapabilities *capabilities;
    XhciOperation *operation;
@@ -33,6 +38,13 @@ typedef struct{
    XhcdRing transferRing[16 + 1][31]; //indexed from 1 //FIXME
    XhcEventRing eventRing;
    XhcdRing commandRing;
+
+   XhcInterruptHandler *handlers;
+
+   volatile XhcEventTRB *eventBuffer;
+   volatile uint32_t eventBufferSize;
+   volatile uint32_t eventBufferDequeueIndex;
+   volatile uint32_t eventBufferEnqueueIndex;
 
 }Xhci;
 
@@ -115,6 +127,8 @@ int xhcd_getDevices(Xhci *xhci, XhcDevice *resultBuffer, int bufferSize);
  *
  */
 XhcStatus xhcd_setConfiguration(XhcDevice *device, const UsbConfiguration *configuration);
+
+XhcStatus xhcd_setInterrupter(XhcDevice *device, int endpoint, void (*handler)(void *), void *data);
 
 void xhc_dumpCapabilityRegs(Xhci *xhci);
 void xhc_dumpOperationalRegs(Xhci *xhci);
