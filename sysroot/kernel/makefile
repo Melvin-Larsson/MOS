@@ -24,6 +24,8 @@ OBJS= ${BUILD}/boot.o \
 	   ${BUILD}/fat-disk.o \
 	   ${BUILD}/file-system.o \
 	   ${BUILD}/buffered-storage.o \
+	   ${BUILD}/task.o \
+	   ${BUILD}/descriptors.o \
 
 ${BUILD}/kernel.o : ${BUILD} ${OBJS} ${PREFIX}/utils/include/utils/assert.h
 	${COMPILER} -T linker.ld ${LINK_FLAGS} ${OBJS} -o ${BUILD}/kernel.out
@@ -83,6 +85,12 @@ ${BUILD}/buffered-storage.o : buffered-storage.c include/kernel/buffered-storage
 
 ${BUILD}/fat-disk.o : fat-disk.c include/kernel/fat-disk.h
 	${COMPILER} ${CFLAGS} -c fat-disk.c -o ${BUILD}/fat-disk.o
+
+${BUILD}/task.o : task.c include/kernel/task.h include/kernel/task-structures.h
+	${COMPILER} ${CFLAGS} -c task.c -o ${BUILD}/task.o
+
+${BUILD}/descriptors.o : descriptors.c include/kernel/descriptors.h
+	${COMPILER} ${CFLAGS} -c descriptors.c -o ${BUILD}/descriptors.o
 
 include/kernel/xhcd.h: include/kernel/xhcd-registers.h include/kernel/usb-messages.h
 include/kernel/xhcd-ring.h: include/kernel/xhcd-registers.h
