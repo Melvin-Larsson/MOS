@@ -6,6 +6,8 @@
 #include "kernel/usb.h"
 #include "kernel/keyboard.h"
 #include "string.h"
+#include "kernel/descriptors.h"
+#include "kernel/paging.h"
 
 #define ASSERTS_ENABLED
 #include "utils/assert.h"
@@ -154,6 +156,7 @@ void assert_little_endian(){
     assert(ptr[2] == 0x34);
     assert(ptr[3] == 0x12);
 }
+
 void kernel_main(){
     stdioinit();
     stdlib_init();
@@ -162,6 +165,28 @@ void kernel_main(){
     printf(message);
     interruptDescriptorTableInit(); 
     assert_little_endian();
+
+
+    PagingConfig32Bit config = {
+        .use4MBytePages = 1,
+    };
+    PagingConfig32Bit newConfig = paging_init32Bit(config);
+    assert(config.use4MBytePages == newConfig.use4MBytePages);
+
+    for(uint32_t i = 0; i < 1024; i++){
+        PagingTableEntry entry = {
+            .physicalAddress = i * 4 * 1024 * 1024,
+            .readWrite = 1,
+            .pageWriteThrough = 1,
+            .pageCahceDisable = 1,
+            .Use4MBPageSize = 1
+        };
+        PagingStatus status = paging_addEntry(entry, i * 4 * 1024 * 1024);
+        assert(status == PagingOk);
+    }
+
+    paging_start();
+    printf("paging started\n");
 
 //     printf("APIC present: %b\n", apic_isPresent());
 

@@ -26,6 +26,7 @@ OBJS= ${BUILD}/boot.o \
 	   ${BUILD}/buffered-storage.o \
 	   ${BUILD}/task.o \
 	   ${BUILD}/descriptors.o \
+	   ${BUILD}/paging.o \
 
 ${BUILD}/kernel.o : ${BUILD} ${OBJS} ${PREFIX}/utils/include/utils/assert.h
 	${COMPILER} -T linker.ld ${LINK_FLAGS} ${OBJS} -o ${BUILD}/kernel.out
@@ -91,6 +92,9 @@ ${BUILD}/task.o : task.c include/kernel/task.h include/kernel/task-structures.h
 
 ${BUILD}/descriptors.o : descriptors.c include/kernel/descriptors.h
 	${COMPILER} ${CFLAGS} -c descriptors.c -o ${BUILD}/descriptors.o
+
+${BUILD}/paging.o : paging.c include/kernel/paging.h
+	${COMPILER} ${CFLAGS} -c paging.c -o ${BUILD}/paging.o
 
 include/kernel/xhcd.h: include/kernel/xhcd-registers.h include/kernel/usb-messages.h
 include/kernel/xhcd-ring.h: include/kernel/xhcd-registers.h
