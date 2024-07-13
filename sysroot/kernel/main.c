@@ -8,6 +8,7 @@
 #include "string.h"
 #include "kernel/descriptors.h"
 #include "kernel/paging.h"
+#include "kernel/physpage.h"
 
 #define ASSERTS_ENABLED
 #include "utils/assert.h"
@@ -72,8 +73,8 @@ static void initXhci(PciDescriptor pci){
 //             while(1);
 //         }else{
 //             printf("Failed to init: %X\n", status);
+//             while(1);
 //         }
-
         KeyboardStatus status = keyboard_init(&device);
         char buffer[100];
         keyboard_getStatusCode(status, buffer);
@@ -166,6 +167,7 @@ void kernel_main(){
     interruptDescriptorTableInit(); 
     assert_little_endian();
 
+    physpage_init();
 
     PagingConfig32Bit config = {
         .use4MBytePages = 1,
@@ -181,6 +183,9 @@ void kernel_main(){
             .pageCahceDisable = 1,
             .Use4MBPageSize = 1
         };
+        physpage_markPagesAsUsed4MB(i, 1);
+
+
         PagingStatus status = paging_addEntry(entry, i * 4 * 1024 * 1024);
         assert(status == PagingOk);
     }

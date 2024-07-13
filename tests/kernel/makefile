@@ -1,4 +1,4 @@
-SUBJECT?=buffered-storage
+SUBJECT?=physpage
 SUBJECT_SOURCE=${SUBJECT}.c
 TEST_FILE=${SUBJECT}-test.c
 
@@ -11,7 +11,7 @@ TESTS=${PREFIX}/tests/kernel
 LIBS=${SYSROOT}/lib
 MOCKS=${PREFIX}/tests/kernel/mocks
 
-INCLUDE=-I ${PREFIX}/sysroot/kernel/include -I ${PREFIX}/sysroot/lib/include -I ${PREFIX}/sysroot/kernel -I ${PREFIX}/tests -I ${MOCKS}
+INCLUDE=-I ${PREFIX}/sysroot/kernel/include -I ${PREFIX}/sysroot/lib/include -I ${PREFIX}/sysroot/kernel -I ${PREFIX}/tests -I ${MOCKS} -I ${PREFIX}/utils/include
 CFLAGS?= -O2 -std=gnu99 -ffreestanding -mno-red-zone -Wall -Wextra ${INCLUDE}
 
 

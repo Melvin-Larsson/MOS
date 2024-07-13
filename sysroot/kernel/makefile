@@ -27,6 +27,7 @@ OBJS= ${BUILD}/boot.o \
 	   ${BUILD}/task.o \
 	   ${BUILD}/descriptors.o \
 	   ${BUILD}/paging.o \
+	   ${BUILD}/physpage.o \
 
 ${BUILD}/kernel.o : ${BUILD} ${OBJS} ${PREFIX}/utils/include/utils/assert.h
 	${COMPILER} -T linker.ld ${LINK_FLAGS} ${OBJS} -o ${BUILD}/kernel.out
@@ -95,6 +96,9 @@ ${BUILD}/descriptors.o : descriptors.c include/kernel/descriptors.h
 
 ${BUILD}/paging.o : paging.c include/kernel/paging.h
 	${COMPILER} ${CFLAGS} -c paging.c -o ${BUILD}/paging.o
+
+${BUILD}/physpage.o : physpage.c include/kernel/physpage.h
+	${COMPILER} ${CFLAGS} -c physpage.c -o ${BUILD}/physpage.o
 
 include/kernel/xhcd.h: include/kernel/xhcd-registers.h include/kernel/usb-messages.h
 include/kernel/xhcd-ring.h: include/kernel/xhcd-registers.h

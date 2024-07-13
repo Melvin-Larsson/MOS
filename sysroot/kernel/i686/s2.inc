@@ -3,8 +3,10 @@ extern kernel_main
 s2:
     jmp main
     %include "protected.inc"
+    %include "memmap.inc"
 main:
-   call enter_protected
+    call map_memory
+    call enter_protected
 
 [BITS 32]
 %include "printp.inc"
