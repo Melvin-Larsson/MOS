@@ -8,8 +8,8 @@ jobs:
     container:
       image: melvinlarsson/myrepo:1.1
       credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.github_token }}
+        username: ${{ var.DOCKER_USER }}
+        password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
       volumes:
         - .:/src
     steps:
