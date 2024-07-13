@@ -195,6 +195,7 @@ void kernel_main(){
 
 //     printf("APIC present: %b\n", apic_isPresent());
 
+    feifje
     PciDescriptor devices[20];
     int count = pci_getDevices(devices, 10);
     printPciDevices(devices, count);
