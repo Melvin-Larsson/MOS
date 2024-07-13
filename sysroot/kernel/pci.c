@@ -18,14 +18,14 @@
 #define APIC_EOI ((volatile uint32_t *)0xFEE000B0)
 
 void pci_configWriteAddress(uint32_t address){
-   __asm__ volatile("out %[data], %[reg_addr]"
+   __asm__ volatile("out %%eax, %%dx"
          :
-         : [data]"a"(address), [reg_addr]"d"(CONFIG_ADDRESS)
+         : [data]"eax"(address), [reg_addr]"dx"(CONFIG_ADDRESS)
          : 
          );
 }
 void pci_configWriteData(uint32_t data){
-   __asm__ volatile("out %[data], %[reg_addr]"
+   __asm__ volatile("out %%eax, %%dx"
          :
          : [data]"a"(data), [reg_addr]"d"(CONFIG_DATA)
          : 
@@ -37,7 +37,7 @@ void pci_configWrite(uint32_t address, uint32_t data){
 }
 uint32_t pci_configRead(){
    uint32_t data; 
-   __asm__ volatile("in %[addr], %[out]"
+   __asm__ volatile("in %%dx, %%eax"
                   : [out]"=a"(data)
                   : [addr]"d"(CONFIG_DATA)
                   : 
