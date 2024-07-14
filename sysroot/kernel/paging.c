@@ -1,4 +1,6 @@
 #include "kernel/paging.h"
+#include "kernel/physpage.h"
+#include "kernel/interrupt.h"
 
 #include "stdint.h"
 #include "stdio.h"
@@ -22,6 +24,9 @@
 #define CR4_PKE_POS  22  // Protection Key for User-mode Pages
 #define CR4_CET_POS  23  // Control-flow Enforcement Technology
 #define CR4_PKS_POS  24  // Protection Key for Supervisor-mode Pages
+
+#define IA32EFER_LME_POS 8
+#define IA32EFTER_NXE_POS 11
 
 //CPUID.01H
 #define CPUID_EDX_PSE (1 << 3)
@@ -111,6 +116,7 @@ static void writeCr3(uint32_t cr3);
 static void writeCr4(uint32_t cr4);
 
 static uint8_t getMaxPhyAddr();
+static PagingMode getPagingMode();
 static int isPse36Suported();
 static void cpuid(uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx);
 
@@ -121,18 +127,25 @@ static PagingConfig32Bit init32BitPaging(PagingConfig32Bit config);
 static PagingConfig32Bit clearUnsuported32BitFeatures(PagingConfig32Bit config);
 static PagingStatus add32BitPagingEntry(PagingTableEntry entry, uint32_t address);
 
+static void handlePageFault(ExceptionInfo info, void *data);
+
 static volatile uint32_t pageDirectory[1024] __attribute__((aligned(4096)));
 static PagingMode pagingMode; 
 
 PagingConfig32Bit paging_init32Bit(PagingConfig32Bit config){
    config = clearUnsuported32BitFeatures(config);
    init32BitPaging(config);
+   interrupt_setHandler(handlePageFault, 0, 14);
    return config;
 }
 void paging_start(){
    uint32_t cr0 = readCr0();
    cr0 |= (1 << CR0_PG_POS);
    writeCr0(cr0);
+}
+
+uintptr_t paging_getPhysicalAddress(uintptr_t linearAddress){
+    
 }
 
 PagingStatus paging_addEntry(PagingTableEntry entry, uintptr_t address){
@@ -196,6 +209,10 @@ static PagingStatus add32BitPagingEntry(PagingTableEntry newEntry, uint32_t addr
             pageDirectory[index] = *((uint32_t *)&newEntryTablereference);
             return PagingOk;
          }
+    }
+
+    if(newEntry.Use4MBPageSize){
+        return PagingUnableToUse4MBEntry;
     }
    
     PageDirectoryEntryTableReference reference = { .bits = entry };
@@ -265,6 +282,46 @@ static PagingConfig32Bit clearUnsuported32BitFeatures(PagingConfig32Bit config){
    return config;
 }
 
+static void handlePageFault(ExceptionInfo info, void *data){
+    uint32_t errorCode = info.errorCode;
+    assert((errorCode & 1) == 0); //TODO: don't assume this (caused by non-present page)
+    assert(getPagingMode() == PagingMode32Bit); //TODO: implement other paging modes also
+
+    uint32_t linearAddress = readCr2();
+    printf("Page fault! %X\n", linearAddress);
+
+    uint64_t page = physpage_getPage4MB(); //FIXME: Don't assume there always is 4MB page
+    printf("page %d\n", page);
+    PagingTableEntry entry = {
+        .physicalAddress = page * 4 * 1024 * 1024,
+        .readWrite = 1,
+        .Use4MBPageSize = 1
+    };
+    printf("lin %X\n", linearAddress & 0xFFC00000);
+    PagingStatus status = paging_addEntry(entry, linearAddress & 0xFFC00000);
+    if(status == PagingOk){
+        printf("added 4MB entry\n");
+        return;
+    }
+    if(status == PagingUnableToUse4MBEntry){
+        physpage_releasePage4MB(page);
+        uint64_t page = physpage_getPage4KB();
+        PagingTableEntry entry = {
+            .physicalAddress = page * 4 * 1024,
+            .readWrite = 1,
+        };
+        PagingStatus status = paging_addEntry(entry, linearAddress & 0xFFFFF000);
+        if(status != PagingOk){
+            printf("Unable to add 4KB page. Reason %dn", status);
+            while(1);
+        }
+        return;
+
+    }
+    printf("Do not know how to handle paging status %d\n", status);
+    while(1);
+}
+
 static int isPse36Suported(){
     uint32_t eax, ebx, ecx, edx;
     eax = 1;
@@ -284,6 +341,21 @@ static uint8_t getMaxPhyAddr(){
     eax = 0x80000008;
     cpuid(&eax, &ebx, &ecx, &edx);
     return eax & 0xFF;
+}
+static PagingMode getPagingMode(){
+    uint32_t cr4 = readCr4();
+
+    if((cr4 & (1 << CR4_PAE_POS)) == 0){
+        return PagingMode32Bit;
+    }
+    uint32_t ia32Efer = readIA32Efer();
+    if((ia32Efer & (1 << IA32EFTER_NXE_POS)) == 0){
+        return PagingModePAE;
+    }
+    if((cr4 & (1 <<CR4_LA57_POS)) == 0){
+        return PagingMode4Level;
+    }
+    return PagingMode5Level;
 }
 
 static void cpuid(uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx){

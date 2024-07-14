@@ -8,7 +8,7 @@ typedef enum{
    PagingUnableToFindEntry,
    PagingUnsuportedOperation,
    PagingEntryAlreadyPresent,
-
+   PagingUnableToUse4MBEntry,
 }PagingStatus;
 
 typedef enum{
