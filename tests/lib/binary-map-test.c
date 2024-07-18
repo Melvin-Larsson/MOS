@@ -11,7 +11,7 @@ static int randomNumber(){
    return (unsigned int) (next / 65536) % 32768;
 }
 
-int randomFreeIndex(int *array, int size){
+static int randomFreeIndex(int *array, int size){
    int index = randomNumber();
 
    for(int i = 0; index > 0; i = (i + 1) % size){
@@ -24,7 +24,7 @@ int randomFreeIndex(int *array, int size){
    }
    return 0;
 }
-int contains(int *array, int size, int value){
+static int contains(int *array, int size, int value){
    while(size--){
       if(*array++ == value){
          return 1;
@@ -33,8 +33,22 @@ int contains(int *array, int size, int value){
    return 0;
 }
 
+static int addIntToMap(const Map *map, uintptr_t key, uintptr_t value){
+   return map_add(map, (void *)key, (void *)value);
+}
+
+static int mapContainsInt(const Map *map, uintptr_t key){
+   return map_contains(map, (void *)key);
+}
+static int mapRemoveInt(const Map *map, uintptr_t key){
+   return map_remove(map, (void *)key);
+}
+static uintptr_t mapGetInt(const Map *map, uintptr_t key){
+   return (uintptr_t)map_get(map, (void *)key);
+}
+
 TEST_GROUP_SETUP(group){
-   map = map_newBinaryMap(); 
+   map = map_newBinaryMap(map_ptrComparitor); 
 }
 
 TEST_GROUP_TEARDOWN(group){
@@ -44,41 +58,41 @@ TEST_GROUP_TEARDOWN(group){
 TESTS
 
 TEST(group, addRightLeft){
-   map_add(map, 5, 0);
-   map_add(map, 4, 0);
-   map_add(map, 6, 0);
-   map_add(map, 10, 0);
-   map_add(map, 9, 0);
+   addIntToMap(map, 5, 0);
+   addIntToMap(map, 4, 0);
+   addIntToMap(map, 6, 0);
+   addIntToMap(map, 10, 0);
+   addIntToMap(map, 9, 0);
 
    assertIntNotEquals(map_validate(map), 0);
 }
 
 TEST(group, addRightRight){
-   map_add(map, 5, 0);
-   map_add(map, 4, 0);
-   map_add(map, 6, 0);
-   map_add(map, 10, 0);
-   map_add(map, 11, 0);
+   addIntToMap(map, 5, 0);
+   addIntToMap(map, 4, 0);
+   addIntToMap(map, 6, 0);
+   addIntToMap(map, 10, 0);
+   addIntToMap(map, 11, 0);
 
    assertIntNotEquals(map_validate(map), 0);
 }
 
 TEST(group, addLeftRight){
-   map_add(map, 5, 0);
-   map_add(map, 6, 0);
-   map_add(map, 4, 0);
-   map_add(map, 2, 0);
-   map_add(map, 3, 0);
+   addIntToMap(map, 5, 0);
+   addIntToMap(map, 6, 0);
+   addIntToMap(map, 4, 0);
+   addIntToMap(map, 2, 0);
+   addIntToMap(map, 3, 0);
 
    assertIntNotEquals(map_validate(map), 0);
 }
 
 TEST(group, addLeftLeft){
-   map_add(map, 5, 0);
-   map_add(map, 6, 0);
-   map_add(map, 4, 0);
-   map_add(map, 3, 0);
-   map_add(map, 2, 0);
+   addIntToMap(map, 5, 0);
+   addIntToMap(map, 6, 0);
+   addIntToMap(map, 4, 0);
+   addIntToMap(map, 3, 0);
+   addIntToMap(map, 2, 0);
 
    assertIntNotEquals(map_validate(map), 0);
 }
@@ -86,130 +100,130 @@ TEST(group, addLeftLeft){
 TEST(group, addRightContains){
    int count = 10;
    for(int i = 0; i < count; i++){
-      map_add(map, i, 0);
+      addIntToMap(map, i, 0);
    }
 
    assertIntNotEquals(map_validate(map), 0);
 
    for(int i = 0; i < count; i++){
-      assertIntNotEquals(map_contains(map, i), 0);
+      assertIntNotEquals(mapContainsInt(map, i), 0);
    }
 }
 
 TEST(group, addLeftContains){
    for(int i = 9; i >= 0; i--){
-      map_add(map, i, 0);
+      addIntToMap(map, i, 0);
    }
    
    assertIntNotEquals(map_validate(map), 0);
 
    for(int i = 0; i < 10; i++){
-      assertIntNotEquals(map_contains(map, i), 0);
+      assertIntNotEquals(mapContainsInt(map, i), 0);
    }
 }
 
 TEST(group, addLeftThenRightContains){
-   map_add(map, 5, 0);
-   map_add(map, 4, 0);
-   map_add(map, 6, 0);
-   map_add(map, 3, 0);
-   map_add(map, 7, 0);
-   map_add(map, 2, 0);
-   map_add(map, 8, 0);
-   map_add(map, 1, 0);
-   map_add(map, 9, 0);
-   map_add(map, 0, 0);
+   addIntToMap(map, 5, 0);
+   addIntToMap(map, 4, 0);
+   addIntToMap(map, 6, 0);
+   addIntToMap(map, 3, 0);
+   addIntToMap(map, 7, 0);
+   addIntToMap(map, 2, 0);
+   addIntToMap(map, 8, 0);
+   addIntToMap(map, 1, 0);
+   addIntToMap(map, 9, 0);
+   addIntToMap(map, 0, 0);
 
    assertIntNotEquals(map_validate(map), 0);
 
    for(int i = 0; i < 10; i++){
-      assertIntNotEquals(map_contains(map, i), 0);
+      assertIntNotEquals(mapContainsInt(map, i), 0);
    }
 }
 
 TEST(group, addRightGet){
    for(int i = 0; i < 10; i++){
-      map_add(map, i, (void*)i);
+      addIntToMap(map, i, i);
    }
 
 
    assertIntNotEquals(map_validate(map), 0);
 
    for(int i = 0; i < 10; i++){
-      assertInt((int)map_get(map, i), i);
+      assertInt((int)mapGetInt(map, i), i);
    }
 }
 
 TEST(group, addLeftGet){
    for(int i = 9; i >= 0; i--){
-      map_add(map, i, (void*)i);
+      addIntToMap(map, i, i);
    }
 
    assertIntNotEquals(map_validate(map), 0);
 
    for(int i = 0; i < 10; i++){
-      assertInt((int)map_get(map, i), i);
+      assertInt((int)mapGetInt(map, i), i);
    }
 }
 
 TEST(group, addLeftThenRightContains){
-   map_add(map, 5,(void*)5);
-   map_add(map, 4,(void*)4);
-   map_add(map, 6,(void*)6);
-   map_add(map, 3,(void*)3);
-   map_add(map, 7,(void*)7);
-   map_add(map, 2,(void*)2);
-   map_add(map, 8,(void*)8);
-   map_add(map, 1,(void*)1);
-   map_add(map, 9,(void*)9);
-   map_add(map, 0,(void*)0);
+   addIntToMap(map, 5, 5);
+   addIntToMap(map, 4, 4);
+   addIntToMap(map, 6, 6);
+   addIntToMap(map, 3, 3);
+   addIntToMap(map, 7, 7);
+   addIntToMap(map, 2, 2);
+   addIntToMap(map, 8, 8);
+   addIntToMap(map, 1, 1);
+   addIntToMap(map, 9, 9);
+   addIntToMap(map, 0, 0);
 
    assertIntNotEquals(map_validate(map), 0);
 
    for(int i = 0; i < 10; i++){
-      assertInt((int)map_get(map, i), i);
+      assertInt((int)mapGetInt(map, i), i);
    }
 }
 
 TEST(group, addThenRemove){
-   map_add(map, 0, (void*)42);
-   map_remove(map, 0);
+   addIntToMap(map, 0, 42);
+   mapRemoveInt(map, 0);
 
-   assertInt(map_contains(map, 0), 0);
+   assertInt(mapContainsInt(map, 0), 0);
    assertIntNotEquals(map_validate(map), 0);
 }
 TEST(group, add2RightThenRemoveInOrder){
-   map_add(map, 0, (void*)42);
-   map_add(map, 1, (void*)42);
+   addIntToMap(map, 0, 42);
+   addIntToMap(map, 1, 42);
 
-   map_remove(map, 0);
+   mapRemoveInt(map, 0);
 
    
    assertIntNotEquals(map_validate(map), 0);
-   assertInt(map_contains(map, 0), 0);
-   assertIntNotEquals(map_contains(map, 1), 0);
+   assertInt(mapContainsInt(map, 0), 0);
+   assertIntNotEquals(mapContainsInt(map, 1), 0);
 
-   map_remove(map, 1);
+   mapRemoveInt(map, 1);
 
    assertIntNotEquals(map_validate(map), 0);
-   assertInt(map_contains(map, 1), 0);
+   assertInt(mapContainsInt(map, 1), 0);
 }
 
 TEST(group, removeNotContains){
    int count = 10;
    for(int i = 0; i < count; i++){
-      map_add(map, i, (void*)i);
+      addIntToMap(map, i, i);
    } 
    assertIntNotEquals(map_validate(map), 0);
 
    for(int i = 0; i < count; i++){
-      map_remove(map, i);
+      mapRemoveInt(map, i);
       
       assertIntNotEquals(map_validate(map), 0);
-      assertInt(map_contains(map, i), 0);
+      assertInt(mapContainsInt(map, i), 0);
 
       for(int j = i + 1; j < count; j++){
-         assertIntNotEquals(map_contains(map, j), 0);
+         assertIntNotEquals(mapContainsInt(map, j), 0);
       }
    }
 }
@@ -220,19 +234,19 @@ TEST(group, insertRemoveRandomOrdered){
    int removeOrder[] = {11, 1, 6, 5, 12, 10, 3, 4, 0, 2, 9, 8, 7};
 
    for(int i = 0; i < count; i++){
-      map_add(map, values[i], (void*)values[i]);
+      addIntToMap(map, values[i], values[i]);
    }
 
    assertIntNotEquals(map_validate(map), 0);
 
    for(int i = 0; i < count; i++){
-      map_remove(map, values[removeOrder[i]]);
+      mapRemoveInt(map, values[removeOrder[i]]);
 
       assertIntNotEquals(map_validate(map), 0);
-      assertInt(map_contains(map, values[removeOrder[i]]), 0);
+      assertInt(mapContainsInt(map, values[removeOrder[i]]), 0);
 
       for(int j = i + 1; j < count; j++){
-         assertIntNotEquals(map_contains(map, values[removeOrder[j]]), 0);
+         assertIntNotEquals(mapContainsInt(map, values[removeOrder[j]]), 0);
       }
    }
 }
@@ -249,18 +263,18 @@ TEST(group, randomNumbers){
          number = randomNumber();
       }
 
-      map_add(map, number, 0);
+      addIntToMap(map, number, 0);
       int index = randomFreeIndex(removeNumbers, count);
       removeNumbers[index] = number;
    }
    assertIntNotEquals(map_validate(map), 0);
 
    for(int i = 0; i < count; i++){
-      map_remove(map, removeNumbers[i]);
-      assertInt(map_contains(map, removeNumbers[i]), 0);
+      mapRemoveInt(map, removeNumbers[i]);
+      assertInt(mapContainsInt(map, removeNumbers[i]), 0);
 
       for(int j = i + 1; j < count; j++){
-         assertIntNotEquals(map_contains(map, removeNumbers[j]), 0);
+         assertIntNotEquals(mapContainsInt(map, removeNumbers[j]), 0);
       }
    }
    assertIntNotEquals(map_validate(map), 0);

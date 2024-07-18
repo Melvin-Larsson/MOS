@@ -9,23 +9,23 @@ typedef struct Node{
     struct Node *left;
     struct Node *right;
     int childDepth;
-    int key;
+    void *key;
     void *value;
 }Node;
 
-static int add(const struct Map *map, int key, void* value);
-static int remove(const struct Map *map, int key);
-static void* get(const struct Map *map, int key);
-static int contains(const struct Map *map, int key);
+static int add(const struct Map *map, void *key, void* value);
+static int remove(const struct Map *map, void *key);
+static void* get(const struct Map *map, void *key);
+static int contains(const struct Map *map, void *key);
 static void freeMap(struct Map *map, void (*freeValue)(void *value));
 static int validate(const struct Map *map);
 
-static Node *addNode(Node *node, int key, void* value);
-static Node *removeNode(Node *node, int key);
-static void* getNode(Node *node, int key);
-static int containsNode(Node *node, int key);
+static Node *addNode(Node *node, int (*comparitor)(void *, void *), void *key, void* value);
+static Node *removeNode(Node *node, int (*comparitor)(void *, void *), void *key);
+static void* getNode(Node *node, int (*comparitor)(void *, void *), void *key);
+static int containsNode(Node *node, int (*comparitor)(void *, void *), void *key);
 static void freeNode(Node *node, void (*freeValue)(void *value));
-static int validateNode(Node *node);
+static int validateNode(Node *node, int (*comparitor)(void *, void *));
 
 static int getChildDepth(Node *node);
 
@@ -33,12 +33,13 @@ static Node *balanceTree(Node *root);
 static Node *rotateLeft(Node *root);
 static Node *rotateRight(Node *root);
 
-Map *map_newBinaryMap(){
+Map *map_newBinaryMap(int (*comparitor)(void *key1, void *key2)){
     Map *map = malloc(sizeof(Map));
     Node **rootPointer = malloc(sizeof(Node *));
     *rootPointer = 0;
     *map = (Map){
         .data = rootPointer,
+        .comparitor = comparitor,
         .add = add,
         .remove = remove,
         .get = get,
@@ -49,17 +50,17 @@ Map *map_newBinaryMap(){
     return map;
 }
 
-static int add(const struct Map *map, int key, void* value){
+static int add(const struct Map *map, void *key, void* value){
     if(contains(map, key)){
         return 0;
     }
     Node **rootPointer = map->data;
-    *rootPointer = addNode(*rootPointer, key, value);
+    *rootPointer = addNode(*rootPointer, map->comparitor, key, value);
 
     return 1;
 }
 
-static Node *addNode(Node *node, int key, void* value){
+static Node *addNode(Node *node, int (*comparitor)(void *, void *), void *key, void* value){
     if(node == 0){
         Node *newNode = malloc(sizeof(Node));
         *newNode = (Node){
@@ -72,23 +73,23 @@ static Node *addNode(Node *node, int key, void* value){
         return newNode;
     }
 
-    if(key > node->key){
-        node->right = addNode(node->right, key, value);
+    if(comparitor(key, node->key) > 0){
+        node->right = addNode(node->right, comparitor, key, value);
     }
     else{
-        node->left = addNode(node->left, key, value);
+        node->left = addNode(node->left, comparitor, key, value);
     }
 
     node->childDepth = max(getChildDepth(node->left), getChildDepth(node->right)) + 1;
     Node *newRoot = balanceTree(node);
     return newRoot;
 }
-static int remove(const struct Map *map, int key){
+static int remove(const struct Map *map, void *key){
     if(!contains(map, key)){
         return 0;
     }
     Node **rootNode = map->data;
-    *rootNode = removeNode(*rootNode, key);
+    *rootNode = removeNode(*rootNode, map->comparitor, key);
     return 1;
 }
 static Node *getLeftmost(Node *root){
@@ -97,16 +98,16 @@ static Node *getLeftmost(Node *root){
     }
     return root;
 }
-static Node *removeNode(Node *root, int key){
+static Node *removeNode(Node *root, int (*comparitor)(void *, void *), void *key){
     if(!root){
         return 0;
     } 
 
-    if(key > root->key){
-        root->right = removeNode(root->right, key);
+    if(comparitor(key, root->key) > 0){
+        root->right = removeNode(root->right, comparitor, key);
     }
-    else if(key < root->key){
-        root->left = removeNode(root->left, key);
+    else if(comparitor(key, root->key) < 0){
+        root->left = removeNode(root->left, comparitor, key);
     }
     else{
         Node *res;
@@ -121,7 +122,7 @@ static Node *removeNode(Node *root, int key){
         }
         else{
             res = getLeftmost(root->right);
-            res->right = removeNode(root->right, res->key);
+            res->right = removeNode(root->right, comparitor, res->key);
             res->left = root->left;
             res->childDepth = max(getChildDepth(res->left), getChildDepth(res->right)) + 1;
         }
@@ -133,17 +134,17 @@ static Node *removeNode(Node *root, int key){
     root = balanceTree(root);
     return root;
 }
-static void* get(const struct Map *map, int key){
+static void* get(const struct Map *map, void *key){
     Node **rootNode = map->data;
-    return getNode(*rootNode, key);
+    return getNode(*rootNode, map->comparitor, key);
 }
-static void* getNode(Node *node, int key){
+static void* getNode(Node *node, int (*comparitor)(void *, void *), void *key){
     while(node){
-        if(key < node->key){
-            node = node->left;
-        }
-        else if(key > node->key){
+        if(comparitor(key, node->key) > 0){
             node = node->right;
+        }
+        else if(comparitor(key, node->key) < 0){
+            node = node->left;
         }
         else{
             return node->value;
@@ -151,17 +152,17 @@ static void* getNode(Node *node, int key){
     }
     return 0;
 }
-static int contains(const struct Map *map, int key){
+static int contains(const struct Map *map, void *key){
     Node **rootNode = map->data;
-    return containsNode(*rootNode, key);
+    return containsNode(*rootNode, map->comparitor, key);
 }
-static int containsNode(Node *node, int key){
+static int containsNode(Node *node, int (*comparitor)(void *, void *), void *key){
     while(node){
-        if(key < node->key){
-            node = node->left;
-        }
-        else if(key > node->key){
+        if(comparitor(key, node->key) > 0){
             node = node->right;
+        }
+        else if(comparitor(key, node->key) < 0){
+            node = node->left;
         }
         else{
             return 1;
@@ -254,7 +255,7 @@ static int getChildDepth(Node *node){
 
 static int validate(const struct Map *map){
     Node **rootNode = map->data;
-    return validateNode(*rootNode);
+    return validateNode(*rootNode, map->comparitor);
 }
 
 static int calculateChildDepth(Node *node){
@@ -285,28 +286,28 @@ static int isBalanced(Node *node){
     return diff <= 1 && diff >= -1;
 }
 
-static int isOrdered(Node *node){
+static int isOrdered(Node *node, int (*comparitor)(void *, void *)){
     if(!node){
         return 1;
     }
-    if(node->left && node->left->key >= node->key){
+    if(node->left && comparitor(node->left->key, node->key) >= 0){
         return 0;
     }
-    if(node->right && node->right->key <= node->key){
+    if(node->right && comparitor(node->right->key, node->key) <= 0){
         return 0;
     }
     return 1;
 }
 
-static int validateNode(Node *node){
+static int validateNode(Node *node, int (*comparitor)(void *, void*)){
     if(!node){
         return 1;
     }
-    if(!validateNode(node->left) || !validateNode(node->right)){
+    if(!validateNode(node->left, comparitor) || !validateNode(node->right, comparitor)){
         return 0;
     }
 
     return calculateChildDepth(node) == node->childDepth &&
            isBalanced(node) &&
-           isOrdered(node);
+           isOrdered(node, comparitor);
 }
