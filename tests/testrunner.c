@@ -26,10 +26,10 @@ static void restoreColor(){
    stdio_setColor(prevColor);
 }
 
-int assertInt(int actual, int expected){
+int assertIntL(int actual, int expected, int line){
    if(actual != expected){
       setErrorColor();
-      printf("[FAIL] %s (line %d)\n", currTestName, currTestLine);
+      printf("[FAIL] %s (line %d)\n", currTestName, line);
       printf("   AssertInt: Expected %d, got %d\n", expected, actual);
       setTestStatus(TestStatusFail);
       restoreColor();
@@ -37,10 +37,10 @@ int assertInt(int actual, int expected){
    }
    return 1;
 }
-int assertIntNotEquals(int actual, int notExpected){
+int assertIntNotEqualsL(int actual, int notExpected, int line){
    if(actual == notExpected){
       setErrorColor();
-      printf("[FAIL] %s (line %d)\n", currTestName, currTestLine);
+      printf("[FAIL] %s (line %d)\n", currTestName, line);
       printf("   AssertIntNotEquals: got %d\n", notExpected);
       setTestStatus(TestStatusFail);
       restoreColor();
@@ -48,10 +48,10 @@ int assertIntNotEquals(int actual, int notExpected){
    }
    return 1;
 }
-int assertString(char* actual, char* expected){
+int assertStringL(char* actual, char* expected, int line){
    if(!equals(actual, expected)){
       setErrorColor();
-      printf("[FAIL] %s (line %d)\n", currTestName, currTestLine);
+      printf("[FAIL] %s (line %d)\n", currTestName, line);
       printf("   AssertString: Expected %s, got %s\n", expected, actual);
       setTestStatus(TestStatusFail);
       restoreColor();

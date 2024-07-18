@@ -1,4 +1,4 @@
-SUBJECT?=physpage
+SUBJECT?=lib/binary-map
 SUBJECT_SOURCE=${SUBJECT}.c
 TEST_FILE=${SUBJECT}-test.c
 
@@ -7,7 +7,7 @@ PREFIX?= ${HOME}/Programmering/OS
 SYSROOT=${PREFIX}/sysroot
 BUILD=${PREFIX}/tests/kernel/build
 KERNEL=${PREFIX}/sysroot/kernel
-TESTS=${PREFIX}/tests/kernel
+TESTS=${PREFIX}/tests
 LIBS=${SYSROOT}/lib
 MOCKS=${PREFIX}/tests/kernel/mocks
 
@@ -23,12 +23,11 @@ OBJS = ${BUILD}/boot.o \
 	   ${BUILD}/interrupt.o \
 	   ${BUILD}/mass-storage-device-mock.o \
 	   ${BUILD}/buffered-storage-mock.o \
-	   ${LIBS}/build/lib.out \
 
 all : ${PREFIX}/build/os.img ${OBJS}
 	echo ${PREFIX}
 	$(MAKE) lib
-	${COMPILER} -T ${PREFIX}/linker.ld ${OBJS} ${LINK_FLAGS}  -o ${PREFIX}/build/os.elf
+	${COMPILER} -T ${PREFIX}/linker.ld ${OBJS} ${LIBS}/build/lib.out ${LINK_FLAGS}  -o ${PREFIX}/build/os.elf
 	objcopy -O binary ${PREFIX}/build/os.elf ${PREFIX}/build/os.bin
 
 
@@ -62,8 +61,10 @@ ${BUILD}/boot.o : ${PREFIX}/sysroot/kernel/i686 ${BUILD}
 	mv boot.o ${BUILD}/boot.o && \
 	cd -
 
-lib:
+.PHONY: lib
+lib :
 	make -C ${LIBS}
 
-kernel:
+.PHONY: kernel
+kernel :
 	make -C ${KERNEL}

@@ -31,6 +31,7 @@ void exception_handler(unsigned char interruptVector, ExceptionInfo *info){
       interruptHandlers[interruptVector](*info, interruptData[interruptVector]);
    }else{
       printf("%d: Interrupt %d, %d %d %d\n", interruptNr, interruptVector, info->errorCode, info->instructionOffset, info->codeSegment);
+      while(1);
    }
 }
 

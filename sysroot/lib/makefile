@@ -9,8 +9,9 @@ LINK_FLAGS?= -nostdlib -lgcc -ffreestanding -O2 -r
 OBJS= ${BUILD}/stdio.o \
        ${BUILD}/stdlib.o \
        ${BUILD}/memory.o \
-	   ${BUILD}/string.o
-
+	   ${BUILD}/string.o \
+	   ${BUILD}/map.o \
+	   ${BUILD}/binary-map.o \
 
 ${BUILD}/lib.out : ${BUILD} ${OBJS} 
 	${COMPILER} ${LINK_FLAGS} ${OBJS} -o ${BUILD}/lib.out
@@ -28,6 +29,12 @@ ${BUILD}/memory.o : stdlib/memory.c include/stdlib.h
 
 ${BUILD}/string.o : string/string.c include/string.h
 	${COMPILER} ${CFLAGS} -c string/string.c -o ${BUILD}/string.o
+
+${BUILD}/map.o : map/map.c include/map.h
+	${COMPILER} ${CFLAGS} -c map/map.c -o ${BUILD}/map.o
+
+${BUILD}/binary-map.o : map/binary-map.c include/map.h
+	${COMPILER} ${CFLAGS} -c map/binary-map.c -o ${BUILD}/binary-map.o
 
 clean :
 	rm -f ${BUILD}/*
