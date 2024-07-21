@@ -12,6 +12,7 @@ OBJS= ${BUILD}/stdio.o \
 	   ${BUILD}/string.o \
 	   ${BUILD}/map.o \
 	   ${BUILD}/binary-map.o \
+	   ${BUILD}/intmap.o \
 
 ${BUILD}/lib.out : ${BUILD} ${OBJS} 
 	${COMPILER} ${LINK_FLAGS} ${OBJS} -o ${BUILD}/lib.out
@@ -35,6 +36,9 @@ ${BUILD}/map.o : map/map.c include/map.h
 
 ${BUILD}/binary-map.o : map/binary-map.c include/map.h
 	${COMPILER} ${CFLAGS} -c map/binary-map.c -o ${BUILD}/binary-map.o
+
+${BUILD}/intmap.o : map/intmap.c include/map.h
+	${COMPILER} ${CFLAGS} -c map/intmap.c -o ${BUILD}/intmap.o
 
 clean :
 	rm -f ${BUILD}/*

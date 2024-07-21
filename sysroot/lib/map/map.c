@@ -19,13 +19,3 @@ void map_free(struct Map *map, void (*freeValue)(void *value)){
 int map_validate(const struct Map* map){
     return map->validate(map);
 }
-
-int map_ptrComparitor(void *key1, void *key2){
-    if(key1 > key2){
-        return 1;
-    }
-    if(key1 < key2){
-        return -1;
-    }
-    return 0;
-}
