@@ -1,6 +1,6 @@
-SUBJECT?=lib/binary-map
-SUBJECT_SOURCE=${SUBJECT}.c
-TEST_FILE=${SUBJECT}-test.c
+SUBJECT_FILE=allocator
+SUBJECT_PARENT=kernel
+SUBJECT=${SUBJECT_PARENT}/${SUBJECT_FILE}
 
 COMPILER?=${HOME}/opt/cross2/bin/i686-elf-gcc
 PREFIX?= ${HOME}/Programmering/OS
@@ -10,6 +10,9 @@ KERNEL=${PREFIX}/sysroot/kernel
 TESTS=${PREFIX}/tests
 LIBS=${SYSROOT}/lib
 MOCKS=${PREFIX}/tests/kernel/mocks
+
+SUBJECT_SOURCE=${SYSROOT}/${SUBJECT}.c
+TEST_FILE=${SUBJECT}-test.c
 
 INCLUDE=-I ${PREFIX}/sysroot/kernel/include -I ${PREFIX}/sysroot/lib/include -I ${PREFIX}/sysroot/kernel -I ${PREFIX}/tests -I ${MOCKS} -I ${PREFIX}/utils/include
 CFLAGS?= -O2 -std=gnu99 -ffreestanding -mno-red-zone -Wall -Wextra ${INCLUDE}
@@ -23,6 +26,7 @@ OBJS = ${BUILD}/boot.o \
 	   ${BUILD}/interrupt.o \
 	   ${BUILD}/mass-storage-device-mock.o \
 	   ${BUILD}/buffered-storage-mock.o \
+	   ${BUILD}/${SUBJECT_FILE}.o \
 
 all : ${PREFIX}/build/os.img ${OBJS}
 	echo ${PREFIX}
@@ -60,6 +64,9 @@ ${BUILD}/boot.o : ${PREFIX}/sysroot/kernel/i686 ${BUILD}
 	nasm -f elf program.s -o boot.o && \
 	mv boot.o ${BUILD}/boot.o && \
 	cd -
+
+${BUILD}/${SUBJECT_FILE}.o : ${SUBJECT_SOURCE} ${KERNEL}/include/kernel/allocator.h;
+	${COMPILER} ${CFLAGS} -c ${SUBJECT_SOURCE} -o ${BUILD}/${SUBJECT_FILE}.o
 
 .PHONY: lib
 lib :
