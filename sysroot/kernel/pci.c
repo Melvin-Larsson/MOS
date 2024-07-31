@@ -1,3 +1,4 @@
+#include "kernel/paging.h"
 #include "kernel/pci.h"
 #include "stdio.h"
 #include "string.h"
@@ -325,9 +326,12 @@ int pci_initMsiX(const PciDescriptor *pci, MsiXDescriptor *result){
    MsiXCapability msiCapability;
    pci_readCapabilityData(pci, capability, &msiCapability, sizeof(MsiXCapability));
 
+   uintptr_t messageTablePhysical = getMessageTableBaseAddress(pci, msiCapability);
+   uintptr_t pendingTablePhysical = getPendingTableBaseAddress(pci, msiCapability);
+
    *result = (MsiXDescriptor){
-      .messageTable = (uint64_t*)getMessageTableBaseAddress(pci, msiCapability),
-      .pendingTable = (uint64_t*)getPendingTableBaseAddress(pci, msiCapability),
+      .messageTable = (uint64_t*)paging_mapPhysical(messageTablePhysical, (msiCapability.tableSize + 1) * 16),
+      .pendingTable = (uint64_t*)paging_mapPhysical(pendingTablePhysical, (msiCapability.tableSize + 1) * 8),
       .tableSize = msiCapability.tableSize,
       .capability = capability
    };

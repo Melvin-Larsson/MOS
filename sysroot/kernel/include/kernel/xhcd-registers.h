@@ -3,27 +3,36 @@
 
 #include "stdint.h"
 
-typedef volatile struct{
-   uint32_t enabledDeviceSlots : 8;
-   uint32_t U3EntryEnable : 1;
-   uint32_t configureinformationenable : 1;
-   uint32_t RsvdP : 22;
+typedef volatile union{
+   struct{
+      uint32_t enabledDeviceSlots : 8;
+      uint32_t U3EntryEnable : 1;
+      uint32_t configureinformationenable : 1;
+      uint32_t RsvdP : 22;
+   };
+   uint32_t bits;
 }__attribute__((packed))XhcConfigRegister;
 
-typedef volatile struct{
-   uint32_t maxDeviceSlots : 8;
-   uint32_t maxInterrupters : 11;
-   uint32_t reserved : 5;
-   uint32_t maxPorts : 8;
+typedef volatile union{
+   struct{
+      uint32_t maxDeviceSlots : 8;
+      uint32_t maxInterrupters : 11;
+      uint32_t reserved : 5;
+      uint32_t maxPorts : 8;
+   };
+   uint32_t bits;
 }__attribute__((packed))StructParams1;
 
-typedef volatile struct{
-   uint32_t ist : 4;
-   uint32_t erstMax: 4;
-   uint32_t reserved : 13;
-   uint32_t maxScratchpadBuffersHigh : 5;
-   uint32_t scratchpadRestore : 1;
-   uint32_t maxScratchpadBuffersLow : 5;
+typedef volatile union{
+   struct{
+      uint32_t ist : 4;
+      uint32_t erstMax: 4;
+      uint32_t reserved : 13;
+      uint32_t maxScratchpadBuffersHigh : 5;
+      uint32_t scratchpadRestore : 1;
+      uint32_t maxScratchpadBuffersLow : 5;
+   };
+   uint32_t bits;
 }__attribute__((packed))StructParams2;
 
 typedef volatile struct{
@@ -31,25 +40,28 @@ typedef volatile struct{
    uint16_t extendedCapabilitiesPointer;
 }__attribute__((packed))CapabilityParams1;
 
-typedef volatile struct{
-   uint32_t currentConnectStatus : 1;
-   uint32_t portEnabledDisabled : 1;
-   uint32_t reserved : 1;
-   uint32_t overCurrentActive : 1;
-   uint32_t portReset : 1;
-   uint32_t portLinkState : 4;
-   uint32_t portPower : 1;
-   uint32_t portSpeed : 4;
-   uint32_t portIndicatorControl : 2;
-   uint32_t portLinkStateWriteStrobe : 1;
-   uint32_t connectStatusChange : 1;
-   uint32_t portEnableDisableChange : 1;
-   uint32_t warmPortResetChange : 1;
-   uint32_t overCurrentChange : 1;
-   uint32_t portResetChange : 1;
-   uint32_t portLinkStateChange : 1;
-   uint32_t portConfigErrorChange : 1;
-   uint32_t other : 8;
+typedef volatile union{
+   uint32_t bits;
+   struct{
+      uint32_t currentConnectStatus : 1;
+      uint32_t portEnabledDisabled : 1;
+      uint32_t reserved : 1;
+      uint32_t overCurrentActive : 1;
+      uint32_t portReset : 1;
+      uint32_t portLinkState : 4;
+      uint32_t portPower : 1;
+      uint32_t portSpeed : 4;
+      uint32_t portIndicatorControl : 2;
+      uint32_t portLinkStateWriteStrobe : 1;
+      uint32_t connectStatusChange : 1;
+      uint32_t portEnableDisableChange : 1;
+      uint32_t warmPortResetChange : 1;
+      uint32_t overCurrentChange : 1;
+      uint32_t portResetChange : 1;
+      uint32_t portLinkStateChange : 1;
+      uint32_t portConfigErrorChange : 1;
+      uint32_t other : 8;
+   };
 }__attribute__((packed))PortStatusAndControll;
 
 typedef volatile struct{
@@ -116,16 +128,19 @@ typedef volatile struct{
 }__attribute__((packed))XhciDoorbell;
 
 
-typedef volatile struct{
-   uint32_t interruptPending : 1;
-   uint32_t interruptEnable : 1;
-   uint32_t reserved : 30;
-   uint32_t moderationInterval : 16;
-   uint32_t moderationCounter : 16;
-   uint32_t eventRingSegmentTableSize;
-   uint32_t reserved3;
-   uint64_t eventRingSegmentTableAddress;
-   uint64_t eventRingDequePointer;
+typedef volatile union{
+   struct{
+      uint32_t interruptPending : 1;
+      uint32_t interruptEnable : 1;
+      uint32_t reserved : 30;
+      uint32_t moderationInterval : 16;
+      uint32_t moderationCounter : 16;
+      uint32_t eventRingSegmentTableSize;
+      uint32_t reserved3;
+      uint64_t eventRingSegmentTableAddress;
+      uint64_t eventRingDequePointer;
+   };
+   uint32_t bytes[8];
 }__attribute__((packed))InterrupterRegisters;
 
 

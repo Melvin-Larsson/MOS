@@ -68,6 +68,31 @@ static void merge(Allocator *allocator){
    }
 }
 
+static AllocatedArea getHigh(AllocatorList *list, unsigned int size){
+   if(!list){
+      return (AllocatedArea){0,0};
+   }
+   AllocatedArea area = getHigh(list->next, size);
+
+   if(area.size == size){
+      return area;
+   }
+
+   if(list->size > 0 && (unsigned int)list->size >= size){
+      AllocatedArea result = {list->address + list->size - size, size};
+      list->size -= size;
+      return result;
+   }
+   return (AllocatedArea){0,0};
+}
+
+AllocatedArea allocator_getHinted(Allocator *allocator, int size, AllocatorHint hint){
+   if(hint == AllocatorHintPreferHighAddresses){
+      return getHigh(allocator->data, size);
+   }
+   return allocator_get(allocator, size);
+}
+
 AllocatedArea allocator_get(Allocator *allocator, int size){
    AllocatorList *dummy = allocator->data;
    AllocatorList *list = dummy->next;

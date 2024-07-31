@@ -43,4 +43,9 @@ PagingConfig32Bit paging_init32Bit(PagingConfig32Bit config);
 void paging_start();
 PagingStatus paging_addEntry(PagingTableEntry entry, uintptr_t address);
 
+uintptr_t paging_mapPhysical(uintptr_t address, uint32_t size);
+void paging_writePhysical(uintptr_t address, void *data, uint32_t size);
+void paging_readPhysical(uintptr_t address, void *result, uint32_t size);
+uintptr_t paging_getPhysicalAddress(uintptr_t logical);
+
 #endif

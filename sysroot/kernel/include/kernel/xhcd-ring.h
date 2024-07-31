@@ -3,6 +3,7 @@
 
 #include "stdint.h"
 #include "xhcd-registers.h"
+#include "xhcd-hardware.h"
 
 enum TransferType{
    NoDataStage = 0,
@@ -161,7 +162,7 @@ typedef struct{
 }XhcdRing;
 
 XhcdRing xhcd_newRing(int trbCount);
-int xhcd_attachCommandRing(XhciOperation *operation, XhcdRing *ring);
+int xhcd_attachCommandRing(XhcHardware xhcHardware, XhcdRing *ring);
 void xhcd_putTD(TD td, XhcdRing *ring);
 void xhcd_putTRB(TRB trb, XhcdRing *ring);
 

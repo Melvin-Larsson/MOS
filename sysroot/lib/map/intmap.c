@@ -6,8 +6,8 @@ int intmap_add(const struct Map *map, uintptr_t key, uintptr_t value){
 int intmap_remove(const struct Map *map, uintptr_t key){
    return map->remove(map, (void*)key); 
 }
-void* intmap_get(const struct Map *map, uintptr_t key){
-   return map->get(map, (void*)key); 
+uintptr_t intmap_get(const struct Map *map, uintptr_t key){
+   return (uintptr_t)map->get(map, (void*)key); 
 }
 int intmap_contains(const struct Map *map, uintptr_t key){
    return map->contains(map, (void*)key); 

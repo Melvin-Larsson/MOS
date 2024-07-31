@@ -9,6 +9,7 @@
 #include "kernel/descriptors.h"
 #include "kernel/paging.h"
 #include "kernel/physpage.h"
+#include "kernel/allocator.h"
 
 #define ASSERTS_ENABLED
 #include "utils/assert.h"
@@ -159,6 +160,7 @@ void assert_little_endian(){
 }
 
 void kernel_main(){
+    while(1);
     stdioinit();
     stdlib_init();
 //     testMemory();
@@ -169,13 +171,18 @@ void kernel_main(){
 
     physpage_init();
 
+
+//     uintptr_t myAddress = 100 * 4 * 1024 * 1024;
+//     volatile uint32_t *myPtr = (volatile uint32_t *)(myAddress);
+//     *myPtr = 0x69;
+
     PagingConfig32Bit config = {
         .use4MBytePages = 1,
     };
     PagingConfig32Bit newConfig = paging_init32Bit(config);
     assert(config.use4MBytePages == newConfig.use4MBytePages);
 
-    for(uint32_t i = 0; i < 1024; i++){
+    for(uint32_t i = 0; i < 10; i++){
         PagingTableEntry entry = {
             .physicalAddress = i * 4 * 1024 * 1024,
             .readWrite = 1,
@@ -183,6 +190,7 @@ void kernel_main(){
             .pageCahceDisable = 1,
             .Use4MBPageSize = 1
         };
+        
         physpage_markPagesAsUsed4MB(i, 1);
 
 
@@ -190,8 +198,54 @@ void kernel_main(){
         assert(status == PagingOk);
     }
 
+    
+
     paging_start();
-    printf("paging started\n");
+
+//     const uintptr_t ba = 0xFEBB0000;
+//     PagingTableEntry entry = {
+//         .physicalAddress = ba,
+//         .readWrite = 1,
+//         .pageWriteThrough = 1,
+//         .pageCahceDisable = 1,
+//         .Use4MBPageSize = 0
+//     };
+
+//     uintptr_t add = 0xFFFFE << 12;
+//     PagingStatus status = paging_addEntry(entry, add);
+//     assert(status == PagingOk);
+
+    //0xFFFFE << 12
+
+//     uintptr_t address = paging_mapPhysical(0xFEBB0000, 4096) + 4;
+//     printf("address here %X\n", address);
+
+//     volatile uint32_t *ptr = (volatile uint32_t *)(address);
+    uint32_t result = 0;
+    paging_readPhysical(0xFEBB0004, &result, 4);
+    printf("ptr %X\n", result);
+    while(1);
+
+//     PagingTableEntry entry = {
+//         .physicalAddress = myAddress,
+//         .readWrite = 1,
+//         .pageWriteThrough = 1,
+//         .pageCahceDisable = 1,
+//         .Use4MBPageSize = 0
+//     };
+
+//     uintptr_t myLogicalAddress = 20 * 4 * 1024 * 1024;
+//     PagingStatus status = paging_addEntry(entry, myLogicalAddress);
+//     assert(status == PagingOk);
+        
+
+// //     uintptr_t myLogicalAddress = paging_mapPhysical(myAddress, 10);
+//     volatile uint32_t *myLogicalPtr = (volatile uint32_t *)myLogicalAddress;
+
+
+//     printf("value %X\n", *myLogicalPtr);
+
+//     while(1);
 
 //     printf("APIC present: %b\n", apic_isPresent());
 

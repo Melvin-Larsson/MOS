@@ -136,7 +136,7 @@ TEST(group, addRightGet){
    assertIntNotEquals(map_validate(map), 0);
 
    for(int i = 0; i < 10; i++){
-      assertInt((int)intmap_get(map, i), i);
+      assertInt(intmap_get(map, i), i);
    }
 }
 
@@ -148,7 +148,7 @@ TEST(group, addLeftGet){
    assertIntNotEquals(map_validate(map), 0);
 
    for(int i = 0; i < 10; i++){
-      assertInt((int)intmap_get(map, i), i);
+      assertInt(intmap_get(map, i), i);
    }
 }
 
@@ -167,7 +167,7 @@ TEST(group, addLeftThenRightContains){
    assertIntNotEquals(map_validate(map), 0);
 
    for(int i = 0; i < 10; i++){
-      assertInt((int)intmap_get(map, i), i);
+      assertInt(intmap_get(map, i), i);
    }
 }
 

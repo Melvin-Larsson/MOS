@@ -1,10 +1,12 @@
 #include "kernel/paging.h"
 #include "kernel/physpage.h"
 #include "kernel/interrupt.h"
+#include "kernel/allocator.h"
 
 #include "stdint.h"
 #include "stdio.h"
 #include "stdlib.h"
+#include "intmap.h"
 
 #define ASSERTS_ENABLED
 #include "utils/assert.h"
@@ -54,20 +56,23 @@
 #define PAGE_ENTRY_PRESENT (1 << 0)
 #define PAGE_ENTRY_PAGE_SIZE (1 << 7)
 
-typedef struct {
-    uint32_t present : 1;
-    uint32_t readWrite : 1;
-    uint32_t userSupervisor : 1;
-    uint32_t pageWriteThrough : 1;
-    uint32_t pageCacheDisable : 1;
-    uint32_t accessed : 1;
-    uint32_t dirty : 1;
-    uint32_t pageSize : 1;
-    uint32_t global : 1;
-    uint32_t ignored1 : 3;
-    uint32_t pageAttributeTable : 1;
-    uint32_t  physicalAddressHigh : 9;
-    uint32_t physicalAddress22To32 : 10;
+typedef union {
+    uint32_t bits;
+    struct{
+        uint32_t present : 1;
+        uint32_t readWrite : 1;
+        uint32_t userSupervisor : 1;
+        uint32_t pageWriteThrough : 1;
+        uint32_t pageCacheDisable : 1;
+        uint32_t accessed : 1;
+        uint32_t dirty : 1;
+        uint32_t pageSize : 1;
+        uint32_t global : 1;
+        uint32_t ignored1 : 3;
+        uint32_t pageAttributeTable : 1;
+        uint32_t physicalAddressHigh : 9;
+        uint32_t physicalAddress22To32 : 10;
+    };
 } PageDirectoryEntry32Bit4MB;
 
 typedef union {
@@ -86,22 +91,22 @@ typedef union {
    uint32_t bits;
 } PageDirectoryEntryTableReference;
 
-typedef struct {
-    uint32_t present : 1;
-    uint32_t readWrite : 1;
-    uint32_t userSupervisor : 1;
-    uint32_t pageWriteThrough : 1;
-    uint32_t pageCacheDisable : 1;
-    uint32_t accessed : 1;
-    uint32_t dirty : 1;
-    uint32_t pageAttributeTable : 1;
-    uint32_t global : 1;
-    uint32_t ignored1 : 3;
-    uint32_t physicalAddress : 20;
+typedef union {
+    uint32_t bits;
+    struct{
+        uint32_t present : 1;
+        uint32_t readWrite : 1;
+        uint32_t userSupervisor : 1;
+        uint32_t pageWriteThrough : 1;
+        uint32_t pageCacheDisable : 1;
+        uint32_t accessed : 1;
+        uint32_t dirty : 1;
+        uint32_t pageAttributeTable : 1;
+        uint32_t global : 1;
+        uint32_t ignored1 : 3;
+        uint32_t physicalAddress : 20;
+    };
 } PageTableEntry4KB;
-
-
-
 
 static uint32_t readCr0();
 static uint32_t readCr1();
@@ -132,10 +137,15 @@ static void handlePageFault(ExceptionInfo info, void *data);
 static volatile uint32_t pageDirectory[1024] __attribute__((aligned(4096)));
 static PagingMode pagingMode; 
 
+static Map *physicalToLogicalPage;
+static Allocator *pageAllocator;
+
 PagingConfig32Bit paging_init32Bit(PagingConfig32Bit config){
    config = clearUnsuported32BitFeatures(config);
    init32BitPaging(config);
    interrupt_setHandler(handlePageFault, 0, 14);
+   physicalToLogicalPage = map_newBinaryMap(intmap_comparitor);
+   pageAllocator = allocator_init(0, 1048576);
    return config;
 }
 void paging_start(){
@@ -143,9 +153,157 @@ void paging_start(){
    cr0 |= (1 << CR0_PG_POS);
    writeCr0(cr0);
 }
+static int getLogicalPage32Bit(uintptr_t *resultPage, unsigned int pageCount4KB){
+    AllocatedArea area = allocator_getHinted(pageAllocator, pageCount4KB, AllocatorHintPreferHighAddresses);
+    if(area.size == pageCount4KB){
+        *resultPage = area.address;
+        return area.size;
+    }
+    return 0;
+}
 
-uintptr_t paging_getPhysicalAddress(uintptr_t linearAddress){
-    
+static int getLogicalPage(uintptr_t *resultPage, int pageCount4KB){
+    if(pagingMode == PagingMode32Bit){
+        return getLogicalPage32Bit(resultPage, pageCount4KB); 
+    }
+
+    assert(0);
+    return 0;
+}
+
+uintptr_t paging_getPhysicalAddress(uintptr_t logical){
+    assert(pagingMode == PagingMode32Bit);
+    uint32_t directoryIndex = logical >> 22;
+    uint32_t entry = pageDirectory[directoryIndex];
+    if(!(entry & PAGE_ENTRY_PRESENT)){
+        return 0;
+    }
+    if(entry & PAGE_ENTRY_PAGE_SIZE){
+        PageDirectoryEntry32Bit4MB entry4MB = {.bits = entry}; 
+        uint32_t offset = logical & 0x3FFFFF;
+        return entry4MB.physicalAddressHigh << 32 | entry4MB.physicalAddress22To32 << 22 | offset;
+    }
+
+    PageDirectoryEntryTableReference reference = { .bits = entry };
+    uint32_t *subTable = (uint32_t *) (reference.physicalAddress < 12);
+    uint32_t subTableIndex = (logical >> 12) & 0x3FF;
+    PageTableEntry4KB entry4KB = {.bits = subTable[subTableIndex]};
+    if(!entry4KB.present){
+        return 0;
+    }
+
+    uint32_t offset = logical & 0x3FF;
+    return entry4KB.physicalAddress << 12 | offset;
+}
+
+uintptr_t paging_mapPhysical(uintptr_t address, uint32_t size){
+    int physicalPage = address /  (4 * 1024);
+    int lastPhysicalPage = (address + size) / (4 * 1024);
+    int pageCount = lastPhysicalPage - physicalPage + ((address + size) % (4 * 1024) == 0 ? 0 : 1);
+
+    printf("first %d, last %d\n", physicalPage, lastPhysicalPage);
+    printf("page count %d\n", pageCount);
+
+    uintptr_t newPage;
+    if(!getLogicalPage(&newPage, pageCount)){
+        printf("Not enough memory. What to do? ...What to do?");
+        while(1);
+    }
+
+    uintptr_t offset = address & 0xFFF;
+    uintptr_t resultAddress = newPage << 12 | offset;
+    printf("new page %X\n", newPage);
+    printf("res %X\n", resultAddress);
+
+    physpage_markPagesAsUsed4KB(physicalPage, pageCount);
+
+    for(int i = 0; i < pageCount; i++){
+        PagingTableEntry entry = {
+            .physicalAddress = physicalPage << 12,
+            .readWrite = 1,
+            .pageWriteThrough = 1,
+            .pageCahceDisable = 1,
+        };
+        PagingStatus status = paging_addEntry(entry, newPage << 12);
+        assert(status == PagingOk);
+        
+        intmap_add(physicalToLogicalPage, physicalPage, newPage);
+
+        physicalPage++;
+        newPage++;
+    }
+
+    return resultAddress;
+}
+
+void paging_writePhysical(uintptr_t address, void *data, uint32_t size){
+    uint8_t *dataPtr = data;
+    int physicalPage = address / (4 * 1024);
+    int lastPhysicalPage = (address + size) / (4 * 1024);
+    int pageCount = lastPhysicalPage - physicalPage + ((address + size) % (4 * 1024) != 0 ? 1 : 0);
+    int offset = address & 0xFFF;
+
+    printf("write %d pages\n", pageCount);
+
+    for(int i = 0; i < pageCount; i++){
+        if(!intmap_contains(physicalToLogicalPage, physicalPage)){
+            printf("new ------\n");
+            paging_mapPhysical(physicalPage * 4 * 1024, 4 * 1024);
+        }
+        assert(intmap_contains(physicalToLogicalPage, physicalPage));
+        uintptr_t logicalPage = intmap_get(physicalToLogicalPage, physicalPage);
+        uintptr_t pageAddress = logicalPage << 12 | offset;
+        uint32_t sizeOnPage = 4 * 1024 - offset;
+        if(sizeOnPage > size){
+            sizeOnPage = size;
+        }
+        printf("address %X\n", pageAddress);
+        printf("size on page %d\n", sizeOnPage);
+        memcpy((void*)pageAddress, dataPtr, sizeOnPage);
+
+        dataPtr += sizeOnPage;
+        offset = 0;
+        size -= sizeOnPage;
+        physicalPage++;
+    }
+}
+
+void paging_readPhysical(uintptr_t address, void *result, uint32_t size){
+    uint8_t *resultPtr = result;
+    int physicalPage = address / (4 * 1024);
+    int lastPhysicalPage = (address + size) / (4 * 1024);
+    int pageCount = lastPhysicalPage - physicalPage + ((address + size) % (4 * 1024) != 0 ? 1 : 0);
+    int offset = address & 0xFFF;
+    for(int i = 0; i < pageCount; i++){
+        if(!intmap_contains(physicalToLogicalPage, physicalPage)){
+            printf("new) %X\n", physicalPage * 4 * 1024);
+            uintptr_t address = paging_mapPhysical(physicalPage * 4 * 1024, 4 * 1024);
+            volatile uint32_t *ptr = (volatile uint32_t *)(address + 4);
+            printf("use address %X (%X)\n", address, *ptr);
+        }
+        assert(intmap_contains(physicalToLogicalPage, physicalPage));
+        uintptr_t logicalPage = intmap_get(physicalToLogicalPage, physicalPage);
+        uintptr_t pageAddress = logicalPage << 12 | offset;
+        volatile uint32_t *ptr = (volatile uint32_t *)(pageAddress);
+        
+        printf("using %X (%X)\n", pageAddress, *ptr);
+        uint32_t sizeOnPage = 4 * 1024 - offset;
+        if(sizeOnPage > size){
+            sizeOnPage = size;
+        }
+        printf("size on page %d\n", sizeOnPage);
+        volatile uint8_t *brr = (volatile uint8_t *)(pageAddress);
+        volatile uint32_t *brr2 = (volatile uint32_t *)(pageAddress);
+        for(int i = 0; i < 4; i++){
+            printf(": %X / %X %X %X %X\n", brr2[i], brr[i + 3], brr[i + 2], brr[i + 1], brr[i]);
+        }
+        memcpy(resultPtr, (void*)pageAddress, sizeOnPage);
+
+        resultPtr += sizeOnPage;
+        offset = 0;
+        size -= sizeOnPage;
+        physicalPage++;
+    }
 }
 
 PagingStatus paging_addEntry(PagingTableEntry entry, uintptr_t address){
@@ -167,10 +325,10 @@ static PagingStatus add32BitPagingEntry(PagingTableEntry newEntry, uint32_t addr
     uint16_t index = address >> 22;  
     uint32_t entry = pageDirectory[index]; 
     if(!(entry & PAGE_ENTRY_PRESENT)){
-        if(address & 0x3FFFFF){
-           return PagingUnableToFindEntry;
-        }
         if(newEntry.Use4MBPageSize){
+            if((address & 0x3FFFFF) | (newEntry.physicalAddress & 0x3FFFFF)){
+                return PagingUnableToUse4MBEntry;
+            }
             uint32_t highAddress = 0;
             if(isPse36Suported()){
                 uint8_t M = getMaxPhyAddr();
@@ -194,8 +352,12 @@ static PagingStatus add32BitPagingEntry(PagingTableEntry newEntry, uint32_t addr
                .physicalAddressHigh = highAddress,
             };
             pageDirectory[index] = *((uint32_t *)&newEntry4MBreference);
+            allocator_markAsReserved(pageAllocator, address / (4 * 1024), 1024);
             return PagingOk;
        }else{
+           printf("new dir\n");
+           uintptr_t tablePage = physpage_getPage4KB();
+           memset((void*)(tablePage << 12), 0, 4096);
            PageDirectoryEntryTableReference newEntryTablereference = {
                .present = 1,
                .readWrite = (newEntry.readWrite != 0),
@@ -204,25 +366,27 @@ static PagingStatus add32BitPagingEntry(PagingTableEntry newEntry, uint32_t addr
                .pageCacheDisable = (newEntry.pageCahceDisable != 0),
                .accessed = 0,
                .pageSize = 0,
-               .physicalAddress = (newEntry.physicalAddress >> 12)
+               .physicalAddress = tablePage,
             };
-            pageDirectory[index] = *((uint32_t *)&newEntryTablereference);
-            return PagingOk;
+            pageDirectory[index] = newEntryTablereference.bits;
+            entry = pageDirectory[index];
          }
     }
 
     if(newEntry.Use4MBPageSize){
         return PagingUnableToUse4MBEntry;
     }
-   
+    
     PageDirectoryEntryTableReference reference = { .bits = entry };
-    uint32_t *subTable = (uint32_t *) reference.physicalAddress;
+    uint32_t *subTable = (uint32_t *) (reference.physicalAddress << 12);
     uint32_t subTableIndex = (address >> 12) & 0x3FF;
     uint32_t subTableEntry = subTable[subTableIndex];
  
     if(subTableEntry & PAGE_ENTRY_PRESENT){
        return PagingEntryAlreadyPresent;
     }
+
+    printf("new 4KB page\n");
  
     PageTableEntry4KB newEntry4KBPage = {
        .present = 1,
@@ -236,7 +400,8 @@ static PagingStatus add32BitPagingEntry(PagingTableEntry newEntry, uint32_t addr
        .global = newEntry.isGlobal,
        .physicalAddress = (newEntry.physicalAddress >> 12)
     };
-    subTable[subTableIndex] = *((uint32_t *)&newEntry4KBPage);
+    subTable[subTableIndex] = newEntry4KBPage.bits;
+    allocator_markAsReserved(pageAllocator, address, 1);
     return PagingOk;
 }
  

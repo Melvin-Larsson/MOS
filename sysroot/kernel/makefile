@@ -13,6 +13,7 @@ OBJS= ${BUILD}/boot.o \
 	   ${BUILD}/apic.o \
 	   ${BUILD}/pci.o \
 	   ${BUILD}/xhcd.o \
+	   ${BUILD}/xhcd-hardware.o \
 	   ${BUILD}/xhcd-ring.o \
 	   ${BUILD}/xhcd-event-ring.o \
 	   ${BUILD}/keyboard.o \
@@ -61,6 +62,9 @@ ${BUILD}/xhcd-ring.o : xhcd-ring.c include/kernel/xhcd-ring.h
 
 ${BUILD}/xhcd-event-ring.o : xhcd-event-ring.c include/kernel/xhcd-event-ring.h
 	${COMPILER} ${CFLAGS} -c xhcd-event-ring.c -o ${BUILD}/xhcd-event-ring.o
+
+${BUILD}/xhcd-hardware.o : xhcd-hardware.c include/kernel/xhcd-hardware.h
+	${COMPILER} ${CFLAGS} -c xhcd-hardware.c -o ${BUILD}/xhcd-hardware.o
 
 ${BUILD}/usb.o : usb.c include/kernel/usb.h
 	${COMPILER} ${CFLAGS} -c usb.c -o ${BUILD}/usb.o

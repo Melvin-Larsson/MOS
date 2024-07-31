@@ -1,3 +1,4 @@
+#include "kernel/paging.h"
 #include "kernel/xhcd-ring.h"
 #include "stdio.h"
 #include "stdlib.h"
@@ -49,9 +50,9 @@ XhcdRing xhcd_newRing(int trbCount){
    ring.dequeue = (TRB *)ringAddress;
    return ring;
 }
-int xhcd_attachCommandRing(XhciOperation *operation, XhcdRing *ring){
-   uintptr_t address = (uintptr_t)ring->dequeue;
-   operation->commandRingControll = address | ring->pcs;
+int xhcd_attachCommandRing(XhcHardware xhcHardware, XhcdRing *ring){
+   uintptr_t address = paging_getPhysicalAddress((uintptr_t)ring->dequeue);
+   xhcd_writeRegister(xhcHardware, CRCR, address | ring->pcs);
    return 1;
 }
 void xhcd_putTD(TD td, XhcdRing *ring){

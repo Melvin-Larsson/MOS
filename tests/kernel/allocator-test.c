@@ -56,6 +56,12 @@ TEST(size1, get200_gets200){
    AllocatedArea area = allocator_get(allocator, 200);
    assertInt(area.size, 200);
 }
+TEST(size1, get100ThenGet100_getsDifferent100s){
+   AllocatedArea area1 = allocator_get(allocator, 100);
+   AllocatedArea area2 = allocator_get(allocator, 100);
+
+   assertIntNotEquals(area1.address, area2.address);
+}
 
 TEST(size1, get100ds_doesNotOverlap){
    AllocatedArea areas[size/100];
@@ -220,6 +226,52 @@ TEST(size1, reserveMultiplePartialGetUnreservedPartOfPartial_areaAvailiable){
    }
    assertInt(area1.address, 0);
    assertInt(area2.address, 225);
+}
+
+TEST(size1, get100HintedHight_returnsHighest100){
+   AllocatedArea area = allocator_getHinted(allocator, 100, AllocatorHintPreferHighAddresses);
+   
+   assertInt(area.size, 100);
+   assertInt(area.address, size - 100);
+}
+
+TEST(size1, get200HintedHight_returnsHighest200){
+   AllocatedArea area = allocator_getHinted(allocator, 200, AllocatorHintPreferHighAddresses);
+   
+   assertInt(area.size, 200);
+   assertInt(area.address, size - 200);
+}
+TEST(size2, get2HintedHight_returnsHighest2){
+   AllocatedArea area = allocator_getHinted(allocator, 2, AllocatorHintPreferHighAddresses);
+   
+   assertInt(area.size, 2);
+   assertInt(area.address, size - 2);
+}
+TEST(size1, get100TwiceHintedHighes_returns2Highest){
+   AllocatedArea area1 = allocator_getHinted(allocator, 100, AllocatorHintPreferHighAddresses);
+   AllocatedArea area2 = allocator_getHinted(allocator, 100, AllocatorHintPreferHighAddresses);
+   
+   assertInt(area1.size, 100);
+   assertInt(area1.address, size - 100);
+   assertInt(area2.size, 100);
+   assertInt(area2.address, size - 200);
+}
+TEST(size1, get100HintedLastWithMiddleReserved_returnsHighes){
+   allocator_markAsReserved(allocator, size/2, 100);
+
+   AllocatedArea area = allocator_getHinted(allocator, 100, AllocatorHintPreferHighAddresses);
+
+   assertInt(area.size, 100);
+   assertInt(area.address, size - 100);
+}
+
+TEST(size1, get1000HintedLast_WithLast1000NonContinuous_returnsAreaBefore){
+   allocator_markAsReserved(allocator, size - 1000, 100);
+
+   AllocatedArea area = allocator_getHinted(allocator, 1000, AllocatorHintPreferHighAddresses);
+
+   assertInt(area.size, 1000);
+   assertInt(area.address, size - 2000);
 }
 
 

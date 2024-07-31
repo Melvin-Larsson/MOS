@@ -78,4 +78,90 @@ FLADJ? (In case BIOS did not write to it for me)
 Xhci should config pci itself
 
 
+___PHYSICAL ADDRESS ALLOCATION_____
+How do i aquire the physical address for use for MMIO?
+Considerations:
+    - Must be able to read/write certain physical addresses
+    - Must be able to allocate physical addresses, that won't be swapped in to secondary memory
 
+Approach 1:
+    uintptr_t paging_linearToPhysicalAddress(uintptr_t linearAddress);
+    void dissallowSwaping(uintptr_t linearAddress);
+    void allowSwaping(uintprt_t linearAddress);
+
+    void writePhysical(uintprt_t address, uint8_t *buffer, uint32_t bufferSize);
+    void readPhysical(uintprt_t address, uint8_t *buffer, uint32_t bufferSize);
+
+pros:
+    Would work nicely with the current malloc implementation. Just do malloc, and dissalow swapping for the result.
+    Convert to physical memmory when handing to hardware.
+
+cons:
+    I need to use both allowSwaping and free when deallocating the memory.
+
+
+
+Approach 2:
+    uintprt_t getPhysicalPage()
+    void freePhysicalPage()
+
+    void writePhysical(uintprt_t address, uint8_t *buffer, uint32_t bufferSize);
+    void readPhysical(uintprt_t address, uint8_t *buffer, uint32_t bufferSize);
+
+pros:
+    Don't have to care how the physical memory is allocated
+
+cons:
+    !!Would need som kind of malloc that only works on that page somehow?
+
+
+Aproach 3:
+    Ask for direct mapped memory.
+
+pros:
+    easy to use, no need for writePhysical, readPhysical or dissalowSpawing and allowSwaping
+
+cons: 
+    !!Might not be able to find any such memory
+
+
+___ writePhysical(uintprt address, void *data, size) ___
+                        vs
+     ___getLogical(uintptr_t address) ___
+
+getLogical would be simpler to use, could mostly use it as if it was direct mapped:
+e.g. read physical address, convert to logical and then use logical as if it were
+physical.
+Problem: Must keep track of which addresses are physical and which are logical.
+For example:
+struct SoftwareStruct{
+    uint32_t data;
+    struct HardWareStruct *ptr;
+}
+struct HardwareStruct{
+    uint32_t data;
+    uintptr_t pointerToSomeOtherData;
+}
+
+I would initialize my software struct like this:
+
+struct SoftwareStruct ss = {
+    .data = myData,
+    .ptr = physicalToLogical(addressToHardwareStruct);
+}
+
+And when I want to access the data int the hardware struct i do
+
+uint32_t value = ss.ptr->data;
+
+However, when i want to access the data pointed to by the hardware struct,
+i would have to do:
+
+uintprt_t physical = ss.ptr->pointerToSomeOtherData;
+uint32_t *logical = (uint32_t *)physicalToLogical(physical);
+uint32_t value = *logical;
+
+I think this is too confusing, and will go with the writePhysical approach,
+and always use it when wanting to write to a physical address. Also, that way
+I can abstract away the requirement that logical pages mapping to continuous physical pages
+are also continuous;
