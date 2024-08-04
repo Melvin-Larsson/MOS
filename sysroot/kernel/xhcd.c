@@ -178,16 +178,12 @@ XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
 
    waitForControllerReady(xhcd);
    resetXhc(xhcd);
-   printf("here\n");
-   while(1);
    waitForControllerReady(xhcd);
 
 
    uint32_t devices = getMaxEnabledDeviceSlots(xhcd);
    setMaxEnabledDeviceSlots(xhcd, devices);
    xhcd->handlers = calloc(devices * 32 * sizeof(XhcInterruptHandler));
-
-
 
    initDCAddressArray(xhcd);
    initScratchPad(xhcd);
@@ -214,6 +210,7 @@ int xhcd_getDevices(Xhci *xhci, XhcDevice *resultBuffer, int bufferSize){
    Xhcd *xhcd = xhci->data;
    uint32_t *portIndexes = malloc(bufferSize * sizeof(uint32_t));
    int count = getNewlyAttachedDevices(xhcd, portIndexes, bufferSize);
+   printf("count %d\n", count);
    for(int i = 0; i < count; i++){
       XhcStatus status = initDevice(xhcd, portIndexes[i], &resultBuffer[i]);
       if(status != XhcOk){
@@ -242,10 +239,40 @@ static int getNewlyAttachedDevices(Xhcd *xhcd, uint32_t *result, int bufferSize)
 
 //FIXME: does not work with hardware
 static void readPortInfo(Xhcd *xhcd){
-//    uint8_t maxPorts = xhci->enabledPorts;
-//    xhci->portInfo = calloc((maxPorts + 1) * sizeof(UsbPortInfo));
-//    uint32_t xECP = (xhci->capabilities->capabilityParams1.extendedCapabilitiesPointer << 2);
-//    uintptr_t address = (uintptr_t)xhci->capabilities;
+   uint8_t maxPorts = xhcd->enabledPorts;
+   xhcd->portInfo = calloc((maxPorts + 1) * sizeof(UsbPortInfo));
+
+   XhcExtendedCapabilityEnumerator enumerator = xhcd_newExtendedCapabilityEnumerator(xhcd->hardware);
+
+   while(xhcd_hasNextExtendedCapability(&enumerator)){
+      XhciExtendedCapabilities cap;
+      xhcd_readExtendedCapability(&enumerator, (void*)&cap, sizeof(cap));
+
+      if(cap.capabilityId == CAPABILITY_ID_PROTOCOL){
+         XhciXCapSupportedProtocol sp;
+         xhcd_readExtendedCapability(&enumerator, (void*)&sp, sizeof(sp));
+
+         if(sp.compatiblePortOffset + sp.compatiblePortCount - 1 > maxPorts){
+            printf("too many ports %d, expected %d\n",
+                  sp.compatiblePortOffset + sp.compatiblePortCount,
+                  maxPorts + 1);
+         }
+         else if(sp.revisionMajor != 0x3 && sp.revisionMajor != 0x2){
+            printf("Unknown protocol %X\n", sp.revisionMajor);
+         }
+         else{
+            for(int i = sp.compatiblePortOffset;
+               i < sp.compatiblePortOffset + sp.compatiblePortCount;
+               i++){
+               xhcd->portInfo[i].usbType = sp.revisionMajor;
+               xhcd->portInfo[i].protocolSlotType = sp.protocolSlotType;
+            }
+         }
+      }
+      xhcd_advanceExtendedCapabilityEnumerator(&enumerator);
+   }
+//    uint32_t xECP = (xhcd_readCapability(xhcd->hardware, HCCPARAMS1) >> 16) << 2;
+//    uintptr_t address = (uintptr_t)xhcd->hardware.capabilityBase;
 
 //    while(xECP){
 //       address += xECP;
@@ -658,12 +685,6 @@ static int checkoutPort(Xhcd *xhcd, int portIndex){
    return 0;
 }
 static void resetXhc(Xhcd *xhcd){
-   xhcd_writeRegister(xhcd->hardware, USBCommand, (1<<2));
-   uint32_t result = xhcd_readRegister(xhcd->hardware, USBCommand);
-   printf("address--> %X\n", xhcd->hardware.operationalBase);
-   printf("result %X\n", result);
-
-   while(1);
    xhcd_andRegister(xhcd->hardware, USBCommand, ~1);
    while(!(xhcd_readRegister(xhcd->hardware, USBStatus) & 1));
    xhcd_orRegister(xhcd->hardware, USBCommand, 1 << 1);
@@ -676,8 +697,7 @@ static void initCommandRing(Xhcd *xhcd){
 //FIXME: interrupter register
 static void initEventRing(Xhcd *xhcd){
    xhcd->eventRing = xhcd_newEventRing(DEFAULT_EVENT_SEGEMNT_TRB_COUNT);
-//    uint32_t *ptr = xhci->interrupterRegisters;
-//    *ptr |= 2;
+   xhcd_orInterrupter(xhcd->hardware, 0, IMAN, 2);
    xhcd_attachEventRing(xhcd->hardware, &xhcd->eventRing, 0);
 }
 static int enablePort(Xhcd *xhcd, int portIndex){

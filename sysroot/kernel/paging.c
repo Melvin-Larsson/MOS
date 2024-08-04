@@ -120,6 +120,12 @@ static void writeCr2(uint32_t cr2);
 static void writeCr3(uint32_t cr3);
 static void writeCr4(uint32_t cr4);
 
+static void memcpyOfSize(void *dst, void *src, int length, AccessSize readSize);
+static void memcpyOfSize8(void *dst, void *src, int length);
+static void memcpyOfSize16(void *dst, void *src, int length);
+static void memcpyOfSize32(void *dst, void *src, int length);
+static void memcpyOfSize64(void *dst, void *src, int length);
+
 static uint8_t getMaxPhyAddr();
 static PagingMode getPagingMode();
 static int isPse36Suported();
@@ -235,19 +241,19 @@ uintptr_t paging_mapPhysical(uintptr_t address, uint32_t size){
 
     return resultAddress;
 }
-
 void paging_writePhysical(uintptr_t address, void *data, uint32_t size){
+    paging_writePhysicalOfSize(address, data, size, AccessSize8);
+}
+
+void paging_writePhysicalOfSize(uintptr_t address, void *data, uint32_t size, AccessSize accessSize){
     uint8_t *dataPtr = data;
     int physicalPage = address / (4 * 1024);
     int lastPhysicalPage = (address + size) / (4 * 1024);
     int pageCount = lastPhysicalPage - physicalPage + ((address + size) % (4 * 1024) != 0 ? 1 : 0);
     int offset = address & 0xFFF;
 
-    printf("write %d pages\n", pageCount);
-
     for(int i = 0; i < pageCount; i++){
         if(!intmap_contains(physicalToLogicalPage, physicalPage)){
-            printf("new ------\n");
             paging_mapPhysical(physicalPage * 4 * 1024, 4 * 1024);
         }
         assert(intmap_contains(physicalToLogicalPage, physicalPage));
@@ -257,10 +263,8 @@ void paging_writePhysical(uintptr_t address, void *data, uint32_t size){
         if(sizeOnPage > size){
             sizeOnPage = size;
         }
-        printf("address %X\n", pageAddress);
-        printf("size on page %d\n", sizeOnPage);
-        memcpy((void*)pageAddress, dataPtr, sizeOnPage);
-
+        memcpyOfSize((void*)pageAddress, dataPtr, sizeOnPage, accessSize);
+        
         dataPtr += sizeOnPage;
         offset = 0;
         size -= sizeOnPage;
@@ -268,7 +272,11 @@ void paging_writePhysical(uintptr_t address, void *data, uint32_t size){
     }
 }
 
+
 void paging_readPhysical(uintptr_t address, void *result, uint32_t size){
+    return paging_readPhysicalOfSize(address, result, size, AccessSize8);
+}
+void paging_readPhysicalOfSize(uintptr_t address, void *result, uint32_t size, AccessSize accessSize){
     uint8_t *resultPtr = result;
     int physicalPage = address / (4 * 1024);
     int lastPhysicalPage = (address + size) / (4 * 1024);
@@ -276,28 +284,18 @@ void paging_readPhysical(uintptr_t address, void *result, uint32_t size){
     int offset = address & 0xFFF;
     for(int i = 0; i < pageCount; i++){
         if(!intmap_contains(physicalToLogicalPage, physicalPage)){
-            printf("new) %X\n", physicalPage * 4 * 1024);
-            uintptr_t address = paging_mapPhysical(physicalPage * 4 * 1024, 4 * 1024);
-            volatile uint32_t *ptr = (volatile uint32_t *)(address + 4);
-            printf("use address %X (%X)\n", address, *ptr);
+            paging_mapPhysical(physicalPage * 4 * 1024, 4 * 1024);
         }
         assert(intmap_contains(physicalToLogicalPage, physicalPage));
         uintptr_t logicalPage = intmap_get(physicalToLogicalPage, physicalPage);
         uintptr_t pageAddress = logicalPage << 12 | offset;
-        volatile uint32_t *ptr = (volatile uint32_t *)(pageAddress);
         
-        printf("using %X (%X)\n", pageAddress, *ptr);
         uint32_t sizeOnPage = 4 * 1024 - offset;
         if(sizeOnPage > size){
             sizeOnPage = size;
         }
-        printf("size on page %d\n", sizeOnPage);
-        volatile uint8_t *brr = (volatile uint8_t *)(pageAddress);
-        volatile uint32_t *brr2 = (volatile uint32_t *)(pageAddress);
-        for(int i = 0; i < 4; i++){
-            printf(": %X / %X %X %X %X\n", brr2[i], brr[i + 3], brr[i + 2], brr[i + 1], brr[i]);
-        }
-        memcpy(resultPtr, (void*)pageAddress, sizeOnPage);
+
+        memcpyOfSize(resultPtr, (void*)pageAddress, sizeOnPage, accessSize);
 
         resultPtr += sizeOnPage;
         offset = 0;
@@ -485,6 +483,64 @@ static void handlePageFault(ExceptionInfo info, void *data){
     }
     printf("Do not know how to handle paging status %d\n", status);
     while(1);
+}
+
+static void memcpyOfSize(void *dst, void *src, int length, AccessSize accessSize){
+    switch(accessSize){
+        case AccessSize8:
+            memcpyOfSize8(dst, src, length);
+            break;
+        case AccessSize16:
+            memcpyOfSize16(dst, src, length);
+            break;
+        case AccessSize32:
+            memcpyOfSize32(dst, src, length);
+            break;
+        case AccessSize64:
+            memcpyOfSize64(dst, src, length);
+            break;
+        default:
+            assert(0);
+            break;
+    }
+}
+static void memcpyOfSize8(void *dst, void *src, int length){
+    uint8_t *src8 = (uint8_t *)src;
+    uint8_t *dst8 = (uint8_t *)dst;
+
+    while(length-- > 0){
+        *dst8++ = *src8++;
+    }
+}
+static void memcpyOfSize16(void *dst, void *src, int length){
+    assert(length % 2 == 0);
+    uint16_t *src16 = (uint16_t *)src;
+    uint16_t *dst16 = (uint16_t *)dst;
+
+    while(length > 0){
+        *dst16++ = *src16++;
+        length -= 2;
+    }
+}
+static void memcpyOfSize32(void *dst, void *src, int length){
+    assert(length % 4 == 0);
+    uint32_t *src32 = (uint32_t *)src;
+    uint32_t *dst32 = (uint32_t *)dst;
+
+    while(length > 0){
+        *dst32++ = *src32++;
+        length -= 4;
+    }
+}
+static void memcpyOfSize64(void *dst, void *src, int length){
+    assert(length % 8 == 0);
+    uint64_t *src64 = (uint64_t *)src;
+    uint64_t *dst64 = (uint64_t *)dst;
+
+    while(length > 0){
+        *dst64++ = *src64++;
+        length -= 8;
+    }
 }
 
 static int isPse36Suported(){

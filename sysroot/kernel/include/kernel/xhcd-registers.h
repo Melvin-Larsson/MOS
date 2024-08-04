@@ -71,11 +71,13 @@ typedef volatile struct{
    uint32_t portHardwareLPMControll;
 }__attribute__((packed)) XhciPortRegisters;
 
-typedef volatile struct{
-   uint8_t capabilityId;
-   uint8_t nextExtendedCapabilityPointer;
-   uint16_t r0High;
-   uint32_t body[1];
+typedef volatile union{
+   struct{
+      uint8_t capabilityId;
+      uint8_t nextExtendedCapabilityPointer;
+      uint16_t r0High;
+   };
+   uint32_t bits;
 }__attribute__((packed))XhciExtendedCapabilities;
 
 typedef volatile struct{

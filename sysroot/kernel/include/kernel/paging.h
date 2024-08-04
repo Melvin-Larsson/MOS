@@ -8,7 +8,7 @@ typedef enum{
    PagingUnableToFindEntry,
    PagingUnsuportedOperation,
    PagingEntryAlreadyPresent,
-   PagingUnableToUse4MBEntry,
+   PagingUnableToUse4MBEntry
 }PagingStatus;
 
 typedef enum{
@@ -18,6 +18,12 @@ typedef enum{
    PagingMode5Level
 }PagingMode;
 
+typedef enum{
+   AccessSize8,
+   AccessSize16,
+   AccessSize32,
+   AccessSize64
+}AccessSize;
 
 typedef struct{
    int writeProtectFromSupervisor; //CR0.WP Disallow supervisor to write to read only addresses.
@@ -39,13 +45,19 @@ typedef struct{
    int pageAttributeTable;
 }PagingTableEntry;
 
+
 PagingConfig32Bit paging_init32Bit(PagingConfig32Bit config);
 void paging_start();
 PagingStatus paging_addEntry(PagingTableEntry entry, uintptr_t address);
 
 uintptr_t paging_mapPhysical(uintptr_t address, uint32_t size);
+
 void paging_writePhysical(uintptr_t address, void *data, uint32_t size);
+void paging_writePhysicalOfSize(uintptr_t address, void *data, uint32_t size, AccessSize accessSize);
+
 void paging_readPhysical(uintptr_t address, void *result, uint32_t size);
+void paging_readPhysicalOfSize(uintptr_t address, void *result, uint32_t size, AccessSize accessSize);
+
 uintptr_t paging_getPhysicalAddress(uintptr_t logical);
 
 #endif

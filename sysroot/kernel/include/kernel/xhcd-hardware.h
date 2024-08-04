@@ -48,12 +48,16 @@ typedef struct{
    uintptr_t runtimeBase;
 }XhcHardware;
 
+typedef struct{
+   void *data;
+}XhcExtendedCapabilityEnumerator;
+
 XhcHardware xhcd_initRegisters(PciGeneralDeviceHeader pciHeader);
-void xhcd_writeRegister(XhcHardware xhcHardware, XhcOperationalRegister xhcRegister, uint32_t data);
+void xhcd_writeRegister(XhcHardware xhcHardware, XhcOperationalRegister xhcRegister, uint64_t data);
 void xhcd_orRegister(XhcHardware xhcHardware, XhcOperationalRegister xhcdRegister, uint32_t orValue);
 void xhcd_andRegister(XhcHardware xhcHardware, XhcOperationalRegister xhcdRegister, uint32_t andValue);
 
-uint32_t xhcd_readRegister(XhcHardware xhcHardware, XhcOperationalRegister xhcRegister);
+uint64_t xhcd_readRegister(XhcHardware xhcHardware, XhcOperationalRegister xhcRegister);
 void xhcd_writePortRegister(XhcHardware xhcHardware, uint32_t port, XhcPortRegister XhcPortRegister, uint32_t data);
 uint32_t xhcd_readPortRegister(XhcHardware xhcHardware, uint32_t port, XhcPortRegister portRegister);
 
@@ -62,8 +66,15 @@ void xhcd_writeCapability(XhcHardware xhcHardware, XhcCapabilityRegister capabil
 
 void xhcd_writeInterrupter(XhcHardware xhcHardware, uint16_t index, XhcInterruptorRegister interruptorRegister, uint64_t value);
 uint64_t xhcd_readInterrupter(XhcHardware xhcHardware, uint8_t index, XhcInterruptorRegister interruptorRegister);
+void xhcd_orInterrupter(XhcHardware xhc, uint16_t index, XhcInterruptorRegister interruptorRegister, uint64_t orValue);
+void xhcd_andInterrupter(XhcHardware xhc, uint16_t index, XhcInterruptorRegister interruptorRegister, uint64_t andValue);
 
 void xhcd_writeDoorbell(XhcHardware xhcHardware, uint8_t index, uint32_t value);
 uint32_t xhcd_readDoorbell(XhcHardware xhcHardware, uint8_t index);
+
+XhcExtendedCapabilityEnumerator xhcd_newExtendedCapabilityEnumerator(XhcHardware xhc);
+void xhcd_advanceExtendedCapabilityEnumerator(XhcExtendedCapabilityEnumerator *enumerator);
+void xhcd_readExtendedCapability(XhcExtendedCapabilityEnumerator *enumerator, void *result, int size);
+int xhcd_hasNextExtendedCapability(XhcExtendedCapabilityEnumerator *enumerator);
 
 #endif

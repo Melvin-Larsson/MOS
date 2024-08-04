@@ -79,7 +79,7 @@ static int incrementDequeue(XhcHardware xhc, XhcEventRing *eventRing){
 }
 static int advanceERDP(XhcHardware xhc, XhcEventRing *eventRing){
    uint32_t dequeERSTSegmentIndex = getERSTIndex(xhc, eventRing) & 0b111;
-   uintptr_t dequeAddr = (uintptr_t)eventRing->dequeue;
+   uintptr_t dequeAddr = paging_getPhysicalAddress((uintptr_t)eventRing->dequeue);
    xhcd_writeInterrupter(xhc, eventRing->interrupterIndex, ERDP,
       dequeAddr |
       dequeERSTSegmentIndex |

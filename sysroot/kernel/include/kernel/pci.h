@@ -126,8 +126,8 @@ typedef struct{
 }PciCapability;
 
 typedef struct{
-   volatile uint64_t *messageTable;
-   volatile uint64_t *pendingTable;
+   uintptr_t messageTable;
+   uintptr_t pendingTable;
    uint16_t tableSize;
    PciCapability capability;
 }MsiXDescriptor;

@@ -16,7 +16,7 @@
 #define HEADER_TYPE_PCI_TO_PCI_BRIDGE 0x01
 #define HEADER_TYPE_CARD_BUS_BRIDGE 0x02
 
-#define APIC_EOI ((volatile uint32_t *)0xFEE000B0)
+#define APIC_EOI_ADDRESS 0xFEE000B0
 
 void pci_configWriteAddress(uint32_t address){
    __asm__ volatile("out %%eax, %%dx"
@@ -330,8 +330,8 @@ int pci_initMsiX(const PciDescriptor *pci, MsiXDescriptor *result){
    uintptr_t pendingTablePhysical = getPendingTableBaseAddress(pci, msiCapability);
 
    *result = (MsiXDescriptor){
-      .messageTable = (uint64_t*)paging_mapPhysical(messageTablePhysical, (msiCapability.tableSize + 1) * 16),
-      .pendingTable = (uint64_t*)paging_mapPhysical(pendingTablePhysical, (msiCapability.tableSize + 1) * 8),
+      .messageTable = messageTablePhysical,
+      .pendingTable = pendingTablePhysical, 
       .tableSize = msiCapability.tableSize,
       .capability = capability
    };
@@ -367,19 +367,24 @@ void handler(ExceptionInfo _, void *data){
 
    interruptData->handler(interruptData->data);
 
-   *APIC_EOI = 1;
+   uint32_t eoiData  = 1;
+   paging_writePhysicalOfSize(APIC_EOI_ADDRESS, &eoiData, 4, AccessSize32);
 }
 //FIXME: Should not be allowed to specify interruptVectorNr
 int pci_setMsiXVector(const MsiXDescriptor msix, int msiVectorNr, int interruptVectorNr, MsiXVectorData vectorData){
-   msix.messageTable[msiVectorNr * 2] = formatMsgAddr(
+   uintptr_t address = msix.messageTable + msiVectorNr * 2 * 8;
+   uint64_t msgAddr = formatMsgAddr(
          vectorData.targetProcessor,
          vectorData.redirectionHint,
          vectorData.destinationMode);
-   msix.messageTable[msiVectorNr * 2 + 1] = formatMsgData(
-         interruptVectorNr,
-         vectorData.deliveryMode,
-         vectorData.assert,
-         vectorData.levelSensitive);
+   uint64_t msgData = formatMsgData(
+      interruptVectorNr,
+      vectorData.deliveryMode,
+      vectorData.assert,
+      vectorData.levelSensitive);
+
+   paging_writePhysicalOfSize(address, &msgAddr, sizeof(msgAddr), AccessSize64);
+   paging_writePhysicalOfSize(address + 8, &msgData, sizeof(msgAddr), AccessSize64);
 
    //FIXME:!!Can not just create and forget here
    InterruptData *data = malloc(sizeof(InterruptData));
@@ -392,10 +397,6 @@ int pci_setMsiXVector(const MsiXDescriptor msix, int msiVectorNr, int interruptV
 
    return 1;
 }
-
-
-
-
 
 void pci_getClassName(PciHeader* pci, char* output){
    char *names[] = {"Unclassified", "Mass Storage Controller",

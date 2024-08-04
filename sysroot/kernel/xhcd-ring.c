@@ -41,7 +41,7 @@ static void initSegment(Segment segment, Segment nextSegment, int isLast);
 
 XhcdRing xhcd_newRing(int trbCount){
    void* ringAddress = callocco(trbCount * sizeof(TRB), 64, 64000);
-   printf("ring Address %d\n", ringAddress);
+   printf("ring Address %X\n", ringAddress);
    Segment segment = {(uintptr_t)ringAddress, trbCount};
    initSegment(segment, segment, 1); //FIXME: isLast = 1
 
@@ -52,6 +52,7 @@ XhcdRing xhcd_newRing(int trbCount){
 }
 int xhcd_attachCommandRing(XhcHardware xhcHardware, XhcdRing *ring){
    uintptr_t address = paging_getPhysicalAddress((uintptr_t)ring->dequeue);
+   printf("physical address %X\n", address);
    xhcd_writeRegister(xhcHardware, CRCR, address | ring->pcs);
    return 1;
 }
