@@ -170,11 +170,12 @@ void xhcd_advanceExtendedCapabilityEnumerator(XhcExtendedCapabilityEnumerator *e
    uint32_t extendedCapability;
    paging_readPhysicalOfSize((uintptr_t)enumerator->data, &extendedCapability, 4, AccessSize32);
 
-   uint32_t offset = (extendedCapability >> 16) << 2;
+   uint32_t offset = ((extendedCapability >> 8) & 0xFF) << 2;
    if(offset == 0){
       enumerator->data = 0;
    }else{
-      enumerator->data += offset;
+      uintptr_t lastAddress = (uintptr_t)enumerator->data;
+      enumerator->data += lastAddress + offset;
    }
 }
 void xhcd_readExtendedCapability(XhcExtendedCapabilityEnumerator *enumerator, void *result, int size){

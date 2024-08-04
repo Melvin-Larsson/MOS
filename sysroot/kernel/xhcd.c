@@ -180,7 +180,6 @@ XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
    resetXhc(xhcd);
    waitForControllerReady(xhcd);
 
-
    uint32_t devices = getMaxEnabledDeviceSlots(xhcd);
    setMaxEnabledDeviceSlots(xhcd, devices);
    xhcd->handlers = calloc(devices * 32 * sizeof(XhcInterruptHandler));
@@ -195,7 +194,6 @@ XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
    xhcd_orRegister(xhcd->hardware, USBCommand, (1 << 2));
    turnOnController(xhcd);
    
-
    xhcd_orRegister(xhcd->hardware, USBStatus, 1 << 3);
    while(xhcd_readRegister(xhcd->hardware, USBStatus) & (1<<3));
 
@@ -268,6 +266,7 @@ static void readPortInfo(Xhcd *xhcd){
                xhcd->portInfo[i].protocolSlotType = sp.protocolSlotType;
             }
          }
+         return;
       }
       xhcd_advanceExtendedCapabilityEnumerator(&enumerator);
    }
