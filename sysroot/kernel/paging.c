@@ -422,6 +422,7 @@ static PagingConfig32Bit init32BitPaging(PagingConfig32Bit config){
    writeCr4(cr4);
 
    uint32_t cr3 = readCr3();
+   cr3 &= 0xF;
    cr3 |= (uint32_t)pageDirectory;
    writeCr3(cr3);
 
