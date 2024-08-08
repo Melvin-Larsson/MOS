@@ -30,7 +30,7 @@ typedef struct{
    uint8_t slotId;
    uint8_t portIndex;
    uint8_t portSpeed;
-   Xhci xhci;
+   void *data;
 }XhcDevice;
 
 typedef struct{

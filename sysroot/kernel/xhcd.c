@@ -1,15 +1,12 @@
 #include "kernel/xhcd.h"
-#include "kernel/xhci.h"
 #include "kernel/xhcd-ring.h"
 #include "kernel/xhcd-event-ring.h"
-#include "kernel/xhcd-hardware.h"
 #include "kernel/usb-descriptors.h"
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
 #include "kernel/interrupt.h"
 #include "kernel/paging.h"
-
 
 //FIXME: remove
 #include "kernel/pci.h"
@@ -59,7 +56,8 @@ typedef enum{
    PortSpeedSuperSpeed = 4,
 }PortSpeed;
 
-static int initBasePointers(const PciGeneralDeviceHeader *pciHeader, Xhcd *xhcd);
+
+static int doBiosHandoff(Xhcd *xhcd);
 static void readPortInfo(Xhcd *xhcd);
 static void waitForControllerReady(Xhcd *xhcd);
 static void setMaxEnabledDeviceSlots(Xhcd *xhcd, int maxSlots);
@@ -100,8 +98,8 @@ static XhcOutputContext *getOutputContext(Xhcd *xhcd, int slotId);
 static PortStatusAndControll *getPortStatus(Xhcd *xhcd, int portNumber);
 static PortSpeed getPortSpeed(Xhcd *xhc, int portIndex);
 static PortUsbType getUsbType(Xhcd *xhcd, int portNumber);
-static PortUsbType getProtocolSlotType(Xhcd *xhci, int portNumber);
-//static int shouldEnablePort(Xhci *xhci, int portNumber);
+static PortUsbType getProtocolSlotType(Xhcd *xhcd, int portNumber);
+//static int shouldEnablePort(Xhci *xhcd, int portNumber);
 //
 static int port = 0;
 
@@ -115,7 +113,7 @@ XhcStatus xhcd_setInterrupter(XhcDevice *device, int endpoint, void (*handler)(v
       .handler = handler,
       .data = data
    };
-   Xhcd *xhcd = device->xhci.data;
+   Xhcd *xhcd = device->data;
    xhcd->handlers[device->slotId * 32 + endpoint] = interruptHandler;
    return XhcOk;
 }
@@ -123,7 +121,7 @@ XhcStatus xhcd_setInterrupter(XhcDevice *device, int endpoint, void (*handler)(v
 static int dequeEventTrb(Xhcd *xhcd, XhcEventTRB *result){
    uint32_t advancedDequeue = (xhcd->eventBufferDequeueIndex + 1) % xhcd->eventBufferSize;
    if(advancedDequeue == xhcd->eventBufferEnqueueIndex){
-      return 0;
+      return xhcd_readEvent(&xhcd->eventRing, result, 1);
    }
    *result = xhcd->eventBuffer[advancedDequeue];
    xhcd->eventBufferDequeueIndex = advancedDequeue;
@@ -162,13 +160,12 @@ XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
    xhcd->eventBufferDequeueIndex = 0;
    xhcd->eventBufferEnqueueIndex = 1;
 
-   int errorCode = 0;
    PciGeneralDeviceHeader pciHeader;
    pci_getGeneralDevice(descriptor, &pciHeader);
-   if((errorCode = initBasePointers(&pciHeader, xhcd)) != 0){
-      return errorCode;
-   }
+
    xhcd->hardware = xhcd_initRegisters(pciHeader);
+
+   doBiosHandoff(xhcd);
 
    MsiXVectorData vectorData = pci_getDefaultMsiXVectorData(handler, xhcd);
    MsiXDescriptor msiDescriptor;
@@ -206,9 +203,9 @@ XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
 
 int xhcd_getDevices(Xhci *xhci, XhcDevice *resultBuffer, int bufferSize){
    Xhcd *xhcd = xhci->data;
+
    uint32_t *portIndexes = malloc(bufferSize * sizeof(uint32_t));
    int count = getNewlyAttachedDevices(xhcd, portIndexes, bufferSize);
-   printf("count %d\n", count);
    for(int i = 0; i < count; i++){
       XhcStatus status = initDevice(xhcd, portIndexes[i], &resultBuffer[i]);
       if(status != XhcOk){
@@ -234,8 +231,6 @@ static int getNewlyAttachedDevices(Xhcd *xhcd, uint32_t *result, int bufferSize)
    }
    return resultIndex;
 }
-
-//FIXME: does not work with hardware
 static void readPortInfo(Xhcd *xhcd){
    uint8_t maxPorts = xhcd->enabledPorts;
    xhcd->portInfo = calloc((maxPorts + 1) * sizeof(UsbPortInfo));
@@ -326,7 +321,7 @@ static XhcStatus initDevice(Xhcd *xhcd, int portIndex, XhcDevice *result){
    *result = (XhcDevice){
       .slotId = slotId,
       .portIndex = portIndex,
-      .xhci = { .data = xhcd },
+      .data = xhcd,
       .portSpeed = getPortSpeed(xhcd, portIndex),
    };
    return XhcOk;
@@ -345,6 +340,7 @@ TD TD_SET_CONFIGURATION(int configuration){
    return result;
 }
 XhcStatus xhcd_setConfiguration(XhcDevice *device, const UsbConfiguration *configuration){
+   Xhcd *xhcd = device->data;
    XhcInputContext inputContext __attribute__((aligned(16)));
    memset((void*)&inputContext, 0, sizeof(XhcInputContext));
    printf("set config\n");
@@ -356,19 +352,19 @@ XhcStatus xhcd_setConfiguration(XhcDevice *device, const UsbConfiguration *confi
       for(int j = 0; j < interface->descriptor.bNumEndpoints; j++){
          UsbEndpointDescriptor *endpointDescriptor = &interface->endpoints[j];
          printf("config %X\n", endpointDescriptor->bmAttributes);
-         int status = configureEndpoint(device->xhci.data, device->slotId, endpointDescriptor, &inputContext);
+         int status = configureEndpoint(xhcd, device->slotId, endpointDescriptor, &inputContext);
          if(status != XhcOk){
             return status;
          }
       }
    }
-   XhcStatus status = runConfigureEndpointCommand(device->xhci.data, device->slotId, &inputContext);
+   XhcStatus status = runConfigureEndpointCommand(xhcd, device->slotId, &inputContext);
    if(status != XhcOk){
       printf("Endpoint config error!");
       return status;
    }
    TD td = TD_SET_CONFIGURATION(configuration->descriptor.bConfigurationValue);
-   if(!putConfigTD(device->xhci.data, device->slotId, td)){
+   if(!putConfigTD(xhcd, device->slotId, td)){
       printf("[xhc] failed to set configuration\n");
       return XhcNotYetImplemented; //FIXME: Wrong error code
    }
@@ -388,7 +384,7 @@ static XhcStatus configureEndpoint(Xhcd *xhcd, int slotId, UsbEndpointDescriptor
 XhcStatus xhcd_readData(const XhcDevice *device, UsbEndpointDescriptor endpoint, void *dataBuffer, uint16_t bufferSize){
    int endpointIndex = getEndpointIndex(&endpoint);
 
-   Xhcd *xhcd = device->xhci.data;
+   Xhcd *xhcd = device->data;
 
    TRB trb = TRB_NORMAL(dataBuffer, bufferSize);
    XhcdRing *transferRing = &xhcd->transferRing[device->slotId][endpointIndex - 1];
@@ -406,7 +402,7 @@ XhcStatus xhcd_writeData(const XhcDevice *device,
       uint16_t bufferSize){
 
    int endpointIndex = getEndpointIndex(&endpoint);
-   Xhcd *xhcd = device->xhci.data;
+   Xhcd *xhcd = device->data;
    TRB trb = TRB_NORMAL(dataBuffer, bufferSize);
    XhcdRing *transferRing = &xhcd->transferRing[device->slotId][endpointIndex - 1];
    xhcd_putTRB(trb, transferRing);
@@ -444,7 +440,7 @@ XhcStatus xhcd_sendRequest(const XhcDevice *device, UsbRequestMessage request){
       TRB dataTrb = TRB_DATA_STAGE((uintptr_t)request.dataBuffer, request.wLength, dataDirection);
       td = (TD){{setupTrb, dataTrb, statusTrb}, 3};
    }
-   if(!putConfigTD(device->xhci.data, device->slotId, td)){
+   if(!putConfigTD(device->data, device->slotId, td)){
       return XhcSendRequestError;
    }
    return XhcOk;
@@ -576,6 +572,7 @@ static int getSlotId(Xhcd *xhcd, uint8_t portNumber){
    printf("Slot id %d\n", trb.slotId);
    return trb.slotId;
 }
+
 static PortSpeed getPortSpeed(Xhcd *xhcd, int portIndex){
    PortStatusAndControll portStatus = { .bits = xhcd_readPortRegister(xhcd->hardware, portIndex, PORTStatusAndControl) };
    PortSpeed speed = portStatus.portSpeed;
@@ -680,7 +677,7 @@ static int checkoutPort(Xhcd *xhcd, int portIndex){
       status.connectStatusChange = 1;
       xhcd_writePortRegister(xhcd->hardware, portIndex, PORTStatusAndControl, status.bits);
       return 1;
-   }   
+   }
    return 0;
 }
 static void resetXhc(Xhcd *xhcd){
@@ -818,7 +815,7 @@ static int putConfigTD(Xhcd *xhcd, int slotId, TD td){
    }
    return 1;
 }
-//FIXME: paging might not work
+
 static int setMaxPacketSize(Xhcd *xhcd, int slotId){
    uint8_t buffer[8];
    XhcdRing *transferRing = &xhcd->transferRing[slotId][0];
@@ -857,7 +854,7 @@ static int setMaxPacketSize(Xhcd *xhcd, int slotId){
    printf("[xhc] sucessfully set max packet size: %d\n", currMaxPacketSize);
    return 1;
 }
-//FIXME: paging might not work
+
 static void test(Xhcd *xhcd){
 //    xhcd_putTRB(TRB_NOOP(), &xhci->commandRing);
 //    ringCommandDoorbell(xhci);
@@ -897,69 +894,40 @@ static void xhcd_ringDoorbell(Xhcd *xhcd, uint8_t slotId, uint8_t target){
    }
    xhcd_writeDoorbell(xhcd->hardware, slotId, target);
 }
-
 // static PortStatusAndControll *getPortStatus(Xhci *xhci, int portIndex){
 //    XhciOperation *operation = xhci->operation;
 //    XhciPortRegisters *port = &operation->ports[portIndex];
 //    PortStatusAndControll *status = &port->statusAndControll;
 //    return status;
 // }
-static int initBasePointers(const PciGeneralDeviceHeader *pciHeader, Xhcd *xhcd){
-//    if(pciHeader->baseAddress[1] != 0){
-//       printf("Error: unable to reach xhcd MMIO in 32 bit mode: %X %X\n",
-//             pciHeader->baseAddress[0], pciHeader->baseAddress[1]);
-//       return -1;
-//    }
-
-//    uint32_t physicalBase = pciHeader->baseAddress[0] & (~0xFF); 
-//    uintptr_t logicalBase = paging_mapPhysical(physicalBase, sizeof(XhciCapabilities));
-
-//    xhci->capabilities = (XhciCapabilities *)logicalBase;
-//    uint32_t capLength = xhci->capabilities->capabilityRegistersLength;
-
-//    uint32_t doorbellOffset = xhci->capabilities->doorbellOffset & ~0x3;
-//    uint32_t runtimeRegOffset = xhci->capabilities->runtimeRegisterSpaceOffset  & ~0x1F;
+static int doBiosHandoff(Xhcd *xhcd){
+   XhcExtendedCapabilityEnumerator enumerator = xhcd_newExtendedCapabilityEnumerator(xhcd->hardware);
+   while(xhcd_hasNextExtendedCapability(&enumerator)){
+      uint64_t capability;
+      xhcd_readExtendedCapability(&enumerator, &capability, 4);
+      printf("cap %X\n", capability);
+      if((capability & 0xFF) == 1){
+         printf("found cap %X\n", capability);
+         capability |= 1 << 24;
 
 
-//    xhci->operation = (XhciOperation *) paging_mapPhysical(physicalBase + capLength, sizeof(XhciOperation));
-//    printf("1\n");
-//    xhci->doorbells = (XhciDoorbell *) paging_mapPhysical(physicalBase + doorbellOffset, sizeof(XhciDoorbell) * 256);
-//    printf("2\n");
-//    xhci->interrupterRegisters = (InterrupterRegisters *) paging_mapPhysical(physicalBase + runtimeRegOffset + 0x20, sizeof(InterrupterRegisters) * 1024);
-//    printf("3\n");
+         xhcd_writeExtendedCapability(&enumerator, &capability, 4);
 
-//    printf("cap1: %X\n", xhci->capabilities->capabilityParams1);
-//    uint32_t xECP = (xhci->capabilities->capabilityParams1.extendedCapabilitiesPointer << 2);
-//    printf("xECP: %X\n", xECP);
-//    volatile uint32_t *cap = (uint32_t *)(logicalBase + xECP);
-//    if(xECP != 0){
-//       uint32_t i = 0;
-//       while(i < 5){
-//          i++;
-//          printf("cap: %X\n", *cap);
-//          if((*cap & 0xFF) == 1){
-//             printf("%X\n", *(cap));
-//             printf("%X\n", *(cap + 1));
+         do{
+            xhcd_readExtendedCapability(&enumerator, &capability, 4);
+         }
+         while((capability & (1 << 24)) == 0 || (capability & (1 << 16)));
 
-//             *cap |= 1 << 24;
-//             while((*cap & (1 << 24)) == 0);
-//             while((*cap & (1 << 16)));
+         printf("took control from bios\n");
 
-//             *(cap + 1) = 0;
+         capability &= 0xFFFFFFFF;
+         xhcd_writeExtendedCapability(&enumerator, &capability, 8);
 
-//             printf("%X\n", *(cap));
-//             printf("%X\n", *(cap + 1));
-//          }
+         return 0;
+      }
+      xhcd_advanceExtendedCapabilityEnumerator(&enumerator);
+   }
 
-
-//          uint8_t next = ((*cap >> 8) & 0xFF);
-//          printf("next: %X\n", next);
-//          if(next == 0){
-//             break;
-//          }
-//          cap += next;
-//       }
-//    }
    return 0;
 }
 static void waitForControllerReady(Xhcd *xhcd){
@@ -983,7 +951,6 @@ static uint32_t getPageSize(Xhcd *xhcd){
    return xhcd_readRegister(xhcd->hardware, PAGESIZE) << 12;
 }
 static void initDCAddressArray(Xhcd *xhcd){
-   assert((xhcd_readRegister(xhcd->hardware, USBCommand) & USBCMD_RUN_STOP_BIT) == 0);
 
    XhcConfigRegister config = { .bits = xhcd_readRegister(xhcd->hardware, CONFIG) };
    uint8_t maxSlots = config.enabledDeviceSlots;
@@ -992,7 +959,7 @@ static void initDCAddressArray(Xhcd *xhcd){
    xhcd->dcBaseAddressArray = callocco(arraySize, 64, pageSize);
 
 
-   uintptr_t dcAddressArrayPointer = paging_getPhysicalAddress((uintptr_t)xhcd->dcBaseAddressArray); 
+   uintptr_t dcAddressArrayPointer = paging_getPhysicalAddress((uintptr_t)xhcd->dcBaseAddressArray);
    xhcd_writeRegister(xhcd->hardware, DCBAAP, dcAddressArrayPointer);
 }
 
