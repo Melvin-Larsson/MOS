@@ -75,6 +75,7 @@ uint32_t xhcd_readDoorbell(XhcHardware xhcHardware, uint8_t index);
 XhcExtendedCapabilityEnumerator xhcd_newExtendedCapabilityEnumerator(XhcHardware xhc);
 void xhcd_advanceExtendedCapabilityEnumerator(XhcExtendedCapabilityEnumerator *enumerator);
 void xhcd_readExtendedCapability(XhcExtendedCapabilityEnumerator *enumerator, void *result, int size);
+void xhcd_writeExtendedCapability(XhcExtendedCapabilityEnumerator *enumerator, void *data, int size);
 int xhcd_hasNextExtendedCapability(XhcExtendedCapabilityEnumerator *enumerator);
 
 #endif

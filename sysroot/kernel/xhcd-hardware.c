@@ -175,14 +175,20 @@ void xhcd_advanceExtendedCapabilityEnumerator(XhcExtendedCapabilityEnumerator *e
       enumerator->data = 0;
    }else{
       uintptr_t lastAddress = (uintptr_t)enumerator->data;
-      enumerator->data += lastAddress + offset;
+      enumerator->data = (void*)(lastAddress + offset);
    }
 }
 void xhcd_readExtendedCapability(XhcExtendedCapabilityEnumerator *enumerator, void *result, int size){
    assert(enumerator->data != 0);
    assert(size % 4 == 0);
 
-   paging_readPhysicalOfSize((uintptr_t)enumerator->data, &result, size, AccessSize32);
+   paging_readPhysicalOfSize((uintptr_t)enumerator->data, result, size, AccessSize32);
+}
+void xhcd_writeExtendedCapability(XhcExtendedCapabilityEnumerator *enumerator, void *data, int size){
+   assert(enumerator->data != 0);
+   assert(size % 4 == 0);
+
+   paging_writePhysicalOfSize((uintptr_t)enumerator->data, data, size, AccessSize32);
 }
 
 int xhcd_hasNextExtendedCapability(XhcExtendedCapabilityEnumerator *enumerator){
