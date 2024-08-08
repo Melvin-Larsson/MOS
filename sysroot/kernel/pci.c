@@ -18,6 +18,11 @@
 
 #define APIC_EOI_ADDRESS 0xFEE000B0
 
+typedef struct{
+   void (*handler)(void *);
+   void *data;
+}InterruptData;
+
 void pci_configWriteAddress(uint32_t address){
    __asm__ volatile("out %%eax, %%dx"
          :
@@ -51,7 +56,6 @@ uint32_t pci_configReadAt(uint32_t address){
 }
 static uint32_t getAddress(uint8_t busNr, uint8_t deviceNr, uint8_t funcNr, uint8_t registerOffset){
    if(registerOffset & 0b11){
-
       printf("Error: pci register offset has to point do a dword");
       return -1;
    }
@@ -225,6 +229,7 @@ static uint8_t getCapabilitiesPointer(const PciDescriptor *pci){
    assert(pci->pciHeader.status.capabilitiesList);
 
    uint32_t reg = pci_configReadRegister(pci->busNr, pci->deviceNr, 0, 0x34);
+
    return (reg & 0xFF) & ~0b11; 
 }
 static uint8_t getNextPointer(uint16_t capabilitiesHeader){
@@ -242,6 +247,9 @@ int pci_searchCapabilityList(const PciDescriptor *pci, uint8_t id, PciCapability
    }
 
    uint8_t offset = getCapabilitiesPointer(pci);
+   if(offset == 0){
+      return 0;
+   }
    uint16_t capabilityHeader = pci_configReadRegister(pci->busNr, pci->deviceNr, 0, offset) & 0xFFFF;
    while(getCapabilitiesId(capabilityHeader) != id){
       offset = getNextPointer(capabilityHeader);
@@ -314,8 +322,14 @@ int getCpuId(){
    return ebx >> 24;
 }
 
+int pci_isMsiXPresent(PciDescriptor pci){
+   PciCapability capability;
+   return pci_searchCapabilityList(&pci, 0x11, &capability);
+}
+
 int pci_initMsiX(const PciDescriptor *pci, MsiXDescriptor *result){
    assert(pci->pciHeader.headerType == HEADER_TYPE_GENERAL_DEVICE);
+   printf("header type %X\n", pci->pciHeader.headerType);
 
    PciCapability capability;
    int status = pci_searchCapabilityList(pci, 0x11, &capability);
@@ -357,10 +371,82 @@ MsiXVectorData pci_getDefaultMsiXVectorData(void (*handler)(void *), void *data)
       .deliveryMode = MsiDeliveryModeFixed
    };
 }
-typedef struct{
-   void (*handler)(void *);
-   void *data;
-}InterruptData;
+
+#define MSI_CAPABILITY_ID 0x5
+#define MSI_ENABLE_MASK (1 << 16)
+#define MSI_PER_VECTOR_MASKING_CAPABLE_MASK (1 << 24)
+#define MSI_64_BIT_CAPABLE_MASK (1 << 23)
+#define MSI_MULTI_MESSAGE_ENABLE_MASK (0x700000)
+#define MSI_MULTI_MESSAGE_ENABLE_POS (4 + 16)
+#define MSI_MULTI_MESSAGE_CAPABLE_MASK (0xE0000)
+#define MSI_MULTI_MESSAGE_CAPABLE_POS (1 + 16)
+
+static uint32_t readCapabilityRegister(PciDescriptor descriptor, PciCapability capability, int offset){
+   return pci_configReadRegister(descriptor.busNr, descriptor.deviceNr, 0, capability.offset + offset);
+}
+static void writeCapabilityRegister(PciDescriptor descriptor, PciCapability capability, int offset, uint32_t value){
+  pci_configWriteRegister(descriptor.busNr, descriptor.deviceNr, 0, capability.offset + offset, value);
+}
+
+int pci_isMsiPresent(PciDescriptor pci){
+   PciCapability capability;
+   return pci_searchCapabilityList(&pci, MSI_CAPABILITY_ID, &capability);
+}
+
+MsiInitData pci_getDefaultSingleHandlerMsiInitData(void (*handler)(void *), void *data){
+   return (MsiInitData){
+      .handlers[0] = handler,
+      .data[0] = data,
+      .vectorCount = MsiVectorCount1,
+      .targetProcessor = getCpuId(),
+      .redirectionHint = 0,
+      .destinationMode = 0,
+      .levelSensitive = 0,
+      .assert = 0,
+      .deliveryMode = MsiDeliveryModeFixed
+   };
+}
+
+
+static uint32_t getMultipleMessageEnableValue(MsiVectorCount enabledVectors){
+   switch(enabledVectors){
+      case MsiVectorCount1:
+         return 0;
+      case MsiVectorCount2:
+         return 1;
+      case MsiVectorCount4:
+         return 2;
+      case MsiVectorCount8:
+         return 3;
+      case MsiVectorCount16:
+         return 4;
+      case MsiVectorCount32:
+         return 5;
+      default:
+         assert(0);
+         return 0;
+   }
+}
+static MsiVectorCount getVectorCount(int encoded){
+   return 1 << encoded;
+}
+
+int pci_getMsiCapabilities(PciDescriptor pci, MsiCapabilities *result){
+   PciCapability capability;
+   int status = pci_searchCapabilityList(&pci, MSI_CAPABILITY_ID, &capability);
+   if(!status){
+      printf("Msi not found\n");
+      return 0;
+   }
+
+   uint32_t capabilityRegister = readCapabilityRegister(pci, capability, 0);
+   *result = (MsiCapabilities){
+      .is64BitAddressCapable = (capabilityRegister & MSI_64_BIT_CAPABLE_MASK ? 1 : 0),
+      .isPerVectorMaskingCapable = (capabilityRegister & MSI_PER_VECTOR_MASKING_CAPABLE_MASK ? 1 : 0),
+      .requestedVectors = getVectorCount((capabilityRegister & MSI_MULTI_MESSAGE_CAPABLE_MASK) >> MSI_MULTI_MESSAGE_CAPABLE_POS)
+   };
+   return 1;
+}
 
 void handler(ExceptionInfo _, void *data){
    InterruptData *interruptData = (InterruptData *)data;
@@ -370,6 +456,115 @@ void handler(ExceptionInfo _, void *data){
    uint32_t eoiData  = 1;
    paging_writePhysicalOfSize(APIC_EOI_ADDRESS, &eoiData, 4, AccessSize32);
 }
+
+//FIXME: Should not provide startVector
+int pci_initMsi(PciDescriptor pci, MsiDescriptor *result, MsiInitData data, uint8_t startVector){
+   assert(startVector % data.vectorCount == 0);
+   PciCapability pciCapability;
+   int status = pci_searchCapabilityList(&pci, MSI_CAPABILITY_ID, &pciCapability);
+   if(!status){
+      printf("Msi not found\n");
+      return 0;
+   }
+
+   MsiCapabilities msiCapabilities;
+   pci_getMsiCapabilities(pci, &msiCapabilities);
+
+   printf("caps, 64 bit: %d, mask: %d, encoded count %d\n", msiCapabilities.is64BitAddressCapable, msiCapabilities.isPerVectorMaskingCapable, msiCapabilities.requestedVectors);
+
+   assert(data.vectorCount <= msiCapabilities.requestedVectors);
+
+   uint64_t messageAddress = formatMsgAddr(
+         data.targetProcessor,
+         data.redirectionHint,
+         data.destinationMode);
+
+   uint16_t messageData = formatMsgData(
+         startVector, 
+         data.deliveryMode,
+         data.assert,
+         data.levelSensitive);
+
+
+   uint32_t messageAddressOffset = 0x4;
+   uint32_t messageDataOffset = msiCapabilities.is64BitAddressCapable ? 0xC : 0x8;
+
+   printf("messageAddress %X (at offset %X)\n", (uint32_t)messageAddress, messageAddressOffset);
+   printf("messageData %X (at offset %X)\n", (uint32_t)messageData, messageDataOffset);
+
+   writeCapabilityRegister(pci, pciCapability, messageAddressOffset, (uint32_t)(messageAddress & 0xFFFFFFFF));
+   if(msiCapabilities.is64BitAddressCapable){
+      writeCapabilityRegister(pci, pciCapability, messageAddressOffset + 4, 0);
+   }
+
+   uint32_t messageDataRegister = readCapabilityRegister(pci, pciCapability, messageDataOffset);
+   messageDataRegister &= ~0xFFFF;
+   messageDataRegister |= (messageData & 0xFFFF);
+   printf("message data register %X\n", messageDataRegister);
+   writeCapabilityRegister(pci, pciCapability, messageDataOffset, messageDataRegister);
+
+   uint32_t capabilityRegister = readCapabilityRegister(pci, pciCapability, 0);
+   capabilityRegister &= ~MSI_MULTI_MESSAGE_ENABLE_MASK;
+   capabilityRegister |= getMultipleMessageEnableValue(data.vectorCount) << MSI_MULTI_MESSAGE_ENABLE_POS
+                      | MSI_ENABLE_MASK;
+   printf("cap register %X\n", capabilityRegister);
+   writeCapabilityRegister(pci, pciCapability, 0, capabilityRegister);
+
+   if(msiCapabilities.isPerVectorMaskingCapable){
+      uint32_t maskBitOffset = msiCapabilities.is64BitAddressCapable ? 0x10 : 0xC;
+      writeCapabilityRegister(pci, pciCapability, maskBitOffset, 0);
+   }
+
+   for(int i = 0; i < (int)data.vectorCount; i++){
+      InterruptData *interruptData = malloc(sizeof(InterruptData));
+      *interruptData = (InterruptData){
+         .data = data.data[i],
+         .handler = data.handlers[i]
+      };
+      printf("v %d\n", startVector + i);
+      interrupt_setHandler(handler, interruptData, startVector + i);
+   }
+
+   *result = (MsiDescriptor){
+      .msiCapabilities = msiCapabilities,
+      .enabledVectors = data.vectorCount,
+      .pciCapability = pciCapability,
+      .pciDescriptor = pci
+   };
+
+   return 1;
+}
+
+static int andOrPendingBits(MsiDescriptor descriptor, uint32_t andValue, uint32_t orValue){
+   assert(descriptor.msiCapabilities.isPerVectorMaskingCapable);
+
+   uint32_t pendingBitRegisterOffset = descriptor.msiCapabilities.is64BitAddressCapable ? 0x14 : 0x10;
+   uint32_t pendingBitRegister = readCapabilityRegister(
+         descriptor.pciDescriptor,
+         descriptor.pciCapability,
+         pendingBitRegisterOffset);
+
+   pendingBitRegister &= andValue;
+   pendingBitRegister |= orValue;
+   writeCapabilityRegister(
+         descriptor.pciDescriptor,
+         descriptor.pciCapability,
+         pendingBitRegisterOffset,
+         pendingBitRegister);
+
+   return 1;
+}
+
+int pci_maskVector(MsiDescriptor descriptor, uint32_t vectorNumber){
+   assert(vectorNumber < descriptor.enabledVectors);
+   return andOrPendingBits(descriptor, ~0, 1 << vectorNumber);
+}
+int pci_unmaskVector(MsiDescriptor descriptor, uint32_t vectorNumber){
+   assert(vectorNumber < descriptor.enabledVectors);
+   return andOrPendingBits(descriptor, ~(1 << vectorNumber), 0);
+}
+
+
 //FIXME: Should not be allowed to specify interruptVectorNr
 int pci_setMsiXVector(const MsiXDescriptor msix, int msiVectorNr, int interruptVectorNr, MsiXVectorData vectorData){
    uintptr_t address = msix.messageTable + msiVectorNr * 2 * 8;

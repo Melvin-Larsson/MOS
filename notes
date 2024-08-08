@@ -20,7 +20,7 @@ probably not how real hardware works, but migh have to solve this
 on other hardware:
     A-20 line might not get enabled corectly
     Currently assumes that an apic is present
-SERIOUS: interrupts 0-31 are all assumed to be caused by exceptions that generate error codes (stack will get fucked otherwise)
+(FIXED: SERIOUS: interrupts 0-31 are all assumed to be caused by exceptions that generate error codes (stack will get fucked otherwise))
 
    __asm__ volatile ("mov 0x8(%%ebp), %0" : "=r"(v3));*/
 

@@ -24,7 +24,7 @@ XhcEventRing xhcd_newEventRing(int trbCount){
 
    EventRingSegmentTableEntry *segmentTable = callocco(64, 64, 0);
 
-   segmentTable->baseAddress = (uintptr_t)segmentPtr;
+   segmentTable->baseAddress = paging_getPhysicalAddress((uintptr_t)segmentPtr);
    segmentTable->ringSegmentSize = trbCount;
 
    XhcEventRing ring;

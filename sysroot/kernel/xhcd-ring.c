@@ -193,7 +193,7 @@ static void initSegment(Segment segment, Segment nextSegment, int isLast){
       }
    }
    LinkTRB *link = (LinkTRB*)&trbs[segment.trbCount - 1];
-   link->ringSegment = (uintptr_t)nextSegment.address;
+   link->ringSegment = (uintptr_t)paging_getPhysicalAddress(nextSegment.address);
    link->cycleBit = DEFAULT_PCS;
    link->toggleCycle = isLast;
    link->trbType = TRB_TYPE_LINK;

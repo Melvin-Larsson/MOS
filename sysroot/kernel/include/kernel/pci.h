@@ -86,7 +86,8 @@ typedef struct{
          uint8_t classCode;
          uint8_t cacheLineSize;
          uint8_t latencyTimer;
-         uint8_t headerType;
+         uint8_t headerType : 7;
+         uint8_t multiFunctionDevice : 1;
          uint8_t BIST;
       };
    };
@@ -132,6 +133,43 @@ typedef struct{
    PciCapability capability;
 }MsiXDescriptor;
 
+
+typedef enum{
+   MsiVectorCount1 = 1,
+   MsiVectorCount2 = 2,
+   MsiVectorCount4 = 4,
+   MsiVectorCount8 = 8,
+   MsiVectorCount16 = 16,
+   MsiVectorCount32 = 32,
+}MsiVectorCount;
+
+typedef struct{
+   void (*handlers[32])(void *data);
+   void *data[32];
+   MsiVectorCount vectorCount;
+
+   uint8_t targetProcessor;
+   int redirectionHint;
+   int destinationMode;
+
+   MsiDeliveryMode deliveryMode;
+   int levelSensitive;
+   int assert;
+}MsiInitData;
+
+typedef struct{
+   int isPerVectorMaskingCapable;
+   int is64BitAddressCapable;
+   MsiVectorCount requestedVectors;
+}MsiCapabilities;
+
+typedef struct{
+   MsiCapabilities msiCapabilities;
+   MsiVectorCount enabledVectors;
+   PciCapability pciCapability;
+   PciDescriptor pciDescriptor;
+}MsiDescriptor;
+
 void pciConfigWriteAddress(uint32_t address);
 void pci_configWriteData(uint32_t data);
 void pci_configWrite(uint32_t address, uint32_t data);
@@ -158,10 +196,16 @@ int pci_doBIST(PciDescriptor *pci);
 int pci_searchCapabilityList(const PciDescriptor *pci, uint8_t id, PciCapability *result);
 int pci_readCapabilityData(const PciDescriptor *pci, PciCapability capability, void *result, int capabilitySize);
 
+int pci_isMsiXPresent(PciDescriptor pci);
 int pci_initMsiX(const PciDescriptor *pci, MsiXDescriptor *result);
 int pci_enableMsiX(PciDescriptor pci, MsiXDescriptor msi);
 MsiXVectorData pci_getDefaultMsiXVectorData(void (*handler)(void *), void *data);
 int pci_setMsiXVector(const MsiXDescriptor msix, int msiVectorNr, int interruptVectorNr, MsiXVectorData vectorData);
+
+int pci_isMsiPresent(PciDescriptor pci);
+MsiInitData pci_getDefaultSingleHandlerMsiInitData(void (*handler)(void *), void *data);
+int pci_getMsiCapabilities(PciDescriptor pci, MsiCapabilities *result);
+int pci_initMsi(PciDescriptor pci, MsiDescriptor *result, MsiInitData data, uint8_t startVector);
 
 void pci_getGeneralDevice(const PciDescriptor descriptor, PciGeneralDeviceHeader* output);
 void pci_getClassName(PciHeader* pci, char* output);

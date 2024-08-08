@@ -9,9 +9,8 @@ XhcHardware xhcd_initRegisters(PciGeneralDeviceHeader pciHeader){
    XhcHardware xhcd;
    xhcd.capabilityBase = pciHeader.baseAddress[0] & (~0xFF);
    xhcd.operationalBase = xhcd.capabilityBase + xhcd_readCapability(xhcd, CAPLENGTH);
-   printf("op base %X\n", xhcd.operationalBase);
-   xhcd.doorbellBase = xhcd.capabilityBase + xhcd_readCapability(xhcd, DBOFF);
-   xhcd.runtimeBase = xhcd.capabilityBase + xhcd_readCapability(xhcd, RTSOFF);
+   xhcd.doorbellBase = xhcd.capabilityBase + (xhcd_readCapability(xhcd, DBOFF) & ~0x3);
+   xhcd.runtimeBase = xhcd.capabilityBase + (xhcd_readCapability(xhcd, RTSOFF) & ~0x1F);
    return xhcd;
 }
 

@@ -121,7 +121,7 @@ XhcStatus xhcd_setInterrupter(XhcDevice *device, int endpoint, void (*handler)(v
 static int dequeEventTrb(Xhcd *xhcd, XhcEventTRB *result){
    uint32_t advancedDequeue = (xhcd->eventBufferDequeueIndex + 1) % xhcd->eventBufferSize;
    if(advancedDequeue == xhcd->eventBufferEnqueueIndex){
-      return xhcd_readEvent(&xhcd->eventRing, result, 1);
+      return 0;
    }
    *result = xhcd->eventBuffer[advancedDequeue];
    xhcd->eventBufferDequeueIndex = advancedDequeue;
@@ -162,16 +162,26 @@ XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
 
    PciGeneralDeviceHeader pciHeader;
    pci_getGeneralDevice(descriptor, &pciHeader);
-
    xhcd->hardware = xhcd_initRegisters(pciHeader);
 
    doBiosHandoff(xhcd);
 
-   MsiXVectorData vectorData = pci_getDefaultMsiXVectorData(handler, xhcd);
-   MsiXDescriptor msiDescriptor;
-   pci_initMsiX(&descriptor, &msiDescriptor);
-   pci_setMsiXVector(msiDescriptor, 0, 33, vectorData);
-   pci_enableMsiX(descriptor, msiDescriptor);
+   if(pci_isMsiXPresent(descriptor)){
+      printf("using msix\n");
+      MsiXVectorData vectorData = pci_getDefaultMsiXVectorData(handler, xhcd);
+      MsiXDescriptor msiDescriptor;
+      pci_initMsiX(&descriptor, &msiDescriptor);
+      pci_setMsiXVector(msiDescriptor, 0, 33, vectorData);
+      pci_enableMsiX(descriptor, msiDescriptor);
+   }else if(pci_isMsiPresent(descriptor)){
+      printf("using msi\n");
+      MsiInitData initData = pci_getDefaultSingleHandlerMsiInitData(handler, xhcd);
+      MsiDescriptor result;
+      pci_initMsi(descriptor, &result, initData, 32);
+   }else{
+      printf("Unable to init msi and msix. This is not implemented\n");
+      while(1);
+   }
 
    waitForControllerReady(xhcd);
    resetXhc(xhcd);
@@ -188,12 +198,14 @@ XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
    initCommandRing(xhcd);
    initEventRing(xhcd);
 
+// enable interrupts
    xhcd_orRegister(xhcd->hardware, USBCommand, (1 << 2));
    turnOnController(xhcd);
-   
-   xhcd_orRegister(xhcd->hardware, USBStatus, 1 << 3);
-   while(xhcd_readRegister(xhcd->hardware, USBStatus) & (1<<3));
 
+   xhcd_orRegister(xhcd->hardware, USBStatus, 1 << 3);
+   
+   while(xhcd_readRegister(xhcd->hardware, USBStatus) & (1<<3));
+   
    //FIXME: a bit of hack, clearing event ring
    XhcEventTRB result[16];
    while(xhcd_readEvent(&xhcd->eventRing, result, 16));
@@ -693,6 +705,7 @@ static void initCommandRing(Xhcd *xhcd){
 //FIXME: interrupter register
 static void initEventRing(Xhcd *xhcd){
    xhcd->eventRing = xhcd_newEventRing(DEFAULT_EVENT_SEGEMNT_TRB_COUNT);
+   //Enable interrupt for interruptor
    xhcd_orInterrupter(xhcd->hardware, 0, IMAN, 2);
    xhcd_attachEventRing(xhcd->hardware, &xhcd->eventRing, 0);
 }
@@ -958,7 +971,6 @@ static void initDCAddressArray(Xhcd *xhcd){
    uint32_t arraySize = (maxSlots + 1) * 64;
    xhcd->dcBaseAddressArray = callocco(arraySize, 64, pageSize);
 
-
    uintptr_t dcAddressArrayPointer = paging_getPhysicalAddress((uintptr_t)xhcd->dcBaseAddressArray);
    xhcd_writeRegister(xhcd->hardware, DCBAAP, dcAddressArrayPointer);
 }
@@ -977,7 +989,7 @@ static void initScratchPad(Xhcd *xhcd){
       void* scratchpadStart = callocco(pageSize, 1, pageSize);
       scratchpadPointers[i] = (uintptr_t)paging_getPhysicalAddress((uintptr_t)scratchpadStart);
    }
-   xhcd->dcBaseAddressArray[0] = (uintptr_t)paging_getPhysicalAddress((uintptr_t)scratchpadPointers);
+   xhcd->dcBaseAddressArray[0] = (uint64_t)paging_getPhysicalAddress((uintptr_t)scratchpadPointers);
    printf("[xhc] initialized scratchpad (%X)\n", scratchpadPointers);
 }
 static void turnOnController(Xhcd *xhcd){
