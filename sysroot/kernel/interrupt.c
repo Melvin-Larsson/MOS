@@ -1,10 +1,11 @@
 #include "kernel/interrupt.h"
 #include "kernel/registers.h"
-#include "stdio.h"
+#include "kernel/logging.h"
 #include "stdlib.h"
 #include "string.h"
 #define GDT_CODE_SEGMENT 0x08
 #define IDT_MAX_DESCRIPTIONS 256
+
 __attribute__((aligned(0x10)))
 static InterruptDescriptor interruptDescriptorTable[256];
 static InterruptTableDescriptor interruptTableDescriptor;
@@ -30,7 +31,7 @@ void exception_handler(unsigned char interruptVector, ExceptionInfo *info){
    if(interruptHandlers[interruptVector]){
       interruptHandlers[interruptVector](*info, interruptData[interruptVector]);
    }else{
-      printf("%d: Interrupt %d, %d %d %d\n", interruptNr, interruptVector, info->errorCode, info->instructionOffset, info->codeSegment);
+      loggError("%d: Interrupt %d, %d %d %d", interruptNr, interruptVector, info->errorCode, info->instructionOffset, info->codeSegment);
       while(1);
    }
 }
@@ -55,15 +56,14 @@ void interruptDescriptorTableInit(){
    dissablePIC();
 
    __asm__ volatile ("lidt %0" : : "m"(interruptTableDescriptor));
-   printf("Initialized interrupt table\n");
-   printf("Activating interrupts\n");
+   loggDebug("Initialized interrupt table");
    __asm__ volatile ("sti");
-   printf("Interrupts activated\n");
+   loggInfo("Interrupts activated");
 }
 
 InterruptStatus interrupt_setHandler(void (*interruptHandler)(ExceptionInfo, void *), void *data, uint8_t vector){
    if(interruptHandlers[vector]){
-      printf("Interrupt handler already defined\n");
+      loggError("Interrupt handler already defined");
       return InterruptStatusVectorAlreadyDefined;
    }
 

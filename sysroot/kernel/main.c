@@ -10,16 +10,18 @@
 #include "kernel/paging.h"
 #include "kernel/physpage.h"
 #include "kernel/allocator.h"
+#include "kernel/serial.h"
+
+#include "kernel/logging.h"
 
 #define ASSERTS_ENABLED
 #include "utils/assert.h"
 
 #include "kernel/usb-mass-storage.h"
 
-char message[] = "Kernel started!\n";
 static void printPciDevices(PciDescriptor *descriptors, int count){
     return;
-    printf("%d devices detected:\n", count);
+    loggInfo("%d Devices detected:", count);
     for(int i = 0; i < count; i++){
         PciHeader *header = &(descriptors[i].pciHeader);
         char className[50];
@@ -29,7 +31,7 @@ static void printPciDevices(PciDescriptor *descriptors, int count){
         pci_getClassName(header, className);
         pci_getSubclassName(header, subclassName);
         pci_getProgIfName(header, progIfName);
-        printf("%d: %s(%X) - %s(%X) - %s(%X)\n", i,
+        loggInfo("%d: %s(%X) - %s(%X) - %s(%X)", i,
                 className,header->classCode,
                 subclassName, header->subclass,
                 progIfName, header->progIf);
@@ -52,14 +54,14 @@ static PciDescriptor* getXhcdDevice(PciDescriptor* descriptors, int count){
 static void initXhci(PciDescriptor pci){
     Usb usb;
     if(usb_init(pci, &usb) != StatusSuccess){
-        printf("Failed to initialize USB\n");
+        loggError("Failed to initialize USB");
         return;
     }
     while(1){
         UsbDevice device;
-        printf("Wait for attach\n");
+        loggDebug("Wait for attach");
         while(usb_getNewlyAttachedDevices(&usb, &device, 1) == 0);
-        printf("device attach\n");
+        loggInfo("Device attached");
 //         UsbMassStorageDevice res;
 //         UsbMassStorageStatus status = usbMassStorage_init(&device, &res);
 //         if(status == UsbMassStorageSuccess){
@@ -79,7 +81,7 @@ static void initXhci(PciDescriptor pci){
         KeyboardStatus status = keyboard_init(&device);
         char buffer[100];
         keyboard_getStatusCode(status, buffer);
-        printf("%s\n", buffer);
+        loggInfo("Keyboard status code: %s", buffer);
     }
 }
 static int overlaps(uint8_t *p1, int s1, uint8_t *p2, int s2){
@@ -159,16 +161,60 @@ void assert_little_endian(){
     assert(ptr[3] == 0x12);
 }
 
+void serial_writer(const char *str){
+    serial_write(COM1, str);
+    serial_write(COM1, "\n\r");
+}
+void console_writer(LoggContext context, LoggLevel level, const char *format, va_list args){
+    StdioColor prevColor = stdio_getColor();
+    StdioColor newColor;
+    switch(level){
+        case LoggLevelDebug:
+            newColor = StdioColorGray;
+            break;
+        case LoggLevelInfo:
+            newColor = StdioColorWhite;
+            break;
+        case LoggLevelWarning:
+            newColor = StdioColorYellow;
+            break;
+        case LoggLevelError:
+            newColor = StdioColorRed;
+            break;
+        default:
+            newColor = prevColor;
+            break;
+    }
+    stdio_setColor(newColor);
+    char *buffer = malloc(4096); //FIXME: Could lead to array out of bounds
+    vsprintf(buffer, format, args);
+    printf(buffer);
+    printf("\n");
+    stdio_setColor(prevColor);
+}
+
 void kernel_main(){
     stdioinit();
     stdlib_init();
 //     testMemory();
 //     testMemoryConstrained();
-    printf(message);
+    printf("Kernel started\n");
     interruptDescriptorTableInit(); 
     assert_little_endian();
 
     physpage_init();
+
+    SerialPortConfig serialConfig = serial_defaultConfig();
+    serial_initPort(COM1, serialConfig);
+
+    LoggWriter consoleWriter = logging_getCustomWriter(console_writer);
+    LoggWriter serialWriter = logging_getDefaultWriter(serial_writer);
+    serialWriter.loggLevel = LoggLevelDebug;
+    consoleWriter.loggLevel = LoggLevelNone,
+    logging_init();
+    logging_addWriter(consoleWriter);
+    logging_addWriter(serialWriter);
+
 
     PagingConfig32Bit config = {
         .use4MBytePages = 1,
@@ -176,7 +222,7 @@ void kernel_main(){
     PagingConfig32Bit newConfig = paging_init32Bit(config);
     assert(config.use4MBytePages == newConfig.use4MBytePages);
 
-    for(uint32_t i = 0; i < 10; i++){
+    for(uint32_t i = 0; i < 1; i++){
         PagingTableEntry entry = {
             .physicalAddress = i * 4 * 1024 * 1024,
             .readWrite = 1,
@@ -186,7 +232,6 @@ void kernel_main(){
         };
         
         physpage_markPagesAsUsed4MB(i, 1);
-
 
         PagingStatus status = paging_addEntry(entry, i * 4 * 1024 * 1024);
         assert(status == PagingOk);
@@ -198,16 +243,17 @@ void kernel_main(){
 
     PciDescriptor devices[20];
     int count = pci_getDevices(devices, 10);
+    loggInfo("here\n");
     printPciDevices(devices, count);
     PciDescriptor *xhcDevice = getXhcdDevice(devices, count);
 
     if(!xhcDevice){
-        printf("Error: Could not find xhc device!");
+        loggError("Error: Could not find xhc device!");
     }else{
-        printf("Found a xhc device!\n");
+        loggInfo("Found a xhc device!");
         initXhci(*xhcDevice);
     }
 
-    printf("end\n");
+    loggInfo("end");
     while(1);
 }

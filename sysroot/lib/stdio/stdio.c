@@ -11,6 +11,10 @@
 static int x;
 static int y;
 static StdioColor color;
+
+static void setVMem(uint16_t val, int x, int y);
+static uint16_t getVMem(int x, int y);
+
 void stdioinit(){
     x = 0;
     y = 0;
@@ -26,8 +30,8 @@ StdioColor stdio_getColor(){
 static void rollTerminal(){
     for(int y = 1; y < TERM_HEIGHT; y++){
         for(int x = 0; x < TERM_WIDTH; x++){
-            char c = getc(x, y);
-            printc(c, x, y-1);
+            uint16_t c = getVMem(x, y);
+            setVMem(c, x, y-1);
         }
     }
     for(int x = 0; x < TERM_WIDTH; x++){
@@ -50,6 +54,9 @@ static void printChar(char c){
     if(c == '\b' && x > 0){
         x--;
         printc(' ', x, y);
+        return;
+    }
+    if(c == '\r'){
         return;
     }
     printc(c, x, y);
@@ -110,6 +117,12 @@ void printc(char c, int x, int y){
     VIDEO_MEMORY[y * TERM_WIDTH + x] = charInfo;
 }
 char getc(int x, int y){
+    return VIDEO_MEMORY[y * TERM_WIDTH + x];
+}
+static void setVMem(uint16_t val, int x, int y){
+    VIDEO_MEMORY[y * TERM_WIDTH + x] = val;
+}
+static uint16_t getVMem(int x, int y){
     return VIDEO_MEMORY[y * TERM_WIDTH + x];
 }
 void clear(){

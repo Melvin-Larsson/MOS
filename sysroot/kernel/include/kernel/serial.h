@@ -57,7 +57,7 @@ typedef struct{
 
 SerialPortConfig serial_defaultConfig();
 SerialStatus serial_initPort(SerialPortNumber port, SerialPortConfig config);
-SerialStatus serial_write(SerialPortNumber port, char *data);
+SerialStatus serial_write(SerialPortNumber port, const char *data);
 uint32_t serial_read(SerialPortNumber port, char *result, uint32_t bufferSize);
 
 #endif

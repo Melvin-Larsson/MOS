@@ -111,7 +111,7 @@ SerialStatus serial_initPort(SerialPortNumber port, SerialPortConfig config){
    return SerialOk;
 }
 
-SerialStatus serial_write(SerialPortNumber port, char* data){
+SerialStatus serial_write(SerialPortNumber port, const char* data){
    while(*data){
       writeRegister(ports[port], TransmitBuffer, *data);
       data++;
@@ -183,7 +183,6 @@ static void configureLineControl(SerialPortData port, SerialPortConfig config){
 
    writeRegister(port, LineControlRegister, lineControlValue);
    uint8_t reg = readRegister(port, LineControlRegister);
-   printf("linecontrol %X, expected %X\n", reg, lineControlValue);
 }
 
 static void setDivisorValue(SerialPortData port, uint16_t value){

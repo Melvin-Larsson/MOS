@@ -4,9 +4,10 @@
 #include "kernel/allocator.h"
 
 #include "stdint.h"
-#include "stdio.h"
 #include "stdlib.h"
 #include "intmap.h"
+
+#include "kernel/logging.h"
 
 #define ASSERTS_ENABLED
 #include "utils/assert.h"
@@ -207,19 +208,14 @@ uintptr_t paging_mapPhysical(uintptr_t address, uint32_t size){
     int lastPhysicalPage = (address + size) / (4 * 1024);
     int pageCount = lastPhysicalPage - physicalPage + ((address + size) % (4 * 1024) == 0 ? 0 : 1);
 
-    printf("first %d, last %d\n", physicalPage, lastPhysicalPage);
-    printf("page count %d\n", pageCount);
-
     uintptr_t newPage;
     if(!getLogicalPage(&newPage, pageCount)){
-        printf("Not enough memory. What to do? ...What to do?");
+        loggError("Not enough memory. What to do? ...What to do?");
         while(1);
     }
 
     uintptr_t offset = address & 0xFFF;
     uintptr_t resultAddress = newPage << 12 | offset;
-    printf("new page %X\n", newPage);
-    printf("res %X\n", resultAddress);
 
     physpage_markPagesAsUsed4KB(physicalPage, pageCount);
 
@@ -308,7 +304,7 @@ PagingStatus paging_addEntry(PagingTableEntry entry, uintptr_t address){
     if(pagingMode == PagingMode32Bit){
         return add32BitPagingEntry(entry, address);
     }
-    printf("Unsuported paging mode. Unable to add entry");
+    loggWarning("Unsuported paging mode. Unable to add entry");
     return PagingUnsuportedOperation;
 }
 
@@ -353,7 +349,7 @@ static PagingStatus add32BitPagingEntry(PagingTableEntry newEntry, uint32_t addr
             allocator_markAsReserved(pageAllocator, address / (4 * 1024), 1024);
             return PagingOk;
        }else{
-           printf("new dir\n");
+           loggDebug("New dir");
            uintptr_t tablePage = physpage_getPage4KB();
            memset((void*)(tablePage << 12), 0, 4096);
            PageDirectoryEntryTableReference newEntryTablereference = {
@@ -384,8 +380,6 @@ static PagingStatus add32BitPagingEntry(PagingTableEntry newEntry, uint32_t addr
        return PagingEntryAlreadyPresent;
     }
 
-    printf("new 4KB page\n");
- 
     PageTableEntry4KB newEntry4KBPage = {
        .present = 1,
        .readWrite = (newEntry.readWrite != 0),
@@ -452,19 +446,18 @@ static void handlePageFault(ExceptionInfo info, void *data){
     assert(getPagingMode() == PagingMode32Bit); //TODO: implement other paging modes also
 
     uint32_t linearAddress = readCr2();
-    printf("Page fault! %X\n", linearAddress);
+    loggInfo("Page fault! %X", linearAddress);
 
     uint64_t page = physpage_getPage4MB(); //FIXME: Don't assume there always is 4MB page
-    printf("page %d\n", page);
+    loggInfo("Using page %d", page);
     PagingTableEntry entry = {
         .physicalAddress = page * 4 * 1024 * 1024,
         .readWrite = 1,
         .Use4MBPageSize = 1
     };
-    printf("lin %X\n", linearAddress & 0xFFC00000);
     PagingStatus status = paging_addEntry(entry, linearAddress & 0xFFC00000);
     if(status == PagingOk){
-        printf("added 4MB entry\n");
+        loggInfo("added 4MB entry");
         return;
     }
     if(status == PagingUnableToUse4MBEntry){
@@ -476,13 +469,13 @@ static void handlePageFault(ExceptionInfo info, void *data){
         };
         PagingStatus status = paging_addEntry(entry, linearAddress & 0xFFFFF000);
         if(status != PagingOk){
-            printf("Unable to add 4KB page. Reason %dn", status);
+            loggError("Unable to add 4KB page. Reason %dn", status);
             while(1);
         }
         return;
 
     }
-    printf("Do not know how to handle paging status %d\n", status);
+    loggWarning("Do not know how to handle paging status %d", status);
     while(1);
 }
 

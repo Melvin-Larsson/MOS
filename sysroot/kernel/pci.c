@@ -1,6 +1,6 @@
 #include "kernel/paging.h"
 #include "kernel/pci.h"
-#include "stdio.h"
+#include "kernel/logging.h"
 #include "string.h"
 #include "kernel/msix-structures.h"
 #include "kernel/interrupt.h"
@@ -56,7 +56,7 @@ uint32_t pci_configReadAt(uint32_t address){
 }
 static uint32_t getAddress(uint8_t busNr, uint8_t deviceNr, uint8_t funcNr, uint8_t registerOffset){
    if(registerOffset & 0b11){
-      printf("Error: pci register offset has to point do a dword");
+      loggError("Error: pci register offset has to point do a dword");
       return -1;
    }
    uint32_t busNrl = (uint32_t)busNr;
@@ -102,20 +102,25 @@ int pci_getDevices(PciDescriptor* output, int maxHeadersInOutput){
                currHeader->progIf == 0x30){
                   uint32_t reg1 = currHeader->reg1;
                   reg1 |= 1 << 10;
-                  printf("r1: %X\n", reg1);
                   pci_configWriteRegister(bus, device, 0, 0x4, reg1);
                   currHeader->reg1 = pci_configReadRegister(bus, device,0,0x4);
-                  printf("regs: %X %X %X %X\n", currHeader->reg0, currHeader->reg1, currHeader->reg2, currHeader->reg3);
+                  loggDebug("regs: %X %X %X %X", currHeader->reg0, currHeader->reg1, currHeader->reg2, currHeader->reg3);
+                  loggDebug("more debug");
                }
             
+            loggDebug("1");
             index++;
+            loggDebug("2");
             
             if(index >= maxHeadersInOutput){
+            loggDebug("3");
                return index;
             }
+            loggDebug("3");
          }
       }
    }
+   loggDebug("Found %d devices", index);
    return index;
 }
 /*int pci_getDevice(uint8_t classCode, uint8_t subclass, uint8_t progIf,
@@ -137,7 +142,6 @@ void pci_getGeneralDevice(const PciDescriptor descriptor,
 //       printf("read %X ", output->reg[i]);
 //    }
 
-   printf("read: ");
    for(int i = 0; i <= 0xF; i++){
       uint32_t val = 
        pci_configReadRegister(
@@ -146,11 +150,8 @@ void pci_getGeneralDevice(const PciDescriptor descriptor,
             0,
             i * 4);
       output->reg[i] = val;
-      printf("%X ", val);
    }
-   printf("\n");
    uint8_t addr = output->capabilitiesPointer & ~0b11;
-   printf("\naddr: %X\n", addr);
    uint8_t next = 0;
    while(addr != 0){
       for(int i = 0; i < 24 / 4; i++){
@@ -163,13 +164,9 @@ void pci_getGeneralDevice(const PciDescriptor descriptor,
          if(i == 0){
              next = (val >> 8) & 0xFF;
          }
-         printf("-%X ", val);
       }
-      printf("\n");
       addr = next;
-
    }
-      printf("\n");
 }
 
 PciStatus pci_getStatus(PciDescriptor* pci){
@@ -290,7 +287,7 @@ static uintptr_t getMessageTableBaseAddress(const PciDescriptor *pci, MsiXCapabi
    uint32_t barAddressOffset = 0x10 + capability.messageBir * 4;
    uint32_t address = pci_configReadRegister(pci->busNr, pci->deviceNr, 0, barAddressOffset) & ~0xF;
    uint32_t offset = capability.tableOffsetHigh << 3;
-   printf("offset %X\n", offset);
+   loggDebug("Message table offset %X", offset);
    return address + offset;
 }
 static uintptr_t getPendingTableBaseAddress(const PciDescriptor *pci, MsiXCapability capability){
@@ -299,7 +296,7 @@ static uintptr_t getPendingTableBaseAddress(const PciDescriptor *pci, MsiXCapabi
    uint32_t barAddressOffset = 0x10 + capability.pendingBir * 4;
    uint32_t address = pci_configReadRegister(pci->busNr, pci->deviceNr, 0, barAddressOffset) & ~0xF;
    uint32_t offset = capability.pendingOffsetHigh << 3;
-   printf("offset %X\n", offset);
+   loggDebug("Pending table offset %X", offset);
    return address + offset;
 }
 
@@ -329,12 +326,11 @@ int pci_isMsiXPresent(PciDescriptor pci){
 
 int pci_initMsiX(const PciDescriptor *pci, MsiXDescriptor *result){
    assert(pci->pciHeader.headerType == HEADER_TYPE_GENERAL_DEVICE);
-   printf("header type %X\n", pci->pciHeader.headerType);
 
    PciCapability capability;
    int status = pci_searchCapabilityList(pci, 0x11, &capability);
    if(!status){
-      printf("MsiX not found\n");
+      loggError("MsiX not found");
       return 0;
    }
    MsiXCapability msiCapability;
@@ -435,7 +431,7 @@ int pci_getMsiCapabilities(PciDescriptor pci, MsiCapabilities *result){
    PciCapability capability;
    int status = pci_searchCapabilityList(&pci, MSI_CAPABILITY_ID, &capability);
    if(!status){
-      printf("Msi not found\n");
+      loggError("Msi not found");
       return 0;
    }
 
@@ -463,14 +459,14 @@ int pci_initMsi(PciDescriptor pci, MsiDescriptor *result, MsiInitData data, uint
    PciCapability pciCapability;
    int status = pci_searchCapabilityList(&pci, MSI_CAPABILITY_ID, &pciCapability);
    if(!status){
-      printf("Msi not found\n");
+      loggError("Msi not found");
       return 0;
    }
 
    MsiCapabilities msiCapabilities;
    pci_getMsiCapabilities(pci, &msiCapabilities);
 
-   printf("caps, 64 bit: %d, mask: %d, encoded count %d\n", msiCapabilities.is64BitAddressCapable, msiCapabilities.isPerVectorMaskingCapable, msiCapabilities.requestedVectors);
+   loggDebug("Caps, 64 bit: %d, mask: %d, encoded count %d", msiCapabilities.is64BitAddressCapable, msiCapabilities.isPerVectorMaskingCapable, msiCapabilities.requestedVectors);
 
    assert(data.vectorCount <= msiCapabilities.requestedVectors);
 
@@ -489,8 +485,8 @@ int pci_initMsi(PciDescriptor pci, MsiDescriptor *result, MsiInitData data, uint
    uint32_t messageAddressOffset = 0x4;
    uint32_t messageDataOffset = msiCapabilities.is64BitAddressCapable ? 0xC : 0x8;
 
-   printf("messageAddress %X (at offset %X)\n", (uint32_t)messageAddress, messageAddressOffset);
-   printf("messageData %X (at offset %X)\n", (uint32_t)messageData, messageDataOffset);
+   loggDebug("MessageAddress %X (at offset %X)", (uint32_t)messageAddress, messageAddressOffset);
+   loggDebug("MessageData MX (at offset %X)", (uint32_t)messageData, messageDataOffset);
 
    writeCapabilityRegister(pci, pciCapability, messageAddressOffset, (uint32_t)(messageAddress & 0xFFFFFFFF));
    if(msiCapabilities.is64BitAddressCapable){
@@ -500,14 +496,14 @@ int pci_initMsi(PciDescriptor pci, MsiDescriptor *result, MsiInitData data, uint
    uint32_t messageDataRegister = readCapabilityRegister(pci, pciCapability, messageDataOffset);
    messageDataRegister &= ~0xFFFF;
    messageDataRegister |= (messageData & 0xFFFF);
-   printf("message data register %X\n", messageDataRegister);
+   loggDebug("Message Mata register %X", messageDataRegister);
    writeCapabilityRegister(pci, pciCapability, messageDataOffset, messageDataRegister);
 
    uint32_t capabilityRegister = readCapabilityRegister(pci, pciCapability, 0);
    capabilityRegister &= ~MSI_MULTI_MESSAGE_ENABLE_MASK;
    capabilityRegister |= getMultipleMessageEnableValue(data.vectorCount) << MSI_MULTI_MESSAGE_ENABLE_POS
                       | MSI_ENABLE_MASK;
-   printf("cap register %X\n", capabilityRegister);
+   loggDebug("Cap register %X", capabilityRegister);
    writeCapabilityRegister(pci, pciCapability, 0, capabilityRegister);
 
    if(msiCapabilities.isPerVectorMaskingCapable){
@@ -521,7 +517,6 @@ int pci_initMsi(PciDescriptor pci, MsiDescriptor *result, MsiInitData data, uint
          .data = data.data[i],
          .handler = data.handlers[i]
       };
-      printf("v %d\n", startVector + i);
       interrupt_setHandler(handler, interruptData, startVector + i);
    }
 
@@ -587,7 +582,6 @@ int pci_setMsiXVector(const MsiXDescriptor msix, int msiVectorNr, int interruptV
       .data = vectorData.data,
       .handler = vectorData.handler
    };
-   printf("func %X\n", data->handler);
    interrupt_setHandler(handler, data, interruptVectorNr);
 
    return 1;

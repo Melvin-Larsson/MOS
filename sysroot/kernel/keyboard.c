@@ -1,4 +1,5 @@
 #include "kernel/keyboard.h"
+#include "kernel/logging.h"
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
@@ -45,9 +46,9 @@ KeyboardStatus keyboard_init(UsbDevice *usbDevice){
    int interfaceNumber = interface->descriptor.bInterfaceNumber;
    uint8_t p1 = 3;
    if(getReportRequest(usbDevice, interfaceNumber, &p1) != StatusSuccess){
-      printf("Unable to get protocol\n");
+      loggError("Unable to get protocol");
    }
-   printf("boot protocol? : %b\n", p1 == BOOT_PROTOCOL);
+   loggDebug("boot protocol? : %b", p1 == BOOT_PROTOCOL);
    if(setProtocol(usbDevice, interfaceNumber, BOOT_PROTOCOL) != StatusSuccess){
       return KeyboardProtocolError;
    }
@@ -62,9 +63,9 @@ KeyboardStatus keyboard_init(UsbDevice *usbDevice){
    
     uint8_t protocol = 3;
     if(getReportRequest(usbDevice, interfaceNumber, &protocol) != StatusSuccess){
-       printf("Unable to get protocol\n");
+       loggError("Unable to get protocol");
     }
-    printf("boot protocol? : %b\n", protocol == BOOT_PROTOCOL);
+    loggDebug("boot protocol? : %b", protocol == BOOT_PROTOCOL);
 
 //     uint8_t config;
 //     if(usb_getConfiguration(usbDevice, &config) != StatusSuccess){
@@ -84,8 +85,6 @@ KeyboardStatus keyboard_init(UsbDevice *usbDevice){
 
    
 
-   printf("v %X\n", usbDevice->deviceDescriptor.bcd);
-   
    uint8_t buffer[8] __attribute__((aligned(16)));
    memset(buffer, 0, sizeof(buffer));
    uint8_t buffer2[8] __attribute__((aligned(16)));
@@ -95,7 +94,7 @@ KeyboardStatus keyboard_init(UsbDevice *usbDevice){
       printf("-\b");
    }
 
-   printf("listening for keypresses:\n");
+   loggInfo("Listening for keypresses:\n");
    uint8_t last = 0;
 
 //    uint64_t *removeMe = (uint64_t*)0xFEBB7000;
@@ -118,7 +117,7 @@ KeyboardStatus keyboard_init(UsbDevice *usbDevice){
 //          printf("endpoint Status %d: %X %X\n", i, endpointStatus[0], endpointStatus[1]);
 //       }
       if(usb_readData(usbDevice, *endpoint, buffer, sizeof(buffer)) == StatusError){
-         printf("Error!\n");
+         loggError("Error!\n");
          continue;
       }
 //       printf("read\n");

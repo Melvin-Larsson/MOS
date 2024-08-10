@@ -1,5 +1,5 @@
 #include "string.h"
-#include "stdarg.h"
+
 int equals(char *s1, char *s2){
    while(*s1 && *s2){
       if(*s1 != *s2){
@@ -124,7 +124,10 @@ char* strAppendFrom(char *destination, const char* source, int start){
 void sprintf(char *str, const char *format, ...){
     va_list args;
     va_start(args, format);
-    
+    vsprintf(str, format, args);
+    va_end(args);
+}
+void vsprintf(char *str, const char *format, va_list args){
     while(*format){
         if(*format == '%'){
             format++;
@@ -134,11 +137,11 @@ void sprintf(char *str, const char *format, ...){
                 strReadInt(va_arg(args, int), buff);
                 str = strcpy(str, buff);
             }
-            if(*format == 's'){
+            else if(*format == 's'){
                 format++;
                 str = strcpy(str, va_arg(args, char *));
             }
-            if(*format == 'b'){
+            else if(*format == 'b'){
                 format++;
                 if(va_arg(args, int)){
                     char val[6] = "true";
@@ -149,11 +152,21 @@ void sprintf(char *str, const char *format, ...){
                     str = strcpy(str, val);
                 }
             }
+            else if(*format == 'X'){
+                format++;
+                char buff[32];
+                strReadIntHex(va_arg(args, int), buff);
+                str = strcpy(str, buff);
+            }
+            else if(*format == 'c'){
+                format++;
+                char c = va_arg(args, int);
+                *str++ = c;
+            }
         }
         else{
             *str++ = *format++;
         }
     }
     *str = 0;
-    va_end(args);
 }

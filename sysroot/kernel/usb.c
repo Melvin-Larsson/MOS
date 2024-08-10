@@ -2,8 +2,8 @@
 #include "kernel/xhcd-ring.h"
 #include "kernel/xhcd-event-ring.h"
 #include "kernel/usb-messages.h"
+#include "kernel/logging.h"
 #include "stdlib.h"
-#include "stdio.h"
 
 #define DESCRIPTOR_TYPE_DEVICE 1
 #define DESCRIPTOR_TYPE_CONFIGURATION 2
@@ -42,13 +42,13 @@ UsbStatus usb_init(PciDescriptor pci, Usb *result){
       *result  = (Usb){.type = UsbControllerXhci, {.xhci = xhci}};
       return StatusSuccess;
    }
-   printf("USB controller not yet implemented\n");
+   loggError("USB controller not yet implemented");
    return StatusError;
 }
 
 int usb_getNewlyAttachedDevices(Usb *usb, UsbDevice *resultBuffer, int bufferSize){
    if(usb->type != UsbControllerXhci){
-      printf("USB controller not yet implemented");
+      loggError("USB controller not yet implemented");
       return -1;
    }
 
@@ -240,7 +240,7 @@ static UsbConfiguration *parseConfiguration(uint8_t *configBuffer){
          UsbEndpointDescriptor *endpoint = &interface->endpoints[j];
 
          if(endpointDescriptor->bDescriptorType != DESCRIPTOR_TYPE_ENDPOINT){ //FIXME: kind of a hack to ignore HID descriptors
-            printf("ignoring endpoint descriptor type: %X\n", endpointDescriptor->bDescriptorType);
+            loggDebug("Ignoring endpoint descriptor type: %X", endpointDescriptor->bDescriptorType);
             j--;
             pos += endpointDescriptor->bLength;
             continue;
@@ -252,7 +252,7 @@ static UsbConfiguration *parseConfiguration(uint8_t *configBuffer){
          //FIXME: What happens if we read outside the buffer?
          UsbSuperSpeedEndpointDescriptor *superSpeedDescriptor = (UsbSuperSpeedEndpointDescriptor*)pos;
          if(superSpeedDescriptor->bDescriptorType == DESCRIPTOR_TYPE_SUPER_SPEED_ENDPOINT){
-            printf("UsbSuperSpeedDescriptor found! This is not really implemented!\n"); //FIXME
+            loggWarning("UsbSuperSpeedDescriptor found! This is not really implemented!"); //FIXME
             endpoint->superSpeedDescriptor = malloc(sizeof(UsbSuperSpeedEndpointDescriptor));
             *endpoint->superSpeedDescriptor = *superSpeedDescriptor;
             pos += superSpeedDescriptor->bLength;
@@ -261,7 +261,7 @@ static UsbConfiguration *parseConfiguration(uint8_t *configBuffer){
          }
       }
    }
-   printf("Parsed");
+   loggDebug("Parsed");
    return config;
 }
 static void freeConfiguration(UsbConfiguration *config){

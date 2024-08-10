@@ -1,7 +1,7 @@
 COMPILER?=${HOME}/opt/cross2/bin/i686-elf-gcc
 PREFIX?= ${HOME}/Programmering/OS
 INCLUDE=-I ${PREFIX}/sysroot/kernel/include -I ${PREFIX}/sysroot/lib/include -I ${PREFIX}/utils/include
-CFLAGS?= -O2 -std=gnu99 -ffreestanding -mno-red-zone -Wall -Wextra ${INCLUDE}
+CFLAGS?= -O2 -std=gnu99 -ffreestanding -mno-red-zone -DLOG_LEVEL=0 -Wall -Wextra ${INCLUDE}
 BUILD=${PREFIX}/sysroot/kernel/build
 
 LINK_FLAGS?= -nostdlib -lgcc -ffreestanding -O2 -r
@@ -31,6 +31,7 @@ OBJS= ${BUILD}/boot.o \
 	   ${BUILD}/physpage.o \
 	   ${BUILD}/allocator.o \
 	   ${BUILD}/serial.o \
+	   ${BUILD}/logging.o \
 
 ${BUILD}/kernel.o : ${BUILD} ${OBJS} ${PREFIX}/utils/include/utils/assert.h
 	${COMPILER} -T linker.ld ${LINK_FLAGS} ${OBJS} -o ${BUILD}/kernel.out
@@ -111,6 +112,9 @@ ${BUILD}/allocator.o : allocator.c include/kernel/allocator.h
 
 ${BUILD}/serial.o : serial.c include/kernel/serial.h
 	${COMPILER} ${CFLAGS} -c serial.c -o ${BUILD}/serial.o
+
+${BUILD}/logging.o : logging.c include/kernel/logging.h
+	${COMPILER} ${CFLAGS} -c logging.c -o ${BUILD}/logging.o
 
 include/kernel/xhcd.h: include/kernel/xhcd-registers.h include/kernel/usb-messages.h
 include/kernel/xhcd-ring.h: include/kernel/xhcd-registers.h
