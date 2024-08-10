@@ -191,14 +191,14 @@ uintptr_t paging_getPhysicalAddress(uintptr_t logical){
     }
 
     PageDirectoryEntryTableReference reference = { .bits = entry };
-    uint32_t *subTable = (uint32_t *) (reference.physicalAddress < 12);
+    uint32_t *subTable = (uint32_t *) (reference.physicalAddress << 12);
     uint32_t subTableIndex = (logical >> 12) & 0x3FF;
     PageTableEntry4KB entry4KB = {.bits = subTable[subTableIndex]};
     if(!entry4KB.present){
         return 0;
     }
 
-    uint32_t offset = logical & 0x3FF;
+    uint32_t offset = logical & 0xFFF;
     return entry4KB.physicalAddress << 12 | offset;
 }
 
