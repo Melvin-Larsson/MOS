@@ -113,8 +113,11 @@ SerialStatus serial_initPort(SerialPortNumber port, SerialPortConfig config){
 
 SerialStatus serial_write(SerialPortNumber port, const char* data){
    while(*data){
-      writeRegister(ports[port], TransmitBuffer, *data);
-      data++;
+      while(!(readRegister(ports[port], LineStatusRegister) & TRANSMISSION_BUFFER_EMPTY));
+      for(int i = 0; i < 16 && *data; i++){
+         writeRegister(ports[port], TransmitBuffer, *data);
+         data++;
+      }
    }
 /*    if(enque == deque){ */
 /*       for(int i = 0; i < 16 && *data; i++){ */
