@@ -215,12 +215,12 @@ void kernel_main(){
     logging_addWriter(consoleWriter);
     logging_addWriter(serialWriter);
 
-
     PagingConfig32Bit config = {
         .use4MBytePages = 1,
     };
-    PagingConfig32Bit newConfig = paging_init32Bit(config);
-    assert(config.use4MBytePages == newConfig.use4MBytePages);
+    PagingContext *context = paging_init32Bit(config, physpage_getPage4KB());
+    assert(config.use4MBytePages == context->config.use4MBytePages);
+    paging_setContext(context);
 
     for(uint32_t i = 0; i < 1; i++){
         PagingTableEntry entry = {

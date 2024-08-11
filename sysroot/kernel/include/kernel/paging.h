@@ -45,8 +45,16 @@ typedef struct{
    int pageAttributeTable;
 }PagingTableEntry;
 
+typedef struct{
+   void *data;
+   union{
+      PagingConfig32Bit config;
+   };
+}PagingContext;
 
-PagingConfig32Bit paging_init32Bit(PagingConfig32Bit config);
+
+PagingContext *paging_init32Bit(PagingConfig32Bit config, uintptr_t ppageDirectory4KBPage);
+void paging_setContext(PagingContext *context);
 void paging_start();
 PagingStatus paging_addEntry(PagingTableEntry entry, uintptr_t address);
 
