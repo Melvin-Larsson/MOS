@@ -1,5 +1,4 @@
 [BITS 16]
-    jmp start
     %include "A20.asm"
     %include "s2loader.inc"
     %include "print.inc"

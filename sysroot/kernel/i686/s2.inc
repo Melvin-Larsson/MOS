@@ -4,7 +4,13 @@ s2:
     jmp main
     %include "protected.inc"
     %include "memmap.inc"
-main:
+main: 
+    mov si, drive_index
+    mov dl, [ds:si]
+    mov si, dap2
+    mov ah, 0x42
+    int 0x13
+
     call map_memory
     call enter_protected
 
@@ -29,4 +35,11 @@ pmode_main:
     call kernel_main
 
 str: db 'Successfully entered protected mode!',0
-
+dap2: 
+    db 0x10
+    db 0
+    dw 127 ;nr of sectors
+    dw 0
+    dw 0x17c0  ;assumning a sector is 512 bytes
+    dd 128
+    dd 0 

@@ -10,6 +10,8 @@ print_str_loop:
     jmp print_str_loop
 print_str_ret:
     ret
+
+; print the value in ax
 print_char: 
     push bx
     mov bl,al
@@ -37,9 +39,11 @@ print_char_fast:
     pop bx
     ret
 
+; print the value in ax as hex
 print_ax:
-    mov si, hex
+    push si
     push ax
+    mov si, hex
     call print_str
     pop ax
     mov bx, ax
@@ -66,6 +70,7 @@ print_ax_print:
     mov ax, bx
     sub cx, 1
     jne print_ax_loop
+    pop si
     ret
     
 hex: db '0x',0
