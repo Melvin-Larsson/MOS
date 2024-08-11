@@ -27,9 +27,19 @@ typedef enum{
    CustomWriter
 }WriterType;
 
-typedef struct{
+typedef struct LoggContextValue{
+   struct LoggContextValue *next;
+   char *key;
+   char *value;
+}LoggContextValue;
+
+typedef struct LoggContext{
    char *name;
+   LoggContextValue *values;
+   struct LoggContext *nestedContext;
+   int depth;
 }LoggContext;
+
 
 typedef struct{
    union{
@@ -51,9 +61,26 @@ LoggWriter logging_getCustomWriter(
 LoggStatus logging_addWriter(LoggWriter writer);
 
 LoggContext updateLoggContext(LoggContext loggContext, char *name);
+void logging_addValueToContext(LoggContext *loggContext, char *key, char *value);
+void logging_startLoggContext(char *name, LoggContext *localContext);
+void logging_endLoggContext(LoggContext *localContext);
+
+#define logging_addValue(key, value) logging_addValueToContext(&loggContext, key, value)
+
+#define logging_startContext(name)\
+            logging_startLoggContext(name, &loggContext);       \
+            for(int logging_i = 0; logging_i < 1;                         \
+               logging_i++ ? logging_endLoggContext(&loggContext) \
+                  : logging_endLoggContext(&loggContext)) \
+
+#define lreturn logging_endLoggContext(&loggContext);\
+                return                               \
 
 static LoggContext loggContext = {
-   .name = 0
+   .name = 0,
+   .values = 0,
+   .nestedContext = 0,
+   .depth = 0,
 };
 
 #if LOG_LEVEL <= LOG_LEVEL_DEBUG

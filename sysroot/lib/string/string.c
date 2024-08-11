@@ -121,13 +121,14 @@ char* strAppendFrom(char *destination, const char* source, int start){
     }
     return strcpy(destination, source);
 }
-void sprintf(char *str, const char *format, ...){
+char* sprintf(char *str, const char *format, ...){
     va_list args;
     va_start(args, format);
-    vsprintf(str, format, args);
+    char *res = vsprintf(str, format, args);
     va_end(args);
+    return res;
 }
-void vsprintf(char *str, const char *format, va_list args){
+char* vsprintf(char *str, const char *format, va_list args){
     while(*format){
         if(*format == '%'){
             format++;
@@ -169,4 +170,5 @@ void vsprintf(char *str, const char *format, va_list args){
         }
     }
     *str = 0;
+    return str;
 }

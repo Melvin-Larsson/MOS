@@ -18,8 +18,16 @@ static char *getLoggHeader(LoggLevel loggLevel, LoggContext context);
 
 static LoggConfig config;
 
+static LoggContext globalContext;
+
 void logging_init(){
    config.writerCount = 0;
+
+   globalContext = (LoggContext){
+      .name = 0,
+      .nestedContext = 0,
+      .values = 0
+   };
 }
 
 LoggWriter logging_getDefaultFormatWriter(void (*writef)(const char *data, ...)){
@@ -59,6 +67,82 @@ LoggContext updateLoggContext(LoggContext loggContext, char *name){
    return loggContext;
 }
 
+static LoggContextValue *append(LoggContextValue *list, LoggContextValue *newValue){
+   newValue->next = list;
+   return newValue;
+}
+void logging_addValueToContext(LoggContext *localContext, char *key, char *value){
+   LoggContextValue *newValue = malloc(sizeof(LoggContextValue));
+   char *keyCopy = malloc(strlen(key) + 1);
+   char *valueCopy = malloc(strlen(value) + 1);
+   strcpy(keyCopy, key);
+   strcpy(valueCopy, value);
+   *newValue = (LoggContextValue){ .key = keyCopy, .value = valueCopy };
+
+   if(localContext->depth == 0){
+      localContext->values = append(localContext->values, newValue);
+   }
+
+   LoggContext *root = &globalContext;
+   while(root->nestedContext){
+      root = root->nestedContext;
+   }
+   root->values = append(root->values, newValue);
+}
+static void removeValuesFromContext(LoggContext *loggContext){
+   LoggContextValue *value = loggContext->values;
+   while(value){
+      LoggContextValue *temp = value;
+      value = temp->next;
+
+      free(temp->key);
+      free(temp->value);
+      free(temp);
+   }
+}
+
+static void appendLoggContext(LoggContext *root, LoggContext *new){
+   while(root->nestedContext){
+      root = root->nestedContext;
+   }
+   root->nestedContext = new;
+}
+LoggContext *removeLastLoggContext(LoggContext *rootContext){
+   LoggContext *prev = 0;
+   while(rootContext->nestedContext){
+      prev = rootContext;
+      rootContext = rootContext->nestedContext;
+   }
+
+   if(prev){
+      prev->nestedContext = 0;
+   }
+   return rootContext;
+}
+void logging_startLoggContext(char *name, LoggContext *localContext){
+   localContext->depth++;
+
+   char *nameCopy = malloc(strlen(name) + 1);
+   strcpy(nameCopy, name);
+
+   LoggContext *newContext = malloc(sizeof(LoggContext));
+   *newContext = (LoggContext){
+      .name = nameCopy,
+      .values = 0,
+      .nestedContext = 0
+   };
+   appendLoggContext(&globalContext, newContext);
+}
+
+void logging_endLoggContext(LoggContext *localContext){
+   localContext->depth--;
+   LoggContext *lastContext = removeLastLoggContext(&globalContext);
+
+   free(lastContext->name);
+   removeValuesFromContext(lastContext);
+   free(lastContext);
+}
+
 void logging_log(LoggContext context, LoggLevel loggLevel, char *data, ...){
    va_list args;
    va_start(args, data);
@@ -71,13 +155,9 @@ void logging_vlog(LoggContext context, LoggLevel loggLevel, char *data, va_list 
 
 //    int length = strlen(data);
    char *message = malloc(4096); //FIXME: Unsafe
-
    vsprintf(message, data, args);
 
    char *log = malloc(4096);
-   static int count = 0;
-   count++;
-
 
    strcpy(log, header);
    strAppend(log, message);
@@ -98,24 +178,77 @@ void logging_vlog(LoggContext context, LoggLevel loggLevel, char *data, va_list 
    free(log);
 }
 
-static char* getLoggHeader(LoggLevel loggLevel, LoggContext context){
-   int nameLength = strlen(context.name);
-   char *buffer = malloc(nameLength + 15);
+static int getContextValueStrLength(const LoggContext *context){
+   int length = 0;
+   LoggContextValue *list = context->values;
+   while(list){
+      length += 6 + strlen(list->key) + strlen(list->value);
+      list = list->next;
+   }
+   return length;
+}
+
+static char *formatSingleContext(const LoggContext *context){
+   int nameLength = strlen(context->name);
+   char *currContext = malloc(nameLength + 7 + getContextValueStrLength(context));
+
+   char *ptr = currContext;
+   ptr = sprintf(ptr, "[%s", context->name);
+
+   LoggContextValue *list = context->values;
+   if(list){
+      ptr = strAppend(ptr, " ");
+      while(list){
+         ptr = sprintf(ptr, "[%s: %s] ", list->key, list->value);
+         list = list->next;
+      }
+      ptr--;
+      *ptr = 0;
+   }
+   ptr = strAppend(ptr, "] ");
+   return currContext;
+}
+
+static char *formatContext(const LoggContext *globalContext, const LoggContext *localContext){
+   if(!globalContext){
+      return formatSingleContext(localContext);
+   }
+
+   char *nestedContext = formatContext(globalContext->nestedContext, localContext);
+   char *currContext = formatSingleContext(globalContext);
+
+   char *result = malloc(strlen(nestedContext) + strlen(currContext) + 5);
+   strcpy(result, currContext);
+   strAppend(result, nestedContext);
+   free(nestedContext);
+   free(currContext);
+
+   return result;
+}
+
+static char* getLoggHeader(LoggLevel loggLevel, LoggContext localContext){
+   char *contextStr = formatContext(globalContext.nestedContext, &localContext);
+   char *buffer = malloc(15 + strlen(contextStr));
+
+   char *ptr = buffer;
+   ptr = strcpy(ptr, contextStr);
+   free(contextStr);
+
    switch(loggLevel){
       case LoggLevelDebug:
-         sprintf(buffer, "[%s] Debug: ", context.name);
+         sprintf(ptr, "Debug: ", localContext.name);
          break;
       case LoggLevelInfo:
-         sprintf(buffer, "[%s] Info: ", context.name);
+         sprintf(ptr, "Info: ", localContext.name);
          break;
       case LoggLevelWarning:
-         sprintf(buffer, "[%s] Warning: ", context.name);
+         sprintf(ptr, "Warning: ", localContext.name);
          break;
       case LoggLevelError:
-         sprintf(buffer, "[%s] Error: ", context.name);
+         sprintf(ptr, "Error: ", localContext.name);
          break;
       default:
-         strcpy(buffer, "[%s] Unknown: ");
+         strcpy(ptr, "Unknown: ");
          break;
    }  
    return buffer;

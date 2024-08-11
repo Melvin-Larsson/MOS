@@ -154,69 +154,71 @@ static void handler(void *data){
 }
 
 XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
-   loggDebug("xhcd_init");
+   logging_startContext("xhcd_init")
+   {
+      loggDebug("init xhcd");
 
-   Xhcd *xhcd = calloc(sizeof(Xhcd));
-   xhci->data = xhcd;
-   xhcd->eventBuffer = malloc(sizeof(XhcEventTRB) * 32);
-   xhcd->eventBufferSize = 32;
-   xhcd->eventBufferDequeueIndex = 0;
-   xhcd->eventBufferEnqueueIndex = 1;
+      Xhcd *xhcd = calloc(sizeof(Xhcd));
+      xhci->data = xhcd;
+      xhcd->eventBuffer = malloc(sizeof(XhcEventTRB) * 32);
+      xhcd->eventBufferSize = 32;
+      xhcd->eventBufferDequeueIndex = 0;
+      xhcd->eventBufferEnqueueIndex = 1;
 
-   PciGeneralDeviceHeader pciHeader;
-   pci_getGeneralDevice(descriptor, &pciHeader);
-   xhcd->hardware = xhcd_initRegisters(pciHeader);
+      PciGeneralDeviceHeader pciHeader;
+      pci_getGeneralDevice(descriptor, &pciHeader);
+      xhcd->hardware = xhcd_initRegisters(pciHeader);
 
-   doBiosHandoff(xhcd);
+      doBiosHandoff(xhcd);
 
-   if(pci_isMsiXPresent(descriptor)){
-      loggInfo("Using msix");
-      MsiXVectorData vectorData = pci_getDefaultMsiXVectorData(handler, xhcd);
-      MsiXDescriptor msiDescriptor;
-      pci_initMsiX(&descriptor, &msiDescriptor);
-      pci_setMsiXVector(msiDescriptor, 0, 33, vectorData);
-      pci_enableMsiX(descriptor, msiDescriptor);
-   }else if(pci_isMsiPresent(descriptor)){
-      loggInfo("Using msi");
-      MsiInitData initData = pci_getDefaultSingleHandlerMsiInitData(handler, xhcd);
-      MsiDescriptor result;
-      pci_initMsi(descriptor, &result, initData, 32);
-   }else{
-      loggError("Unable to init msi ans msix. This situaion is not implemented");
-      while(1);
+      if(pci_isMsiXPresent(descriptor)){
+         loggInfo("Using msix");
+         MsiXVectorData vectorData = pci_getDefaultMsiXVectorData(handler, xhcd);
+         MsiXDescriptor msiDescriptor;
+         pci_initMsiX(&descriptor, &msiDescriptor);
+         pci_setMsiXVector(msiDescriptor, 0, 33, vectorData);
+         pci_enableMsiX(descriptor, msiDescriptor);
+      }else if(pci_isMsiPresent(descriptor)){
+         loggInfo("Using msi");
+         MsiInitData initData = pci_getDefaultSingleHandlerMsiInitData(handler, xhcd);
+         MsiDescriptor result;
+         pci_initMsi(descriptor, &result, initData, 32);
+      }else{
+         loggError("Unable to init msi ans msix. This situaion is not implemented");
+         while(1);
+      }
+
+      waitForControllerReady(xhcd);
+      resetXhc(xhcd);
+      waitForControllerReady(xhcd);
+
+      loggDebug("Controller ready");
+
+      uint32_t devices = getMaxEnabledDeviceSlots(xhcd);
+      setMaxEnabledDeviceSlots(xhcd, devices);
+      xhcd->handlers = calloc(devices * 32 * sizeof(XhcInterruptHandler));
+
+      initDCAddressArray(xhcd);
+      initScratchPad(xhcd);
+
+      readPortInfo(xhcd); //Maybe?
+      initCommandRing(xhcd);
+      initEventRing(xhcd);
+
+   // enable interrupts
+      xhcd_orRegister(xhcd->hardware, USBCommand, (1 << 2));
+      turnOnController(xhcd);
+
+      xhcd_orRegister(xhcd->hardware, USBStatus, 1 << 3);
+      
+      while(xhcd_readRegister(xhcd->hardware, USBStatus) & (1<<3));
+      
+      //FIXME: a bit of hack, clearing event ring
+      XhcEventTRB result[16];
+      while(xhcd_readEvent(&xhcd->eventRing, result, 16));
+
+      loggInfo("Controller turned on");
    }
-
-   waitForControllerReady(xhcd);
-   resetXhc(xhcd);
-   waitForControllerReady(xhcd);
-
-   loggDebug("Controller ready");
-
-   uint32_t devices = getMaxEnabledDeviceSlots(xhcd);
-   setMaxEnabledDeviceSlots(xhcd, devices);
-   xhcd->handlers = calloc(devices * 32 * sizeof(XhcInterruptHandler));
-
-   initDCAddressArray(xhcd);
-   initScratchPad(xhcd);
-
-   readPortInfo(xhcd); //Maybe?
-   initCommandRing(xhcd);
-   initEventRing(xhcd);
-
-// enable interrupts
-   xhcd_orRegister(xhcd->hardware, USBCommand, (1 << 2));
-   turnOnController(xhcd);
-
-
-   xhcd_orRegister(xhcd->hardware, USBStatus, 1 << 3);
-   
-   while(xhcd_readRegister(xhcd->hardware, USBStatus) & (1<<3));
-   
-   //FIXME: a bit of hack, clearing event ring
-   XhcEventTRB result[16];
-   while(xhcd_readEvent(&xhcd->eventRing, result, 16));
-
-   loggInfo("Controller turned on");
 
    return XhcOk;
 }
@@ -228,6 +230,7 @@ int xhcd_getDevices(Xhci *xhci, XhcDevice *resultBuffer, int bufferSize){
    int count = getNewlyAttachedDevices(xhcd, portIndexes, bufferSize);
    for(int i = 0; i < count; i++){
       XhcStatus status = initDevice(xhcd, portIndexes[i], &resultBuffer[i]);
+
       if(status != XhcOk){
          i--;
          count--;
@@ -320,6 +323,7 @@ static XhcStatus initDevice(Xhcd *xhcd, int portIndex, XhcDevice *result){
    if(!enablePort(xhcd, portIndex)){
       return XhcEnablePortError;
    }
+   
 
    int slotId = getSlotId(xhcd, portIndex + 1);
    if(slotId < 0){
@@ -440,34 +444,36 @@ XhcStatus xhcd_writeData(const XhcDevice *device,
    return XhcOk;
 }
 XhcStatus xhcd_sendRequest(const XhcDevice *device, UsbRequestMessage request){
-   loggDebug("Send request");
+   logging_startContext("xhcd send request"){
+      loggDebug("Send request");
 
-   SetupStageHeader header;
-   header.bmRequestType = request.bmRequestType;
-   header.bRequest = request.bRequest;
-   header.wValue = request.wValue;
-   header.wIndex = request.wIndex;
-   header.wLength = request.wLength;
-   TRB setupTrb = TRB_SETUP_STAGE(header);
-   uint8_t statusDirection = 1; //In
-   uint8_t dataDirection = 0; //Out
-   if((request.bmRequestType & (1<<7))){ //Device-to-host
-      if(request.wLength > 0){
-         statusDirection = 0; //Out
+      SetupStageHeader header;
+      header.bmRequestType = request.bmRequestType;
+      header.bRequest = request.bRequest;
+      header.wValue = request.wValue;
+      header.wIndex = request.wIndex;
+      header.wLength = request.wLength;
+      TRB setupTrb = TRB_SETUP_STAGE(header);
+      uint8_t statusDirection = 1; //In
+      uint8_t dataDirection = 0; //Out
+      if((request.bmRequestType & (1<<7))){ //Device-to-host
+         if(request.wLength > 0){
+            statusDirection = 0; //Out
+         }
+         dataDirection = 1; //In
       }
-      dataDirection = 1; //In
-   }
-   TRB statusTrb = TRB_STATUS_STAGE(statusDirection);
+      TRB statusTrb = TRB_STATUS_STAGE(statusDirection);
 
-   TD td;
-   if(header.wLength == 0){
-      td = (TD){{setupTrb, statusTrb}, 2};
-   }else{
-      TRB dataTrb = TRB_DATA_STAGE((uintptr_t)request.dataBuffer, request.wLength, dataDirection);
-      td = (TD){{setupTrb, dataTrb, statusTrb}, 3};
-   }
-   if(!putConfigTD(device->data, device->slotId, td)){
-      return XhcSendRequestError;
+      TD td;
+      if(header.wLength == 0){
+         td = (TD){{setupTrb, statusTrb}, 2};
+      }else{
+         TRB dataTrb = TRB_DATA_STAGE((uintptr_t)request.dataBuffer, request.wLength, dataDirection);
+         td = (TD){{setupTrb, dataTrb, statusTrb}, 3};
+      }
+      if(!putConfigTD(device->data, device->slotId, td)){
+         lreturn XhcSendRequestError;
+      }
    }
    return XhcOk;
 }

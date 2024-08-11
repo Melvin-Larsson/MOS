@@ -27,22 +27,26 @@ static void freeInterface(UsbInterface *interface);
 
 
 UsbStatus usb_init(PciDescriptor pci, Usb *result){
-   if(pci.pciHeader.classCode != PCI_CLASS_SERIAL_BUS_CONTROLLER){
-      return StatusError;
-   }
-   if(pci.pciHeader.subclass != PCI_SUBCLASS_USB_CONTROLLER){
-      return StatusError;
-   }
-   if(pci.pciHeader.progIf == PCI_PROG_IF_XHCI){
-      Xhci *xhci = malloc(sizeof(Xhci));
-      if(xhcd_init(pci, xhci) != XhcOk){
-         free(xhci);
-         return StatusError;
+   logging_startContext("usb init"){
+      if(pci.pciHeader.classCode != PCI_CLASS_SERIAL_BUS_CONTROLLER){
+         lreturn StatusError;
       }
-      *result  = (Usb){.type = UsbControllerXhci, {.xhci = xhci}};
-      return StatusSuccess;
+      if(pci.pciHeader.subclass != PCI_SUBCLASS_USB_CONTROLLER){
+         lreturn StatusError;
+      }
+      if(pci.pciHeader.progIf == PCI_PROG_IF_XHCI){
+         logging_addValue("controller", "xhc");
+         Xhci *xhci = malloc(sizeof(Xhci));
+         if(xhcd_init(pci, xhci) != XhcOk){
+            free(xhci);
+            lreturn StatusError;
+         }
+         *result  = (Usb){.type = UsbControllerXhci, {.xhci = xhci}};
+         lreturn StatusSuccess;
+      }
+
+      loggError("USB controller not yet implemented");
    }
-   loggError("USB controller not yet implemented");
    return StatusError;
 }
 
@@ -51,16 +55,18 @@ int usb_getNewlyAttachedDevices(Usb *usb, UsbDevice *resultBuffer, int bufferSiz
       loggError("USB controller not yet implemented");
       return -1;
    }
+   logging_startContext("usb get devices"){
+      XhcDevice *deviceBuffer = malloc(bufferSize * sizeof(XhcDevice));
+      int attachedPortsCount = xhcd_getDevices(usb->xhci, deviceBuffer, bufferSize);
+      for(int i = 0; i < attachedPortsCount; i++){
+         UsbControllerDevice device = {.type = UsbControllerXhci, {.xhcDevice = &deviceBuffer[i]}};
+         resultBuffer[i] = initUsbDevice(usb, device);
+      }
+      free(deviceBuffer);
 
-   XhcDevice *deviceBuffer = malloc(bufferSize * sizeof(XhcDevice));
-   int attachedPortsCount = xhcd_getDevices(usb->xhci, deviceBuffer, bufferSize);
-   for(int i = 0; i < attachedPortsCount; i++){
-      UsbControllerDevice device = {.type = UsbControllerXhci, {.xhcDevice = &deviceBuffer[i]}};
-      resultBuffer[i] = initUsbDevice(usb, device);
+      lreturn attachedPortsCount;
    }
-   free(deviceBuffer);
-
-   return attachedPortsCount;
+   return 0;
 }
 
 
@@ -154,25 +160,28 @@ UsbStatus usb_writeData(UsbDevice *device, UsbEndpointDescriptor endpoint, void 
    return StatusSuccess;
 }
 static UsbDevice initUsbDevice(Usb *usb, UsbControllerDevice device){
-   XhcDevice *xhcDevice = malloc(sizeof(XhcDevice));
-   *xhcDevice = *device.xhcDevice;
-   device.xhcDevice = xhcDevice;
-   UsbDevice usbDevice = {.controllerDevice = device, .usb = usb};
+   logging_startContext("init usb"){
+      XhcDevice *xhcDevice = malloc(sizeof(XhcDevice));
+      *xhcDevice = *device.xhcDevice;
+      device.xhcDevice = xhcDevice;
+      UsbDevice usbDevice = {.controllerDevice = device, .usb = usb};
 
-   getDeviceDescriptor(&usbDevice);
+      getDeviceDescriptor(&usbDevice);
 
-   int configCount = usbDevice.deviceDescriptor.bNumConfigurations;
-   UsbConfiguration *configurations = malloc(sizeof(UsbConfiguration) * configCount);
-   for(int j = 0; j < configCount; j++){
-      UsbConfiguration *config;
-      getConfiguration(&usbDevice, j, &config);
-      configurations[j] = *config;
-      free(config);
+      int configCount = usbDevice.deviceDescriptor.bNumConfigurations;
+      UsbConfiguration *configurations = malloc(sizeof(UsbConfiguration) * configCount);
+      for(int j = 0; j < configCount; j++){
+         UsbConfiguration *config;
+         getConfiguration(&usbDevice, j, &config);
+         configurations[j] = *config;
+         free(config);
+      }
+      usbDevice.configuration = configurations;
+      usbDevice.configurationCount = configCount;
+
+      lreturn usbDevice;
    }
-   usbDevice.configuration = configurations;
-   usbDevice.configurationCount = configCount;
-
-   return usbDevice;
+   return (UsbDevice){};
 }
 static UsbStatus getDeviceDescriptor(UsbDevice *device){
    if(device->usb->type != UsbControllerXhci){
