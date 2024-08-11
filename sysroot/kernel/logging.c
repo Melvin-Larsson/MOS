@@ -153,7 +153,6 @@ void logging_log(LoggContext context, LoggLevel loggLevel, char *data, ...){
 void logging_vlog(LoggContext context, LoggLevel loggLevel, char *data, va_list args){
    char *header = getLoggHeader(loggLevel, context);
 
-//    int length = strlen(data);
    char *message = malloc(4096); //FIXME: Unsafe
    vsprintf(message, data, args);
 
