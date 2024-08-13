@@ -1,14 +1,11 @@
 #ifndef ASSERT_H_INCLUDED
 #define ASSERT_H_INCLUDED
 
-#include "stdio.h"
+#include "kernel/logging.h"
 
 static int assert_impl(int valid, char *file, int line, char *expression){
     if(!(valid)){
-        StdioColor oldColor = stdio_getColor();
-        stdio_setColor(StdioColorRed);
-        printf("Assertion failed in %s at line %d (%s)\n", file, line, expression);
-        stdio_setColor(oldColor);
+        loggError("Assertion failed in %s at line %d (%s)\n", file, line, expression);
     }
     return valid;
 }

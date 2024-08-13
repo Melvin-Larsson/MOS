@@ -1,6 +1,6 @@
 #include "kernel/keyboard.h"
 #include "kernel/logging.h"
-#include "stdio.h"
+#include "kernel/kernel-io.h"
 #include "stdlib.h"
 #include "string.h"
 #include "kernel/usb.h"
@@ -91,7 +91,7 @@ KeyboardStatus keyboard_init(UsbDevice *usbDevice){
    memset(buffer2, 0, sizeof(buffer2));
 
    for(int i = 0; i < 10000; i++){
-      printf("-\b");
+      kprintf("-\b");
    }
 
    loggInfo("Listening for keypresses:\n");
@@ -131,18 +131,18 @@ KeyboardStatus keyboard_init(UsbDevice *usbDevice){
             break;
          }
          if(keypress == 0x2c){
-            printf(" ");
+            kprintf(" ");
          }
          else if(keypress == 0x28){
-            printf("\n");
+            kprintf("\n");
          }
          else if(keypress == 0x2a){
-            printf("\b");
+            kprintf("\b");
          }
          else{
             uint8_t character = 'a' + keypress - 4;
             uint8_t str[] = {character, 0};
-            printf("%s", str);
+            kprintf("%s", str);
          }
       }
       last = buffer[2];

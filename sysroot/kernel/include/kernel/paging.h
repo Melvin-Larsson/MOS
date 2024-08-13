@@ -48,15 +48,18 @@ typedef struct{
 typedef struct{
    void *data;
    union{
-      PagingConfig32Bit config;
+      PagingConfig32Bit config32Bit;
    };
 }PagingContext;
 
 
-PagingContext *paging_init32Bit(PagingConfig32Bit config, uintptr_t ppageDirectory4KBPage);
+void paging_init();
+PagingContext *paging_create32BitContext(PagingConfig32Bit config);
 void paging_setContext(PagingContext *context);
 void paging_start();
+void paging_stop();
 PagingStatus paging_addEntry(PagingTableEntry entry, uintptr_t address);
+PagingStatus paging_addEntryToContext(PagingContext *context, PagingTableEntry entry, uintptr_t address);
 
 uintptr_t paging_mapPhysical(uintptr_t address, uint32_t size);
 

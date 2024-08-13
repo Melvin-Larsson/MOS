@@ -36,6 +36,7 @@ interrupt_handler_%1:
 
 extern exception_handler
 extern exception_handler_error_code
+extern syscall_handler
 
 interrupt_handler_m 0
 interrupt_handler_m 1
@@ -71,6 +72,24 @@ interrupt_handler_m 30
 interrupt_handler_m 31
 interrupt_handler_m 32
 interrupt_handler_m 33
+interrupt_handler_m 34
+
+int0x80_handler:
+    pushad
+    push ecx
+    push ebx
+    push eax
+    call syscall_handler
+    add esp, 12
+    pop edi
+    pop esi
+    pop ebp
+    add esp, 4
+    pop ebx
+    pop edx
+    pop ecx
+    add esp, 4
+    iret
 
 global interrupt_addr_table
 interrupt_addr_table:
@@ -79,3 +98,7 @@ interrupt_addr_table:
     dd interrupt_handler_%+i
 %assign i i+1
 %endrep
+%rep (0x80 - 34)
+    dd interrupt_handler_34
+%endrep
+dd int0x80_handler

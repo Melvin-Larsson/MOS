@@ -1,12 +1,50 @@
 #include "kernel/task-structures.h"
 #include "kernel/task.h"
 #include "stdlib.h"
-#include "stdio.h"
+#include "kernel/logging.h"
 #include "kernel/descriptors.h"
 
+typedef volatile struct{
+   uint64_t segmentLimitLow : 16;
+   uint64_t baseAddressLow : 24;
+   uint64_t segmentType : 4;
+   uint64_t descriptorType : 1;
+   uint64_t descriptorPrivilegeLevel : 2;
+   uint64_t segmentPresent : 1;
+   uint64_t segmentLimitHigh : 4;
+   uint64_t avl : 1;
+   uint64_t is64BitCodeSegment : 1;
+   uint64_t is32BitSegment : 1;
+   uint64_t granularity : 1;
+   uint64_t baseAddressHigh : 8;
+}__attribute__((packed))SegmentDescriptor;
+
+extern volatile SegmentDescriptor tss;
+
 static void func(){
-   printf("Hello from another task!\n");
+   loggInfo("Hello from another task!\n");
    while(1);
+}
+
+#define VIDEO_MEMORY ((uint16_t*)0xb8000)
+static void test(){
+    VIDEO_MEMORY[1] = 15 << 8 | 'x';
+    while(1);
+}
+
+void initKernelTask(uintptr_t stack){
+   TaskStateSegment32 *tssSegment = callocco(sizeof(TaskStateSegment32), 4096, 0);
+   tssSegment->ss0 = (2 << 3 | 0);
+   tssSegment->esp0 = stack;
+
+   loggDebug("Add tss to gdt");
+   tss.baseAddressLow = (uintptr_t)tssSegment & 0xFFFFFF;
+   tss.baseAddressHigh = (uintptr_t)tssSegment >> 24;
+   loggInfo("Tss at %X added to gdt", tssSegment);
+
+   __asm__ volatile("ltr %%ax"
+         :
+         : "ax"(5 << 3));
 }
 
 static void initCurrTask(){
@@ -23,11 +61,11 @@ static void initCurrTask(){
       .esp2 = 0x18FECA,
       .ss2 = 0x10,
 
-      .ssp = 1,
+//       .ssp = 1,
       
       .T = 0
    };
-   printf("tss %X\n", tss);
+   loggInfo("tss %X\n", tss);
    GdtTssDescriptor tssd  = {
       .address = (uintptr_t)tss,
       .size = sizeof(TaskStateSegment32) + 32,
@@ -35,17 +73,17 @@ static void initCurrTask(){
       .descriptorPrivilegeLevel = 0
    };
    uint16_t segmentSelector = gdt_addTss32Descriptor(tssd) << 3;
-   printf("sect %X\n", segmentSelector);
+   loggInfo("sect %X\n", segmentSelector);
 
    __asm__ volatile ("ltr %[selector]"
          :
          : [selector]"r"(segmentSelector)
          :
          );
-   printf("done\n");
+   loggInfo("done\n");
 
-   printf("func at %X\n", func);
-   printf("task_test %X\n", task_test);
+   loggInfo("func at %X\n", func);
+   loggInfo("task_test %X\n", task_test);
 
    
 //    uint32_t *data = malloc(4 * 3);
@@ -67,7 +105,7 @@ struct far_ptr {
 
 void task_test(){
    initCurrTask();
-//    printf("inited\n");
+//    loggInfo("inited\n");
    TaskStateSegment32 *tss = callocco(sizeof(TaskStateSegment32) + 32, 1024, 1024);
 
    *tss = (TaskStateSegment32){
@@ -101,7 +139,7 @@ void task_test(){
       .esp2 = 0x18FECA,
       .ss2 = 0x10,
 
-      .ssp = 1,
+//       .ssp = 1,
       
       .T = 0,
       .cr3 = 1,
@@ -109,7 +147,7 @@ void task_test(){
 
    };
 
-   printf("tss2 %X\n", tss);
+   loggInfo("tss2 %X\n", tss);
 
    GdtTssDescriptor tssd  = {
       .address = (uintptr_t)tss,
@@ -118,8 +156,8 @@ void task_test(){
       .descriptorPrivilegeLevel = 0
    };
    volatile uint16_t segmentSelector = gdt_addTss32Descriptor(tssd) << 3;
-   printf("segment %X\n", segmentSelector);
-   printf("stack %X\n", &segmentSelector);
+   loggInfo("segment %X\n", segmentSelector);
+   loggInfo("stack %X\n", &segmentSelector);
    uint16_t dest = 0;
 
    __asm__ volatile ("lar %[src], %[dst]"
@@ -128,13 +166,13 @@ void task_test(){
          : 
          );
 
-   printf("dest %X\n", dest);
+   loggInfo("dest %X\n", dest);
 
    volatile struct far_ptr ptr = {(uint32_t)func, segmentSelector};
 //    printvolatile f("seg se: %X\n", segmentSelector);
 
 
-//    printf("func %X\n", task_test);
+//    loggInfo("func %X\n", task_test);
 
 
 //    __asm__(".intel_syntax noprefix");
@@ -157,5 +195,5 @@ void task_test(){
 //             :
 //             );
 
-   printf("after call");
+   loggInfo("after call");
 }

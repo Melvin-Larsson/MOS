@@ -1,4 +1,4 @@
-#include "stdio.h"
+#include "kernel/kernel-io.h"
 #include "stdlib.h"
 #include "kernel/interrupt.h"
 #include "kernel/apic.h"
@@ -12,7 +12,11 @@
 #include "kernel/allocator.h"
 #include "kernel/serial.h"
 
+#include "kernel/task.h"
+
 #include "kernel/logging.h"
+
+#include "stdio.h"
 
 #define ASSERTS_ENABLED
 #include "utils/assert.h"
@@ -93,20 +97,20 @@ static void testMemory(){
     uint8_t *m2 = malloc(10);
     uint8_t *m3 = malloc(10);
     if(overlaps(m1, 10, m2, 10) || overlaps(m2, 10, m3, 10) || overlaps(m1, 10, m3, 10)){
-        printf("Memory check failed, memories overlap!\n");
+        kprintf("Memory check failed, memories overlap!\n");
         while(1);
     }
     free(m2);
     uint8_t *m4 = malloc(10);
     if(m2 != m4){
-        printf("Memory check failed, failed to reuse memory(1)!\n");
+        kprintf("Memory check failed, failed to reuse memory(1)!\n");
         while(1);
     }
     free(m4);
     uint8_t *m5 = malloc(1);
     uint8_t *m6 = malloc(1);
     if(!overlaps(m4, 10, m5, 1) || !overlaps(m4, 10, m6, 1)){
-        printf("Memory check failed, failed to reuse memory(2)!\n");
+        kprintf("Memory check failed, failed to reuse memory(2)!\n");
         while(1);
     }
     free(m1);
@@ -115,26 +119,27 @@ static void testMemory(){
     free(m6);
     uint8_t *m7 = malloc(10);
     if(m7 != m1){
-        printf("Memory check failed, failed to reuse memory(3)!\n");
+        kprintf("Memory check failed, failed to reuse memory(3)!\n");
         while(1);
     }
     free(m7);
-    printf("Passed memory check!\n");
+    kprintf("Passed memory check!\n");
 }
+
 static void testMemoryConstrained(){
     uint8_t *m1 = mallocco(10, 0x100, 0);
     if((uintptr_t)m1 % 0x100 != 0){
-        printf("Constrained memory check failed, failed to align!\n");
+        kprintf("Constrained memory check failed, failed to align!\n");
         while(1);
     }
     uint8_t *m2 = malloc(1);
     if(m2 > m1){
-        printf("Constrained memory check failed, failed to use alignment space\n");
+        kprintf("Constrained memory check failed, failed to use alignment space\n");
         while(1);
     }
     uint8_t *m3 = mallocco(0x1000, 1, 0x1000);
     if(!m3 || (uintptr_t)m3 / 0x1000 != ((uint64_t)m3 + 0x1000-1) / 0x1000){
-        printf("Constrained memory check failed, failed to avoid boundary %X\n", m3);
+        kprintf("Constrained memory check failed, failed to avoid boundary %X\n", m3);
         while(1);
     }
     free(m1);
@@ -144,13 +149,13 @@ static void testMemoryConstrained(){
     uint8_t *m5 = mallocco(7, 3, 10);
     uint8_t *m6 = mallocco(10, 3, 10);
     if(!m4 || !m5 || m6){
-        printf("Constrained memory check failed, failed to avoid follow constraints\n");
+        kprintf("Constrained memory check failed, failed to avoid follow constraints\n");
         while(1);
     }
     free(m4);
     free(m5);
     free(m6);
-    printf("Passed constrained memory check");
+    kprintf("Passed constrained memory check");
 }
 void assert_little_endian(){
     uint32_t i = 0x12345678;
@@ -166,78 +171,155 @@ void serial_writer(const char *str){
     serial_write(COM1, "\n\r");
 }
 void console_writer(LoggContext context, LoggLevel level, const char *format, va_list args){
-    StdioColor prevColor = stdio_getColor();
-    StdioColor newColor;
+    KIOColor prevColor = kio_getColor();
+    KIOColor newColor;
     switch(level){
         case LoggLevelDebug:
-            newColor = StdioColorGray;
+            newColor = KIOColorGray;
             break;
         case LoggLevelInfo:
-            newColor = StdioColorWhite;
+            newColor = KIOColorWhite;
             break;
         case LoggLevelWarning:
-            newColor = StdioColorYellow;
+            newColor = KIOColorYellow;
             break;
         case LoggLevelError:
-            newColor = StdioColorRed;
+            newColor = KIOColorRed;
             break;
         default:
             newColor = prevColor;
             break;
     }
-    stdio_setColor(newColor);
+    kio_setColor(newColor);
     char *buffer = malloc(4096); //FIXME: Could lead to array out of bounds
     vsprintf(buffer, format, args);
-    printf(buffer);
-    printf("\n");
-    stdio_setColor(prevColor);
+    kprintf(buffer);
+    kprintf("\n");
+    kio_setColor(prevColor);
 }
 
-void kernel_main(){
-    stdioinit();
-    stdlib_init();
-//     testMemory();
-//     testMemoryConstrained();
-    printf("Kernel started\n");
-    interruptDescriptorTableInit(); 
-    assert_little_endian();
+#define VIDEO_MEMORY ((uint16_t*)0xb8000)
 
-    physpage_init();
+void myUserspaceFunc(){
+//     VIDEO_MEMORY[0] = 15 << 8 | 'x';
 
+    char *hello = "Hello World!\n";
+    __asm__ volatile("int $0x80"
+            : 
+            : "a"(2 << 16 | 1), "b"(hello));
+
+    while(1);
+    StdioColor color = stdio_getColor();
+    stdio_setColor(StdioColorRed);
+    printf("Hello world! %X %d %X %s\n", 1,2,3, "xox");
+    printf("Hello world! %X %d %X %s\n", 1,2,3, "xox");
+    stdio_setColor(color);
+    printf("Hello world! %X %d %X %s\n", 1,2,3, "xox");
+
+    while(1);
+}
+
+void initLogging(){
     SerialPortConfig serialConfig = serial_defaultConfig();
     serial_initPort(COM1, serialConfig);
 
     LoggWriter consoleWriter = logging_getCustomWriter(console_writer);
     LoggWriter serialWriter = logging_getDefaultWriter(serial_writer);
     serialWriter.loggLevel = LoggLevelDebug;
-    consoleWriter.loggLevel = LoggLevelNone,
+    consoleWriter.loggLevel = LoggLevelInfo,
     logging_init();
     logging_addWriter(consoleWriter);
     logging_addWriter(serialWriter);
+}
+
+static void enter_usermode(){
+    loggInfo("Enter user");
+    __asm__ volatile("\
+        mov $(4 << 3 | 3), %%eax; \
+        mov %%ax, %%ds;    \
+        mov %%ax, %%es;    \
+        mov %%ax, %%fs;    \
+        mov %%ax, %%gs;    \
+                           \
+        mov %%esp, %%eax;  \
+        push $(4 << 3 | 3); \
+        push $0xA00000; \
+        pushf; \
+        push $(3 << 3 | 3); \
+        push $0x800000; \
+        iret;  "
+        :
+        :
+        : "eax");
+}
+
+PagingContext *userspaceContext;
+PagingContext *kernelContext;
+
+void kernel_main(){
+    kio_init();
+    stdlib_init();
+//     testMemory();
+//     testMemoryConstrained();
+    kprintf("Kernel started\n");
+    interruptDescriptorTableInit(); 
+    assert_little_endian();
+    initLogging();
+
+    initKernelTask(4 * 1024 * 1024);
+
+    physpage_init();
+    physpage_markPagesAsUsed4MB(0, 1);
+    physpage_markPagesAsUsed4KB(0x100000, 0x1000000); //FIXME: Hack
+
+    paging_init();
+
+    uintptr_t userspaceAddress = 0x800000;
+    physpage_markPagesAsUsed4MB(2, 1);
+
+    uintptr_t funcAddr = (uintptr_t)myUserspaceFunc;
+    memcpy((void*)userspaceAddress, (void*)funcAddr, 4096);
 
     PagingConfig32Bit config = {
         .use4MBytePages = 1,
     };
-    PagingContext *context = paging_init32Bit(config, physpage_getPage4KB());
-    assert(config.use4MBytePages == context->config.use4MBytePages);
-    paging_setContext(context);
+    kernelContext = paging_create32BitContext(config);
+    assert(config.use4MBytePages == kernelContext->config32Bit.use4MBytePages);
+    PagingTableEntry entry = {
+        .physicalAddress = 0,
+        .readWrite = 1,
+        .pageWriteThrough = 1,
+        .pageCahceDisable = 1,
+        .Use4MBPageSize = 1,
+    };
+    PagingStatus status = paging_addEntryToContext(kernelContext, entry, 0);
+    assert(status == PagingOk);
 
-    for(uint32_t i = 0; i < 1; i++){
-        PagingTableEntry entry = {
-            .physicalAddress = i * 4 * 1024 * 1024,
-            .readWrite = 1,
-            .pageWriteThrough = 1,
-            .pageCahceDisable = 1,
-            .Use4MBPageSize = 1
-        };
-        
-        physpage_markPagesAsUsed4MB(i, 1);
-
-        PagingStatus status = paging_addEntry(entry, i * 4 * 1024 * 1024);
-        assert(status == PagingOk);
-    }
-
+    paging_setContext(kernelContext);
     paging_start();
+
+    userspaceContext = paging_create32BitContext(config);
+    PagingTableEntry userSpaceEntry = {
+        .physicalAddress = userspaceAddress,
+        .readWrite = 1,
+        .pageWriteThrough = 1,
+        .pageCahceDisable = 1,
+        .Use4MBPageSize = 1,
+        .userSupervisor = 1
+    };
+    uintptr_t newAddress = 0x800000;
+    uint32_t status1 = paging_addEntryToContext(userspaceContext, entry, 0);
+    uint32_t status2 = paging_addEntryToContext(userspaceContext, userSpaceEntry, newAddress);
+
+    loggDebug("status %X %X\n", status1, status2);
+
+    paging_stop();
+    paging_setContext(userspaceContext);
+    paging_start();
+
+    kprintf("jump\n");
+    enter_usermode();
+    while(1);
 
 //     printf("APIC present: %b\n", apic_isPresent());
 

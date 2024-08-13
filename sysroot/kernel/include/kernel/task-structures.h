@@ -31,7 +31,7 @@ typedef volatile struct{
    uint32_t ldtSegmentSelector;
    uint16_t T;
    uint16_t ioMapBaseAddress;
-   uint32_t ssp;
+//    uint32_t ssp;
 }TaskStateSegment32;
 
 #endif

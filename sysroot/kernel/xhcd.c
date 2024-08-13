@@ -2,7 +2,7 @@
 #include "kernel/xhcd-ring.h"
 #include "kernel/xhcd-event-ring.h"
 #include "kernel/usb-descriptors.h"
-#include "stdio.h"
+#include "kernel/kernel-io.h"
 #include "stdlib.h"
 #include "string.h"
 #include "kernel/interrupt.h"
@@ -331,7 +331,7 @@ static XhcStatus initDevice(Xhcd *xhcd, int portIndex, XhcDevice *result){
    }
    //FIXME: delay
    for(int i = 0; i < 10000; i++){
-      printf("-\b");
+      kprintf("-\b");
    }
 
    if(!addressDevice(xhcd, slotId, portIndex)){
@@ -487,20 +487,20 @@ XhcStatus xhcd_sendRequest(const XhcDevice *device, UsbRequestMessage request){
  */
 void xhc_dumpCapabilityRegs(Xhci *xhci){
    Xhcd *xhcd = xhci->data;
-   printf("capability params (HCCPARAMS): ");
-   printf("1: %X. 2: %X\n", xhcd_readCapability(xhcd->hardware, HCCPARAMS1), xhcd_readCapability(xhcd->hardware, HCCPARAMS2));
-   printf("struct params (HCSPARAMS): ");
-   printf("1: %X. 2: %X. 3: %X\n", xhcd_readCapability(xhcd->hardware, HCSPARAMS1),  xhcd_readCapability(xhcd->hardware, HCSPARAMS2), xhcd_readCapability(xhcd->hardware, HCSPARAMS3));
+   kprintf("capability params (HCCPARAMS): ");
+   kprintf("1: %X. 2: %X\n", xhcd_readCapability(xhcd->hardware, HCCPARAMS1), xhcd_readCapability(xhcd->hardware, HCCPARAMS2));
+   kprintf("struct params (HCSPARAMS): ");
+   kprintf("1: %X. 2: %X. 3: %X\n", xhcd_readCapability(xhcd->hardware, HCSPARAMS1),  xhcd_readCapability(xhcd->hardware, HCSPARAMS2), xhcd_readCapability(xhcd->hardware, HCSPARAMS3));
 }
 void xhc_dumpOperationalRegs(Xhci *xhci){
    Xhcd *xhcd = xhci->data;
-   printf("USBCMD: %X\n", xhcd_readRegister(xhcd->hardware, USBCommand));
-   printf("USBSTS: %X\n", xhcd_readRegister(xhcd->hardware, USBStatus));
-   printf("pageSize: %X\n", xhcd_readRegister(xhcd->hardware, PAGESIZE));
-   printf("DNCTRL: %X\n", xhcd_readRegister(xhcd->hardware, DNCTRL));
-   printf("CRCR: %X %X\n", xhcd_readRegister(xhcd->hardware, CRCR));
-   printf("DCBAAP: %X %X\n", xhcd_readRegister(xhcd->hardware, DCBAAP));
-   printf("CONFIG: %X\n", xhcd_readRegister(xhcd->hardware, CONFIG));
+   kprintf("USBCMD: %X\n", xhcd_readRegister(xhcd->hardware, USBCommand));
+   kprintf("USBSTS: %X\n", xhcd_readRegister(xhcd->hardware, USBStatus));
+   kprintf("pageSize: %X\n", xhcd_readRegister(xhcd->hardware, PAGESIZE));
+   kprintf("DNCTRL: %X\n", xhcd_readRegister(xhcd->hardware, DNCTRL));
+   kprintf("CRCR: %X %X\n", xhcd_readRegister(xhcd->hardware, CRCR));
+   kprintf("DCBAAP: %X %X\n", xhcd_readRegister(xhcd->hardware, DCBAAP));
+   kprintf("CONFIG: %X\n", xhcd_readRegister(xhcd->hardware, CONFIG));
 }
 static XhcStatus initInterruptEndpoint(Xhcd *xhcd, int slotId, UsbEndpointDescriptor *endpoint, XhcInputContext *inputContext){
    loggDebug("Init endpoint. In? : %b", endpoint->direction == ENDPOINT_DIRECTION_IN);
