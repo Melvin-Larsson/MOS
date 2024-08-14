@@ -270,7 +270,7 @@ void kernel_main(){
 
     physpage_init();
     physpage_markPagesAsUsed4MB(0, 1);
-    physpage_markPagesAsUsed4KB(0x100000, 0x1000000); //FIXME: Hack
+    physpage_markPagesAsUsed4KB(4194304, 4194304);
 
     paging_init();
 
@@ -294,6 +294,7 @@ void kernel_main(){
     };
     PagingStatus status = paging_addEntryToContext(kernelContext, entry, 0);
     assert(status == PagingOk);
+    loggDebug("Status %X", status);
 
     paging_setContext(kernelContext);
     paging_start();

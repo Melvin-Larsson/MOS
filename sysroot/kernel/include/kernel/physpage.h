@@ -6,6 +6,10 @@
 void physpage_init();
 uint64_t physpage_getPage4KB();
 uint64_t physpage_getPage4MB();
+
+uint64_t physpage_getPage4KBHigh();
+uint64_t physpage_getPage4MBHigh();
+
 void physpage_releasePage4KB(uint64_t page);
 void physpage_releasePage4MB(uint64_t page);
 

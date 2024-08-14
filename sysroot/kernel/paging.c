@@ -438,7 +438,10 @@ static PagingStatus add32BitPagingEntry(PagingData *context, PagingTableEntry ne
             return PagingOk;
        }else{
            loggDebug("New dir");
-           uintptr_t tablePage = physpage_getPage4KB();
+           AllocatedArea tableArea = allocator_get(pageTableAllocator, 1);
+           assert(tableArea.size == 1);
+           uintptr_t tablePage = tableArea.address / SIZE_4KB;
+
            memset((void*)(tablePage << 12), 0, 4096);
            PageDirectoryEntryTableReference newEntryTablereference = {
                .present = 1,
@@ -464,7 +467,6 @@ static PagingStatus add32BitPagingEntry(PagingData *context, PagingTableEntry ne
     uint32_t *subTable = (uint32_t *) (reference.physicalAddress << 12);
     uint32_t subTableIndex = (address >> 12) & 0x3FF;
     uint32_t subTableEntry = subTable[subTableIndex];
- 
     if(subTableEntry & PAGE_ENTRY_PRESENT){
        return PagingEntryAlreadyPresent;
     }
