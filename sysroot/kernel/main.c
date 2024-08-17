@@ -11,6 +11,7 @@
 #include "kernel/physpage.h"
 #include "kernel/allocator.h"
 #include "kernel/serial.h"
+#include "kernel//pit.h"
 
 #include "kernel/task.h"
 
@@ -265,6 +266,11 @@ void kernel_main(){
     interruptDescriptorTableInit(); 
     assert_little_endian();
     initLogging();
+
+    pit_init();
+    pit_setTimer(0, 0, 0);
+
+    while(1);
 
     initKernelTask(4 * 1024 * 1024);
 

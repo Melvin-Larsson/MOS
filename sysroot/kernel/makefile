@@ -33,6 +33,8 @@ OBJS= ${BUILD}/boot.o \
 	   ${BUILD}/serial.o \
 	   ${BUILD}/logging.o \
 	   ${BUILD}/kernel-io.o \
+	   ${BUILD}/pit.o \
+	   ${BUILD}/ioport.o \
 
 ${BUILD}/kernel.o : ${BUILD} ${OBJS} ${PREFIX}/utils/include/utils/assert.h
 	${COMPILER} -T linker.ld ${LINK_FLAGS} ${OBJS} -o ${BUILD}/kernel.out
@@ -119,6 +121,12 @@ ${BUILD}/logging.o : logging.c include/kernel/logging.h
 
 ${BUILD}/kernel-io.o : kernel-io.c include/kernel/kernel-io.h
 	${COMPILER} ${CFLAGS} -c kernel-io.c -o ${BUILD}/kernel-io.o
+
+${BUILD}/pit.o : pit.c include/kernel/pit.h
+	${COMPILER} ${CFLAGS} -c pit.c -o ${BUILD}/pit.o
+
+${BUILD}/ioport.o : ioport.c include/kernel/ioport.h
+	${COMPILER} ${CFLAGS} -c ioport.c -o ${BUILD}/ioport.o
 
 include/kernel/xhcd.h: include/kernel/xhcd-registers.h include/kernel/usb-messages.h
 include/kernel/xhcd-ring.h: include/kernel/xhcd-registers.h
