@@ -84,6 +84,8 @@ uint32_t syscall_handler(uint32_t eax, uint32_t param1, uint32_t param2){
       case 1:
          result =  stdio(function, param1, param2);
          break;
+      default:
+         loggDebug("Unknown syscall");
    }
 
    return result;

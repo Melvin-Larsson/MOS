@@ -1,5 +1,6 @@
 #include "kernel/pit.h"
 #include "kernel/ioport.h"
+#include "kernel/logging.h"
 #include "stdlib.h"
 #include "stdint.h"
 #include "stdbool.h"
@@ -55,10 +56,15 @@ static void writeChannel(Channel channel, uint16_t value);
 
 void pit_init(){
    memset(channels, 0, sizeof(channels));
+
+   writeChannel(Channel0, 1);
+   writeCommand(Channel0, LowThenHighByte, InterruptOnTerminalCount, false);
+
+   while(readChannel(Channel0) <= 1);
 }
 
 void pit_setTimer(void (*handler)(void *data), void *data, uint32_t time){
-   writeChannel(Channel0, ~0);
+   writeChannel(Channel0, 0xFFFF);
    writeCommand(Channel0, LowThenHighByte, InterruptOnTerminalCount, false);
 }
 

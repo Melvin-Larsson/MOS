@@ -1,7 +1,7 @@
 COMPILER?=${HOME}/opt/cross2/bin/i686-elf-gcc
 PREFIX?= ${HOME}/Programmering/OS
 INCLUDE=-I ${PREFIX}/sysroot/kernel/include -I ${PREFIX}/sysroot/lib/include -I ${PREFIX}/utils/include
-CFLAGS?= -O2 -std=gnu99 -ffreestanding -mno-red-zone -DLOG_LEVEL=0 -Wall -Wextra ${INCLUDE}
+CFLAGS?= -O2 -std=gnu99 -ffreestanding -mno-red-zone -DLOG_LEVEL=0 -DASSERTS_ENABLED -Wall -Wextra ${INCLUDE}
 BUILD=${PREFIX}/sysroot/kernel/build
 
 LINK_FLAGS?= -nostdlib -lgcc -ffreestanding -O2 -r
@@ -35,6 +35,9 @@ OBJS= ${BUILD}/boot.o \
 	   ${BUILD}/kernel-io.o \
 	   ${BUILD}/pit.o \
 	   ${BUILD}/ioport.o \
+	   ${BUILD}/ioapic.o \
+	   ${BUILD}/acpi.o \
+	   ${BUILD}/threads.o \
 
 ${BUILD}/kernel.o : ${BUILD} ${OBJS} ${PREFIX}/utils/include/utils/assert.h
 	${COMPILER} -T linker.ld ${LINK_FLAGS} ${OBJS} -o ${BUILD}/kernel.out
@@ -127,6 +130,15 @@ ${BUILD}/pit.o : pit.c include/kernel/pit.h
 
 ${BUILD}/ioport.o : ioport.c include/kernel/ioport.h
 	${COMPILER} ${CFLAGS} -c ioport.c -o ${BUILD}/ioport.o
+
+${BUILD}/ioapic.o : ioapic.c include/kernel/ioapic.h
+	${COMPILER} ${CFLAGS} -c ioapic.c -o ${BUILD}/ioapic.o
+
+${BUILD}/acpi.o : acpi.c include/kernel/acpi.h
+	${COMPILER} ${CFLAGS} -c acpi.c -o ${BUILD}/acpi.o
+
+${BUILD}/threads.o : threads.c include/kernel/threads.h
+	${COMPILER} ${CFLAGS} -c threads.c -o ${BUILD}/threads.o
 
 include/kernel/xhcd.h: include/kernel/xhcd-registers.h include/kernel/usb-messages.h
 include/kernel/xhcd-ring.h: include/kernel/xhcd-registers.h

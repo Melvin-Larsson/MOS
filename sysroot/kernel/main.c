@@ -11,7 +11,10 @@
 #include "kernel/physpage.h"
 #include "kernel/allocator.h"
 #include "kernel/serial.h"
-#include "kernel//pit.h"
+#include "kernel/pit.h"
+#include "kernel/acpi.h"
+#include "kernel/ioapic.h"
+#include "kernel/threads.h"
 
 #include "kernel/task.h"
 
@@ -19,7 +22,6 @@
 
 #include "stdio.h"
 
-#define ASSERTS_ENABLED
 #include "utils/assert.h"
 
 #include "kernel/usb-mass-storage.h"
@@ -41,7 +43,6 @@ static void printPciDevices(PciDescriptor *descriptors, int count){
                 subclassName, header->subclass,
                 progIfName, header->progIf);
     }
-
 }
 static PciDescriptor* getXhcdDevice(PciDescriptor* descriptors, int count){
     for(int i = 0; i < count; i++){
@@ -56,6 +57,7 @@ static PciDescriptor* getXhcdDevice(PciDescriptor* descriptors, int count){
     }
     return 0;
 }
+
 static void initXhci(PciDescriptor pci){
     Usb usb;
     if(usb_init(pci, &usb) != StatusSuccess){
@@ -199,24 +201,24 @@ void console_writer(LoggContext context, LoggLevel level, const char *format, va
     kio_setColor(prevColor);
 }
 
-#define VIDEO_MEMORY ((uint16_t*)0xb8000)
-
 void myUserspaceFunc(){
-//     VIDEO_MEMORY[0] = 15 << 8 | 'x';
-
-    char *hello = "Hello World!\n";
+    char *hello = "Hello World! (1)\n";
+    volatile uint32_t eax = (2 << 16 | 1);
+    volatile uint32_t bex = (uint32_t)hello;
     __asm__ volatile("int $0x80"
             : 
-            : "a"(2 << 16 | 1), "b"(hello));
+            : "a"(eax), "b"(bex));
 
     while(1);
-    StdioColor color = stdio_getColor();
-    stdio_setColor(StdioColorRed);
-    printf("Hello world! %X %d %X %s\n", 1,2,3, "xox");
-    printf("Hello world! %X %d %X %s\n", 1,2,3, "xox");
-    stdio_setColor(color);
-    printf("Hello world! %X %d %X %s\n", 1,2,3, "xox");
+}
 
+void myUserspaceFunc2(){
+    char *hello = "Hello World! (2)\n";
+    volatile uint32_t eax = (2 << 16 | 1);
+    volatile uint32_t bex = (uint32_t)hello;
+    __asm__ volatile("int $0x80"
+            : 
+            : "a"(eax), "b"(bex));
     while(1);
 }
 
@@ -267,20 +269,34 @@ void kernel_main(){
     assert_little_endian();
     initLogging();
 
-    pit_init();
-    pit_setTimer(0, 0, 0);
-
-    while(1);
-
-    initKernelTask(4 * 1024 * 1024);
-
     physpage_init();
     physpage_markPagesAsUsed4MB(0, 1);
     physpage_markPagesAsUsed4KB(4194304, 4194304);
-
     paging_init();
 
+    acpi_init();
+    ioapic_init();
+
+//     assert(apic_isPresent());
+//     apic_enable();
+
+
+    pit_init();
+
+    LocalApicData localApic;
+    assert(acpi_getLocalApicData(&localApic));
+    loggDebug("Local apic has id %d", localApic.apicId);
+
+    IRQConfig irqConfig = ioapic_getDefaultIRQConfig(localApic.apicId, 0x7F);
+    ioapic_configureIrq(2, irqConfig); //Why 2?
+
+
+    initKernelTask(4 * 1024 * 1024);
+
     uintptr_t userspaceAddress = 0x800000;
+    uintptr_t func2Addr = (myUserspaceFunc2 - myUserspaceFunc) + userspaceAddress;
+    assert(func2Addr > userspaceAddress);
+
     physpage_markPagesAsUsed4MB(2, 1);
 
     uintptr_t funcAddr = (uintptr_t)myUserspaceFunc;
@@ -325,10 +341,32 @@ void kernel_main(){
     paging_start();
 
     kprintf("jump\n");
-    enter_usermode();
-    while(1);
 
-//     printf("APIC present: %b\n", apic_isPresent());
+    uint32_t eflags = 0;
+    __asm__ volatile("\
+            pushf;\
+            pop %[reg]"
+            : [reg]"=r"(eflags));
+
+    threads_init();
+    ThreadConfig thread1 = {
+        .start = (void (*)(void*))userspaceAddress,
+        .data = 0,
+        .cs = (3 << 3) | 3,
+        .ss = (4 << 3) | 3,
+        .esp = 0xB00000,
+        .eflags = eflags
+    };
+    ThreadConfig thread2 = {
+        .start = (void (*)(void*))func2Addr,
+        .data = 0,
+        .cs = (3 << 3) | 3,
+        .ss = (4 << 3) | 3,
+        .esp = 0xC00000,
+        .eflags = eflags
+    };
+    thread_start(thread1);
+    thread_start(thread2);
 
     PciDescriptor devices[20];
     int count = pci_getDevices(devices, 10);

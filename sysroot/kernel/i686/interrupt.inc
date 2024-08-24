@@ -91,6 +91,16 @@ int0x80_handler:
     add esp, 4
     iret
 
+extern task_switch_handler
+int0x7F_handler:
+    pushad
+    push esp
+    call task_switch_handler
+    add esp, 4
+    popad
+    iret
+    
+
 global interrupt_addr_table
 interrupt_addr_table:
 %assign i 0
@@ -98,7 +108,8 @@ interrupt_addr_table:
     dd interrupt_handler_%+i
 %assign i i+1
 %endrep
-%rep (0x80 - 34)
+%rep (0x7F - 34)
     dd interrupt_handler_34
 %endrep
+dd int0x7F_handler
 dd int0x80_handler
