@@ -31,6 +31,10 @@
 #define IA32EFER_LME_POS 8
 #define IA32EFTER_NXE_POS 11
 
+#define SIZE_4KB 4096
+#define SIZE_4MB 0x400000
+
+
 //CPUID.01H
 #define CPUID_EDX_PSE (1 << 3)
 #define CPUID_EDX_PAE (1 << 6)
@@ -74,7 +78,7 @@ typedef union {
         uint32_t physicalAddressHigh : 9;
         uint32_t physicalAddress22To32 : 10;
     };
-} PageDirectoryEntry32Bit4MB;
+}PageDirectoryEntry32Bit4MB;
 
 typedef union {
    struct{
@@ -90,7 +94,7 @@ typedef union {
       uint32_t physicalAddress : 20;
    };
    uint32_t bits;
-} PageDirectoryEntryTableReference;
+}PageDirectoryEntryTableReference;
 
 typedef union {
     uint32_t bits;
@@ -107,7 +111,14 @@ typedef union {
         uint32_t ignored1 : 3;
         uint32_t physicalAddress : 20;
     };
-} PageTableEntry4KB;
+}PageTableEntry4KB;
+
+typedef struct{
+    volatile uint32_t *pageDirectory;
+    PagingMode pagingMode;
+    Map *physicalToLogicalPage;
+    Allocator *pageAllocator;
+}PagingData;
 
 static uint32_t readCr0();
 static uint32_t readCr1();
@@ -135,33 +146,90 @@ static void cpuid(uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx);
 static uint32_t readIA32Efer();
 static void writeIa32Efer(uint32_t value);
 
-static PagingConfig32Bit init32BitPaging(PagingConfig32Bit config);
+static int set32BitConfig(PagingConfig32Bit config);
 static PagingConfig32Bit clearUnsuported32BitFeatures(PagingConfig32Bit config);
-static PagingStatus add32BitPagingEntry(PagingTableEntry entry, uint32_t address);
+static PagingStatus add32BitPagingEntry(PagingData *context, PagingTableEntry entry, uint32_t address);
 
 static void handlePageFault(ExceptionInfo info, void *data);
 
-static volatile uint32_t pageDirectory[1024] __attribute__((aligned(4096)));
-static PagingMode pagingMode; 
+static PagingData *currentContext;
+static Allocator *pageTableAllocator;
+static uintptr_t pageTablePageAddress;
 
-static Map *physicalToLogicalPage;
-static Allocator *pageAllocator;
+void paging_init(){
+    interrupt_setHandler(handlePageFault, 0, 14);
 
-PagingConfig32Bit paging_init32Bit(PagingConfig32Bit config){
-   config = clearUnsuported32BitFeatures(config);
-   init32BitPaging(config);
-   interrupt_setHandler(handlePageFault, 0, 14);
-   physicalToLogicalPage = map_newBinaryMap(intmap_comparitor);
-   pageAllocator = allocator_init(0, 1048576);
-   return config;
+    pageTablePageAddress = physpage_getPage4MB() * SIZE_4MB;
+    pageTableAllocator = allocator_init(pageTablePageAddress, SIZE_4MB);
 }
+
+PagingContext *paging_create32BitContext(PagingConfig32Bit config){
+    PagingContext *result = malloc(sizeof(PagingContext));
+    PagingData *data = malloc(sizeof(PagingData));
+
+    data->physicalToLogicalPage = map_newBinaryMap(intmap_comparitor);
+    data->pageAllocator = allocator_init(0, 1048576);
+    data->pagingMode = PagingMode32Bit;
+
+    AllocatedArea pageTableArea = allocator_get(pageTableAllocator, SIZE_4KB);
+    assert(pageTableArea.size == SIZE_4KB);
+
+    data->pageDirectory = (volatile uint32_t *)(pageTableArea.address);
+    loggDebug("Creating context using page directory at address %X", data->pageDirectory);
+    memset((void*)data->pageDirectory, 0, SIZE_4KB);
+
+    result->data = data;
+
+    PagingTableEntry pageTablePageEntry = {
+        .physicalAddress = pageTablePageAddress,
+        .readWrite = 1,
+        .userSupervisor = 0,
+        .pageWriteThrough = 1,
+        .pageCahceDisable = 1,
+        .Use4MBPageSize = 1,
+        .isGlobal = 0,
+        .pageAttributeTable = 0,
+    };
+    add32BitPagingEntry(data, pageTablePageEntry, pageTablePageAddress);
+
+    config = clearUnsuported32BitFeatures(config);
+    result->config32Bit = config;
+
+    return result;
+}
+
+void paging_setContext(PagingContext *context){
+    PagingData *newContext = context->data;
+    if(!assert(newContext->pagingMode == PagingMode32Bit)){
+        while(1);
+    }
+    currentContext = newContext;
+
+    if(!set32BitConfig(context->config32Bit)){
+        return;
+    }
+
+    uint32_t cr3 = readCr3();
+    cr3 &= 0xF;
+    cr3 |= (uint32_t)currentContext->pageDirectory;
+    loggDebug("Current page directory %X", currentContext->pageDirectory);
+    writeCr3(cr3);
+}
+
 void paging_start(){
    uint32_t cr0 = readCr0();
    cr0 |= (1 << CR0_PG_POS);
    writeCr0(cr0);
+   loggDebug("Paging started");
 }
+void paging_stop(){
+   uint32_t cr0 = readCr0();
+   cr0 &= ~(1 << CR0_PG_POS);
+   writeCr0(cr0);
+}
+
 static int getLogicalPage32Bit(uintptr_t *resultPage, unsigned int pageCount4KB){
-    AllocatedArea area = allocator_getHinted(pageAllocator, pageCount4KB, AllocatorHintPreferHighAddresses);
+    AllocatedArea area = allocator_getHinted(currentContext->pageAllocator, pageCount4KB, AllocatorHintPreferHighAddresses);
     if(area.size == pageCount4KB){
         *resultPage = area.address;
         return area.size;
@@ -170,7 +238,7 @@ static int getLogicalPage32Bit(uintptr_t *resultPage, unsigned int pageCount4KB)
 }
 
 static int getLogicalPage(uintptr_t *resultPage, int pageCount4KB){
-    if(pagingMode == PagingMode32Bit){
+    if(currentContext->pagingMode == PagingMode32Bit){
         return getLogicalPage32Bit(resultPage, pageCount4KB); 
     }
 
@@ -179,9 +247,9 @@ static int getLogicalPage(uintptr_t *resultPage, int pageCount4KB){
 }
 
 uintptr_t paging_getPhysicalAddress(uintptr_t logical){
-    assert(pagingMode == PagingMode32Bit);
+    assert(currentContext->pagingMode == PagingMode32Bit);
     uint32_t directoryIndex = logical >> 22;
-    uint32_t entry = pageDirectory[directoryIndex];
+    uint32_t entry = currentContext->pageDirectory[directoryIndex];
     if(!(entry & PAGE_ENTRY_PRESENT)){
         return 0;
     }
@@ -229,7 +297,7 @@ uintptr_t paging_mapPhysical(uintptr_t address, uint32_t size){
         PagingStatus status = paging_addEntry(entry, newPage << 12);
         assert(status == PagingOk);
         
-        intmap_add(physicalToLogicalPage, physicalPage, newPage);
+        intmap_add(currentContext->physicalToLogicalPage, physicalPage, newPage);
 
         physicalPage++;
         newPage++;
@@ -242,6 +310,12 @@ void paging_writePhysical(uintptr_t address, void *data, uint32_t size){
 }
 
 void paging_writePhysicalOfSize(uintptr_t address, void *data, uint32_t size, AccessSize accessSize){
+    if((readCr0() & (1 << CR0_PG_POS)) == 0){
+        memcpyOfSize((void*)address, data, size, accessSize);
+        return;
+    }
+    assert(currentContext != 0);
+
     uint8_t *dataPtr = data;
     int physicalPage = address / (4 * 1024);
     int lastPhysicalPage = (address + size) / (4 * 1024);
@@ -249,11 +323,11 @@ void paging_writePhysicalOfSize(uintptr_t address, void *data, uint32_t size, Ac
     int offset = address & 0xFFF;
 
     for(int i = 0; i < pageCount; i++){
-        if(!intmap_contains(physicalToLogicalPage, physicalPage)){
+        if(!intmap_contains(currentContext->physicalToLogicalPage, physicalPage)){
             paging_mapPhysical(physicalPage * 4 * 1024, 4 * 1024);
         }
-        assert(intmap_contains(physicalToLogicalPage, physicalPage));
-        uintptr_t logicalPage = intmap_get(physicalToLogicalPage, physicalPage);
+        assert(intmap_contains(currentContext->physicalToLogicalPage, physicalPage));
+        uintptr_t logicalPage = intmap_get(currentContext->physicalToLogicalPage, physicalPage);
         uintptr_t pageAddress = logicalPage << 12 | offset;
         uint32_t sizeOnPage = 4 * 1024 - offset;
         if(sizeOnPage > size){
@@ -273,17 +347,23 @@ void paging_readPhysical(uintptr_t address, void *result, uint32_t size){
     return paging_readPhysicalOfSize(address, result, size, AccessSize8);
 }
 void paging_readPhysicalOfSize(uintptr_t address, void *result, uint32_t size, AccessSize accessSize){
+    if((readCr0() & (1 << CR0_PG_POS)) == 0){
+        memcpyOfSize(result, (void*)address, size, accessSize);
+        return;
+    }
+    assert(currentContext != 0);
+
     uint8_t *resultPtr = result;
     int physicalPage = address / (4 * 1024);
     int lastPhysicalPage = (address + size) / (4 * 1024);
     int pageCount = lastPhysicalPage - physicalPage + ((address + size) % (4 * 1024) != 0 ? 1 : 0);
     int offset = address & 0xFFF;
     for(int i = 0; i < pageCount; i++){
-        if(!intmap_contains(physicalToLogicalPage, physicalPage)){
+        if(!intmap_contains(currentContext->physicalToLogicalPage, physicalPage)){
             paging_mapPhysical(physicalPage * 4 * 1024, 4 * 1024);
         }
-        assert(intmap_contains(physicalToLogicalPage, physicalPage));
-        uintptr_t logicalPage = intmap_get(physicalToLogicalPage, physicalPage);
+        assert(intmap_contains(currentContext->physicalToLogicalPage, physicalPage));
+        uintptr_t logicalPage = intmap_get(currentContext->physicalToLogicalPage, physicalPage);
         uintptr_t pageAddress = logicalPage << 12 | offset;
         
         uint32_t sizeOnPage = 4 * 1024 - offset;
@@ -300,27 +380,34 @@ void paging_readPhysicalOfSize(uintptr_t address, void *result, uint32_t size, A
     }
 }
 
-PagingStatus paging_addEntry(PagingTableEntry entry, uintptr_t address){
-    if(pagingMode == PagingMode32Bit){
-        return add32BitPagingEntry(entry, address);
+static PagingStatus addEntryToContext(PagingData *context, PagingTableEntry entry, uintptr_t address){
+    if(context->pagingMode == PagingMode32Bit){
+        return add32BitPagingEntry(context, entry, address);
     }
     loggWarning("Unsuported paging mode. Unable to add entry");
     return PagingUnsuportedOperation;
+}
+
+PagingStatus paging_addEntry(PagingTableEntry entry, uintptr_t address){
+    return addEntryToContext(currentContext, entry, address);
+}
+
+PagingStatus paging_addEntryToContext(PagingContext *context, PagingTableEntry entry, uintptr_t address){
+    return addEntryToContext(context->data, entry, address);
 }
 
 uint32_t lowerBitsMask(int count){
     return 0xFFFFFFFF >> (32 - count);
 }
 
-static PagingStatus add32BitPagingEntry(PagingTableEntry newEntry, uint32_t address){
-    assert(newEntry.Use4MBPageSize ? (readCr4() & (1 << CR4_PSE_POS)) : 1); 
-    assert(newEntry.isGlobal ? (readCr4() & (1 << CR4_PGE_POS)) : 1);
- 
+static PagingStatus add32BitPagingEntry(PagingData *context, PagingTableEntry newEntry, uint32_t address){
+//     assert(newEntry.Use4MBPageSize ? (readCr4() & (1 << CR4_PSE_POS)) : 1); 
+//     assert(newEntry.isGlobal ? (readCr4() & (1 << CR4_PGE_POS)) : 1);
     uint16_t index = address >> 22;  
-    uint32_t entry = pageDirectory[index]; 
+    uint32_t entry = context->pageDirectory[index]; 
     if(!(entry & PAGE_ENTRY_PRESENT)){
         if(newEntry.Use4MBPageSize){
-            if((address & 0x3FFFFF) | (newEntry.physicalAddress & 0x3FFFFF)){
+            if((address & 0x3FFFFF) || (newEntry.physicalAddress & 0x3FFFFF)){
                 return PagingUnableToUse4MBEntry;
             }
             uint32_t highAddress = 0;
@@ -345,12 +432,16 @@ static PagingStatus add32BitPagingEntry(PagingTableEntry newEntry, uint32_t addr
                .physicalAddress22To32 = newEntry.physicalAddress >> 22,
                .physicalAddressHigh = highAddress,
             };
-            pageDirectory[index] = *((uint32_t *)&newEntry4MBreference);
-            allocator_markAsReserved(pageAllocator, address / (4 * 1024), 1024);
+//            paging_writePhysical((uintptr_t)&context->pageDirectory[index], &newEntry4MBreference, sizeof(PageDirectoryEntry32Bit4MB));
+            context->pageDirectory[index] = *((uint32_t *)&newEntry4MBreference);
+            allocator_markAsReserved(context->pageAllocator, address / (4 * 1024), 1024);
             return PagingOk;
        }else{
            loggDebug("New dir");
-           uintptr_t tablePage = physpage_getPage4KB();
+           AllocatedArea tableArea = allocator_get(pageTableAllocator, 1);
+           assert(tableArea.size == 1);
+           uintptr_t tablePage = tableArea.address / SIZE_4KB;
+
            memset((void*)(tablePage << 12), 0, 4096);
            PageDirectoryEntryTableReference newEntryTablereference = {
                .present = 1,
@@ -362,8 +453,9 @@ static PagingStatus add32BitPagingEntry(PagingTableEntry newEntry, uint32_t addr
                .pageSize = 0,
                .physicalAddress = tablePage,
             };
-            pageDirectory[index] = newEntryTablereference.bits;
-            entry = pageDirectory[index];
+//            paging_writePhysical((uintptr_t)&context->pageDirectory[index], &newEntryTablereference, sizeof(PageDirectoryEntryTableReference));
+            context->pageDirectory[index] = newEntryTablereference.bits;
+            entry = context->pageDirectory[index];
          }
     }
 
@@ -375,7 +467,6 @@ static PagingStatus add32BitPagingEntry(PagingTableEntry newEntry, uint32_t addr
     uint32_t *subTable = (uint32_t *) (reference.physicalAddress << 12);
     uint32_t subTableIndex = (address >> 12) & 0x3FF;
     uint32_t subTableEntry = subTable[subTableIndex];
- 
     if(subTableEntry & PAGE_ENTRY_PRESENT){
        return PagingEntryAlreadyPresent;
     }
@@ -393,19 +484,22 @@ static PagingStatus add32BitPagingEntry(PagingTableEntry newEntry, uint32_t addr
        .physicalAddress = (newEntry.physicalAddress >> 12)
     };
     subTable[subTableIndex] = newEntry4KBPage.bits;
-    allocator_markAsReserved(pageAllocator, address, 1);
+//     paging_writePhysical((uintptr_t)&subTable[subTableIndex], &newEntry4KBPage, sizeof(PageTableEntry4KB));
+    allocator_markAsReserved(context->pageAllocator, address, 1);
     return PagingOk;
 }
  
-static PagingConfig32Bit init32BitPaging(PagingConfig32Bit config){
-   config = clearUnsuported32BitFeatures(config);
-
+static int set32BitConfig(PagingConfig32Bit config){
    uint32_t cr0 = readCr0();
-   assert((cr0 & (1 << CR0_PG_POS)) == 0);
+   if(!assert((cr0 & (1 << CR0_PG_POS)) == 0)){
+       return 0;
+   }
    cr0 |= (config.writeProtectFromSupervisor != 0) << CR0_WP_POS;
    writeCr0(cr0);
 
-   assert(config.enableControlFlowEnforcment != 0 ? config.writeProtectFromSupervisor != 0 : 1);
+   if(!assert(config.enableControlFlowEnforcment != 0 ? config.writeProtectFromSupervisor != 0 : 1)){
+       return 0;
+   }
    uint32_t cr4 = readCr4();
    cr4 |= (config.use4MBytePages != 0) << CR4_PSE_POS
        | (config.enableGlobalPages != 0) << CR4_PGE_POS
@@ -415,13 +509,9 @@ static PagingConfig32Bit init32BitPaging(PagingConfig32Bit config){
    cr4 &= ~(1 << CR4_PAE_POS);
    writeCr4(cr4);
 
-   uint32_t cr3 = readCr3();
-   cr3 &= 0xF;
-   cr3 |= (uint32_t)pageDirectory;
-   writeCr3(cr3);
-
-   return config;
+   return 1;
 }
+
 static PagingConfig32Bit clearUnsuported32BitFeatures(PagingConfig32Bit config){
    uint32_t eax, ebx, ecx, edx;
    eax = 1;
@@ -447,6 +537,7 @@ static void handlePageFault(ExceptionInfo info, void *data){
 
     uint32_t linearAddress = readCr2();
     loggInfo("Page fault! %X", linearAddress);
+    while(1);
 
     uint64_t page = physpage_getPage4MB(); //FIXME: Don't assume there always is 4MB page
     loggInfo("Using page %d", page);

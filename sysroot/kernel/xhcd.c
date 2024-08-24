@@ -2,7 +2,7 @@
 #include "kernel/xhcd-ring.h"
 #include "kernel/xhcd-event-ring.h"
 #include "kernel/usb-descriptors.h"
-#include "stdio.h"
+#include "kernel/kernel-io.h"
 #include "stdlib.h"
 #include "string.h"
 #include "kernel/interrupt.h"
@@ -148,7 +148,7 @@ static void handler(void *data){
 
          xhcd->eventBuffer[xhcd->eventBufferEnqueueIndex] = events[i];
          xhcd->eventBufferEnqueueIndex = (xhcd->eventBufferEnqueueIndex + 1) % xhcd->eventBufferSize;
-         
+
       }
    }while(count != 0);
 }
@@ -205,14 +205,14 @@ XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
       initCommandRing(xhcd);
       initEventRing(xhcd);
 
-   // enable interrupts
+      // enable interrupts
       xhcd_orRegister(xhcd->hardware, USBCommand, (1 << 2));
       turnOnController(xhcd);
 
       xhcd_orRegister(xhcd->hardware, USBStatus, 1 << 3);
-      
+
       while(xhcd_readRegister(xhcd->hardware, USBStatus) & (1<<3));
-      
+
       //FIXME: a bit of hack, clearing event ring
       XhcEventTRB result[16];
       while(xhcd_readEvent(&xhcd->eventRing, result, 16));
@@ -242,7 +242,7 @@ int xhcd_getDevices(Xhci *xhci, XhcDevice *resultBuffer, int bufferSize){
 }
 static int getNewlyAttachedDevices(Xhcd *xhcd, uint32_t *result, int bufferSize){
    int count = xhcd->enabledPorts;
-//    while(1);
+   //    while(1);
    uint8_t resultIndex = 0;
    for(uint8_t i = 0; i < count && resultIndex < bufferSize; i++){
       if(checkoutPort(xhcd, i)){
@@ -250,7 +250,7 @@ static int getNewlyAttachedDevices(Xhcd *xhcd, uint32_t *result, int bufferSize)
          result[resultIndex] = i;
          resultIndex++;
       }
-      
+
    }
    return resultIndex;
 }
@@ -278,8 +278,8 @@ static void readPortInfo(Xhcd *xhcd){
          }
          else{
             for(int i = sp.compatiblePortOffset;
-               i < sp.compatiblePortOffset + sp.compatiblePortCount;
-               i++){
+                  i < sp.compatiblePortOffset + sp.compatiblePortCount;
+                  i++){
                xhcd->portInfo[i].usbType = sp.revisionMajor;
                xhcd->portInfo[i].protocolSlotType = sp.protocolSlotType;
             }
@@ -288,42 +288,42 @@ static void readPortInfo(Xhcd *xhcd){
       }
       xhcd_advanceExtendedCapabilityEnumerator(&enumerator);
    }
-//    uint32_t xECP = (xhcd_readCapability(xhcd->hardware, HCCPARAMS1) >> 16) << 2;
-//    uintptr_t address = (uintptr_t)xhcd->hardware.capabilityBase;
+   //    uint32_t xECP = (xhcd_readCapability(xhcd->hardware, HCCPARAMS1) >> 16) << 2;
+   //    uintptr_t address = (uintptr_t)xhcd->hardware.capabilityBase;
 
-//    while(xECP){
-//       address += xECP;
-//       XhciExtendedCapabilities *cap = (XhciExtendedCapabilities *)(address);
+   //    while(xECP){
+   //       address += xECP;
+   //       XhciExtendedCapabilities *cap = (XhciExtendedCapabilities *)(address);
 
-//       if(cap->capabilityId == CAPABILITY_ID_PROTOCOL){
-//          XhciXCapSupportedProtocol *sp = (XhciXCapSupportedProtocol*)cap;
+   //       if(cap->capabilityId == CAPABILITY_ID_PROTOCOL){
+   //          XhciXCapSupportedProtocol *sp = (XhciXCapSupportedProtocol*)cap;
 
-//          if(sp->compatiblePortOffset + sp->compatiblePortCount - 1 > maxPorts){
-//             printf("too many ports %d, expected %d\n",
-//                   sp->compatiblePortOffset + sp->compatiblePortCount,
-//                   maxPorts + 1);
-//          }
-//          else if(sp->revisionMajor != 0x3 && sp->revisionMajor != 0x2){
-//             printf("Unknown protocol %X\n", sp->revisionMajor);
-//          }
-//          else{
-//             for(int i = sp->compatiblePortOffset;
-//                i < sp->compatiblePortOffset + sp->compatiblePortCount;
-//                i++){
-//                xhci->portInfo[i].usbType = sp->revisionMajor;
-//                xhci->portInfo[i].protocolSlotType = sp->protocolSlotType;
-//             }
-//          }
+   //          if(sp->compatiblePortOffset + sp->compatiblePortCount - 1 > maxPorts){
+   //             printf("too many ports %d, expected %d\n",
+   //                   sp->compatiblePortOffset + sp->compatiblePortCount,
+   //                   maxPorts + 1);
+   //          }
+   //          else if(sp->revisionMajor != 0x3 && sp->revisionMajor != 0x2){
+   //             printf("Unknown protocol %X\n", sp->revisionMajor);
+   //          }
+   //          else{
+   //             for(int i = sp->compatiblePortOffset;
+   //                i < sp->compatiblePortOffset + sp->compatiblePortCount;
+   //                i++){
+   //                xhci->portInfo[i].usbType = sp->revisionMajor;
+   //                xhci->portInfo[i].protocolSlotType = sp->protocolSlotType;
+   //             }
+   //          }
 
-//       }
-//       xECP = cap->nextExtendedCapabilityPointer << 2;
-//    }
+   //       }
+   //       xECP = cap->nextExtendedCapabilityPointer << 2;
+   //    }
 }
 static XhcStatus initDevice(Xhcd *xhcd, int portIndex, XhcDevice *result){
    if(!enablePort(xhcd, portIndex)){
       return XhcEnablePortError;
    }
-   
+
 
    int slotId = getSlotId(xhcd, portIndex + 1);
    if(slotId < 0){
@@ -331,22 +331,22 @@ static XhcStatus initDevice(Xhcd *xhcd, int portIndex, XhcDevice *result){
    }
    //FIXME: delay
    for(int i = 0; i < 10000; i++){
-      printf("-\b");
+      kprintf("-\b");
    }
 
    if(!addressDevice(xhcd, slotId, portIndex)){
       return XhcAddressDeviceError;
    }
 
-//    FIXME:??
-//    if(!setMaxPacketSize(xhci, slotId)){
-//       return XhcSetMaxPacketSizeError;
-//    }
+   //    FIXME:??
+   //    if(!setMaxPacketSize(xhci, slotId)){
+   //       return XhcSetMaxPacketSizeError;
+   //    }
    *result = (XhcDevice){
       .slotId = slotId,
-      .portIndex = portIndex,
-      .data = xhcd,
-      .portSpeed = getPortSpeed(xhcd, portIndex),
+         .portIndex = portIndex,
+         .data = xhcd,
+         .portSpeed = getPortSpeed(xhcd, portIndex),
    };
    return XhcOk;
 }
@@ -478,7 +478,7 @@ XhcStatus xhcd_sendRequest(const XhcDevice *device, UsbRequestMessage request){
    return XhcOk;
 }
 /*
- * [  ]64-bit
+ * [ ]64-bit
  * [X] superspeed stuff p.179
  * [ ] Not enough power? look in configuration descriptor
  * [X] Get interface? Am i using the correct one?
@@ -487,20 +487,21 @@ XhcStatus xhcd_sendRequest(const XhcDevice *device, UsbRequestMessage request){
  */
 void xhc_dumpCapabilityRegs(Xhci *xhci){
    Xhcd *xhcd = xhci->data;
-   printf("capability params (HCCPARAMS): ");
-   printf("1: %X. 2: %X\n", xhcd_readCapability(xhcd->hardware, HCCPARAMS1), xhcd_readCapability(xhcd->hardware, HCCPARAMS2));
-   printf("struct params (HCSPARAMS): ");
-   printf("1: %X. 2: %X. 3: %X\n", xhcd_readCapability(xhcd->hardware, HCSPARAMS1),  xhcd_readCapability(xhcd->hardware, HCSPARAMS2), xhcd_readCapability(xhcd->hardware, HCSPARAMS3));
+   kprintf("capability params (HCCPARAMS): ");
+   kprintf("1: %X. 2: %X\n", xhcd_readCapability(xhcd->hardware, HCCPARAMS1), xhcd_readCapability(xhcd->hardware, HCCPARAMS2));
+   kprintf("struct params (HCSPARAMS): ");
+   kprintf("1: %X. 2: %X. 3: %X\n", xhcd_readCapability(xhcd->hardware, HCSPARAMS1),  xhcd_readCapability(xhcd->hardware, HCSPARAMS2), xhcd_readCapability(xhcd->hardware, HCSPARAMS3));
 }
+
 void xhc_dumpOperationalRegs(Xhci *xhci){
    Xhcd *xhcd = xhci->data;
-   printf("USBCMD: %X\n", xhcd_readRegister(xhcd->hardware, USBCommand));
-   printf("USBSTS: %X\n", xhcd_readRegister(xhcd->hardware, USBStatus));
-   printf("pageSize: %X\n", xhcd_readRegister(xhcd->hardware, PAGESIZE));
-   printf("DNCTRL: %X\n", xhcd_readRegister(xhcd->hardware, DNCTRL));
-   printf("CRCR: %X %X\n", xhcd_readRegister(xhcd->hardware, CRCR));
-   printf("DCBAAP: %X %X\n", xhcd_readRegister(xhcd->hardware, DCBAAP));
-   printf("CONFIG: %X\n", xhcd_readRegister(xhcd->hardware, CONFIG));
+   kprintf("USBCMD: %X\n", xhcd_readRegister(xhcd->hardware, USBCommand));
+   kprintf("USBSTS: %X\n", xhcd_readRegister(xhcd->hardware, USBStatus));
+   kprintf("pageSize: %X\n", xhcd_readRegister(xhcd->hardware, PAGESIZE));
+   kprintf("DNCTRL: %X\n", xhcd_readRegister(xhcd->hardware, DNCTRL));
+   kprintf("CRCR: %X %X\n", xhcd_readRegister(xhcd->hardware, CRCR));
+   kprintf("DCBAAP: %X %X\n", xhcd_readRegister(xhcd->hardware, DCBAAP));
+   kprintf("CONFIG: %X\n", xhcd_readRegister(xhcd->hardware, CONFIG));
 }
 static XhcStatus initInterruptEndpoint(Xhcd *xhcd, int slotId, UsbEndpointDescriptor *endpoint, XhcInputContext *inputContext){
    loggDebug("Init endpoint. In? : %b", endpoint->direction == ENDPOINT_DIRECTION_IN);
@@ -521,14 +522,14 @@ static XhcStatus initInterruptEndpoint(Xhcd *xhcd, int slotId, UsbEndpointDescri
    XhcEndpointContext *endpointContext = &inputContext->endpointContext[endpointIndex - 1];
    *endpointContext = (XhcEndpointContext){
       .endpointType = endpointType,
-      .maxPacketSize = maxPacketSize,
-      .maxBurstSize = maxBurstSize,
-      .errorCount = 3,
-      .dequeuePointer = (uintptr_t)transferRing.dequeue | transferRing.pcs, //X
-      .maxESITPayloadLow = (uint16_t)maxESITPayload,
-      .maxESITPayloadHigh = (uint16_t)(maxESITPayload >> 16),
-      .interval = 6, //FIXME
-      .avarageTrbLength = maxESITPayload,
+         .maxPacketSize = maxPacketSize,
+         .maxBurstSize = maxBurstSize,
+         .errorCount = 3,
+         .dequeuePointer = (uintptr_t)transferRing.dequeue | transferRing.pcs, //X
+         .maxESITPayloadLow = (uint16_t)maxESITPayload,
+         .maxESITPayloadHigh = (uint16_t)(maxESITPayload >> 16),
+         .interval = 6, //FIXME
+         .avarageTrbLength = maxESITPayload,
    };
    inputContext->inputControlContext.addContextFlags |= 1 << endpointIndex;
    return XhcOk;
@@ -558,7 +559,7 @@ static XhcStatus initBulkEndpoint(Xhcd *xhcd, int slotId, UsbEndpointDescriptor 
 
          maxPrimaryStreams = 0;
          dequePointer = (uintptr_t)transferRing.dequeue | transferRing.pcs;
-     }
+      }
    }
    else{
       maxBurstSize = 0;
@@ -568,13 +569,13 @@ static XhcStatus initBulkEndpoint(Xhcd *xhcd, int slotId, UsbEndpointDescriptor 
    *endpointContext = (XhcEndpointContext)
    {
       .endpointType = endpoint->direction == ENDPOINT_DIRECTION_IN ? ENDPOINT_TYPE_BULK_IN : ENDPOINT_TYPE_BULK_OUT,
-      .maxPacketSize = endpoint->wMaxPacketSize,
-      .maxBurstSize = maxBurstSize,
-      .errorCount = 3,
-      .maxPrimaryStreams = maxPrimaryStreams,
-      .dequeuePointer = dequePointer,
-      .hostInitiateDisable = hostInitiateDisable,
-      .linearStreamArray = linearStreamArray,
+         .maxPacketSize = endpoint->wMaxPacketSize,
+         .maxBurstSize = maxBurstSize,
+         .errorCount = 3,
+         .maxPrimaryStreams = maxPrimaryStreams,
+         .dequeuePointer = dequePointer,
+         .hostInitiateDisable = hostInitiateDisable,
+         .linearStreamArray = linearStreamArray,
    };
    return XhcOk;
 }
@@ -673,29 +674,29 @@ static int addressDevice(Xhcd *xhcd, int slotId, int portIndex){
       loggError("Failed to addres device (Event: %X %X %X %X, code: %d)", result, result.completionCode);
       return 0;
    }
-//    printf("init (=#(?/#\n");
+   //    printf("init (=#(?/#\n");
 
-//    uint8_t buffer[8];
-//    xhcd_putTD(TD_GET_DESCRIPTOR(buffer, sizeof(buffer)), &transferRing);
-//    xhcd_ringDoorbell(xhci, slotId, 1);
+   //    uint8_t buffer[8];
+   //    xhcd_putTD(TD_GET_DESCRIPTOR(buffer, sizeof(buffer)), &transferRing);
+   //    xhcd_ringDoorbell(xhci, slotId, 1);
 
-//    while(!xhcd_readEvent(&xhci->eventRing, &result, 1));
-//    if(result.completionCode != Success){
-//       printf("[xhc] failed to get max packet size\n");
-//       return 0;
-//    }
-//    uint8_t maxPacketSize = buffer[7];
-//    inputContext.endpointContext[0].maxPacketSize = maxPacketSize;
+   //    while(!xhcd_readEvent(&xhci->eventRing, &result, 1));
+   //    if(result.completionCode != Success){
+   //       printf("[xhc] failed to get max packet size\n");
+   //       return 0;
+   //    }
+   //    uint8_t maxPacketSize = buffer[7];
+   //    inputContext.endpointContext[0].maxPacketSize = maxPacketSize;
 
 
-//    xhcd_putTRB(TRB_ADDRESS_DEVICE((uintptr_t)&inputContext, slotId, 0), &xhci->commandRing);
-//    ringCommandDoorbell(xhci);
+   //    xhcd_putTRB(TRB_ADDRESS_DEVICE((uintptr_t)&inputContext, slotId, 0), &xhci->commandRing);
+   //    ringCommandDoorbell(xhci);
 
-//    while(xhcd_readEvent(&xhci->eventRing, &result, 1) == 0);
-//    if(result.completionCode != Success){
-//       printf("[xhc] failed to addres device (Event: %X %X %X %X, code: %d)\n", result, result.completionCode);
-//       return 0;
-//    }
+   //    while(xhcd_readEvent(&xhci->eventRing, &result, 1) == 0);
+   //    if(result.completionCode != Success){
+   //       printf("[xhc] failed to addres device (Event: %X %X %X %X, code: %d)\n", result, result.completionCode);
+   //       return 0;
+   //    }
    loggInfo("Successfully addressed device: (Event: %X %X %X %X)", result);
    return 1;
 }
@@ -735,10 +736,10 @@ static int enablePort(Xhcd *xhcd, int portIndex){
       loggWarning("(USB3) port should already be enabled, index: %X", portIndex);
       return 0;
    }
-/*   if(!shouldEnablePort(xhci, portNumber)){ //FIXME: This should worrk
-      printf("Failed to enable port (USB3)\n");
-      return 0;
-   }*/
+   /*   if(!shouldEnablePort(xhci, portNumber)){ //FIXME: This should worrk
+        printf("Failed to enable port (USB3)\n");
+        return 0;
+        }*/
    loggDebug("Enabling port (USB2) %X", portIndex);
    PortStatusAndControll temp = { .bits = xhcd_readPortRegister(xhcd->hardware, portIndex, PORTStatusAndControl) };//FIXME: is intex correct?
 
@@ -806,7 +807,7 @@ static XhcStatus runConfigureEndpointCommand(Xhcd *xhcd, int slotId, XhcInputCon
       inputContext->slotContext.contextEntries = maxAddContextEntries; //FIXME: Double check +1 (p.84)?
    }
 
-//    inputContext->inputControlContext.configurationValue = 1; //FIXME: use correct value
+   //    inputContext->inputControlContext.configurationValue = 1; //FIXME: use correct value
 
    uintptr_t physicalInputContextAddress = paging_getPhysicalAddress((uintptr_t)inputContext);
    TRB trb = TRB_CONFIGURE_ENDPOINT((void*)physicalInputContextAddress, slotId);
@@ -885,27 +886,27 @@ static int setMaxPacketSize(Xhcd *xhcd, int slotId){
 }
 
 static void test(Xhcd *xhcd){
-//    xhcd_putTRB(TRB_NOOP(), &xhci->commandRing);
-//    ringCommandDoorbell(xhci);
-//    for(int i = 0; i < 2; i++){
-//       uint32_t status = xhci->operation->USBStatus;
-//       printf("Error? %d\n", status & (1 << 12));
-//    }
+   //    xhcd_putTRB(TRB_NOOP(), &xhci->commandRing);
+   //    ringCommandDoorbell(xhci);
+   //    for(int i = 0; i < 2; i++){
+   //       uint32_t status = xhci->operation->USBStatus;
+   //       printf("Error? %d\n", status & (1 << 12));
+   //    }
 
-//    XhcEventTRB result;
-//    printf("Waiting for interruptor\n");
-//    while(!dequeEventTrb(xhci, &result));
-//    printf("event posted %X %X %X %X\n", result);
-//    printf("completion code: %d (success: %b)\n", result.completionCode, result.completionCode == Success);
+   //    XhcEventTRB result;
+   //    printf("Waiting for interruptor\n");
+   //    while(!dequeEventTrb(xhci, &result));
+   //    printf("event posted %X %X %X %X\n", result);
+   //    printf("completion code: %d (success: %b)\n", result.completionCode, result.completionCode == Success);
 }
 static int isPortEnabled(Xhcd *xhcd, int portIndex){
-      PortStatusAndControll status = { .bits = xhcd_readPortRegister(xhcd->hardware, portIndex, PORTStatusAndControl) };
-      if(status.portEnabledDisabled == 1
-            && status.portReset == 0
-            && status.portLinkState == 0){
-         return 1;
-      }
-      return 0;
+   PortStatusAndControll status = { .bits = xhcd_readPortRegister(xhcd->hardware, portIndex, PORTStatusAndControl) };
+   if(status.portEnabledDisabled == 1
+         && status.portReset == 0
+         && status.portLinkState == 0){
+      return 1;
+   }
+   return 0;
 }
 static void ringCommandDoorbell(Xhcd *xhcd){
    xhcd_writeDoorbell(xhcd->hardware, 0, 0);

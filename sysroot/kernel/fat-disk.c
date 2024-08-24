@@ -1,5 +1,5 @@
 #include "kernel/fat-disk.h"
-#include "stdio.h"
+#include "kernel/logging.h"
 #include "stdlib.h"
 
 static uint32_t readClusterNumbers(FatDisk* disk, uint32_t dataCluster, uint32_t *result, uint32_t resultCount);
@@ -199,7 +199,7 @@ FatFile *fatDisk_openChild(FatDisk *disk, FatFile *parent, int childIndex){
    FatDirectoryEntry entry;
    fatDisk_readDirectory(disk, parent, childIndex, &entry);
    if(isEmpty(entry)){
-      printf("Entry is empty\n");
+      loggWarning("Entry is empty\n");
       return 0;
    }
 
@@ -235,7 +235,7 @@ static uint32_t findFreeClusters(FatDisk* disk, uint32_t result[], uint32_t clus
       uint32_t entry;
       FatStatus status = readFatEntry(disk, i, &entry);
       if(status != FatStatusSuccess){
-         printf("[fat] bad!");
+         loggError("[fat] bad!");
          return 0;
       }
       if(entry == 0){
@@ -476,7 +476,7 @@ static void dealocateClusterChain(FatDisk* disk, uint32_t startCluster){
       uint32_t nextCluster;
       FatStatus status = readFatEntry(disk, startCluster, &nextCluster);
       if(status != FatStatusSuccess){
-         printf("[fat] deal bad\n");
+         loggError("[fat] deal bad\n");
          return;
       }
       writeFatEntry(disk, startCluster, 0);

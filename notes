@@ -77,6 +77,8 @@ SPEED MUST BE SET IN SLOT CONTEXT!!!!!!
 FLADJ? (In case BIOS did not write to it for me)
 Xhci should config pci itself
 
+USE $ for numbers when writing at&t assembly (inlie assembly)
+
 
 ___PHYSICAL ADDRESS ALLOCATION_____
 How do i aquire the physical address for use for MMIO?
@@ -177,3 +179,30 @@ Config with
     path/address = /tmp/vbox    (for example)
 
 then run minicom -D unix#/tmp/vbox -b [baudrate]
+
+__PAGING__
+I Want the active page table to always be located in linear memory
+Reason: E.g. when handling pagefaults, I want to be able to add entries into the page table.
+        Then I can not use, paging_writePhysical as that also requires the page table.
+        Also, subtables should be located in linear memory.
+
+Approach 1:
+    I always keep all the page tables in memory (Like i always keep kernel in memory)
+    I begin by allocating 4MB, physical page from the last pages in memory,
+    and i have a global allocator in that memory, used when allocating page tables.
+    When creating a new context, I make sure this 4MB (or 2MB) page is in memory.
+    When paging is enabled, and I am creating a new context, I can do normal writes to the
+    new paging tables, as these are already in memory.
+
+    Pros: Simple, know where the page tables are
+    Cons: Limited to n * 1024 (n * 512) pages, will probably waste many 4KB pages
+
+Approach 2:
+    I keep only local page tables in linear memory. When creating a new context, I allocate pages 
+    using physpage_getPage4KB(), and write to it using paging_writePhysical. I also create a subtable
+    for the last 4MB page, primaraly used for referencing the page tables.
+
+    Pros: Flexible
+    Cons: Complicated, a page table might need to have a reference to itself
+
+Using Approach 1, to keep things simple

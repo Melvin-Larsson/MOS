@@ -9,7 +9,7 @@ typedef enum{
     InterruptStatusSuccess
 }InterruptStatus;
 
-typedef struct{
+typedef volatile struct{
     uint16_t isrLow;
     uint16_t segment;
     uint8_t reserved;

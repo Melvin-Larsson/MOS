@@ -1,4 +1,4 @@
-#include "stdio.h"
+#include "kernel/kernel-io.h"
 #include "stdlib.h"
 #include "kernel/interrupt.h"
 #include "kernel/apic.h"
@@ -11,10 +11,17 @@
 #include "kernel/physpage.h"
 #include "kernel/allocator.h"
 #include "kernel/serial.h"
+#include "kernel/pit.h"
+#include "kernel/acpi.h"
+#include "kernel/ioapic.h"
+#include "kernel/threads.h"
+
+#include "kernel/task.h"
 
 #include "kernel/logging.h"
 
-#define ASSERTS_ENABLED
+#include "stdio.h"
+
 #include "utils/assert.h"
 
 #include "kernel/usb-mass-storage.h"
@@ -36,7 +43,6 @@ static void printPciDevices(PciDescriptor *descriptors, int count){
                 subclassName, header->subclass,
                 progIfName, header->progIf);
     }
-
 }
 static PciDescriptor* getXhcdDevice(PciDescriptor* descriptors, int count){
     for(int i = 0; i < count; i++){
@@ -51,6 +57,7 @@ static PciDescriptor* getXhcdDevice(PciDescriptor* descriptors, int count){
     }
     return 0;
 }
+
 static void initXhci(PciDescriptor pci){
     Usb usb;
     if(usb_init(pci, &usb) != StatusSuccess){
@@ -93,20 +100,20 @@ static void testMemory(){
     uint8_t *m2 = malloc(10);
     uint8_t *m3 = malloc(10);
     if(overlaps(m1, 10, m2, 10) || overlaps(m2, 10, m3, 10) || overlaps(m1, 10, m3, 10)){
-        printf("Memory check failed, memories overlap!\n");
+        kprintf("Memory check failed, memories overlap!\n");
         while(1);
     }
     free(m2);
     uint8_t *m4 = malloc(10);
     if(m2 != m4){
-        printf("Memory check failed, failed to reuse memory(1)!\n");
+        kprintf("Memory check failed, failed to reuse memory(1)!\n");
         while(1);
     }
     free(m4);
     uint8_t *m5 = malloc(1);
     uint8_t *m6 = malloc(1);
     if(!overlaps(m4, 10, m5, 1) || !overlaps(m4, 10, m6, 1)){
-        printf("Memory check failed, failed to reuse memory(2)!\n");
+        kprintf("Memory check failed, failed to reuse memory(2)!\n");
         while(1);
     }
     free(m1);
@@ -115,26 +122,27 @@ static void testMemory(){
     free(m6);
     uint8_t *m7 = malloc(10);
     if(m7 != m1){
-        printf("Memory check failed, failed to reuse memory(3)!\n");
+        kprintf("Memory check failed, failed to reuse memory(3)!\n");
         while(1);
     }
     free(m7);
-    printf("Passed memory check!\n");
+    kprintf("Passed memory check!\n");
 }
+
 static void testMemoryConstrained(){
     uint8_t *m1 = mallocco(10, 0x100, 0);
     if((uintptr_t)m1 % 0x100 != 0){
-        printf("Constrained memory check failed, failed to align!\n");
+        kprintf("Constrained memory check failed, failed to align!\n");
         while(1);
     }
     uint8_t *m2 = malloc(1);
     if(m2 > m1){
-        printf("Constrained memory check failed, failed to use alignment space\n");
+        kprintf("Constrained memory check failed, failed to use alignment space\n");
         while(1);
     }
     uint8_t *m3 = mallocco(0x1000, 1, 0x1000);
     if(!m3 || (uintptr_t)m3 / 0x1000 != ((uint64_t)m3 + 0x1000-1) / 0x1000){
-        printf("Constrained memory check failed, failed to avoid boundary %X\n", m3);
+        kprintf("Constrained memory check failed, failed to avoid boundary %X\n", m3);
         while(1);
     }
     free(m1);
@@ -144,13 +152,13 @@ static void testMemoryConstrained(){
     uint8_t *m5 = mallocco(7, 3, 10);
     uint8_t *m6 = mallocco(10, 3, 10);
     if(!m4 || !m5 || m6){
-        printf("Constrained memory check failed, failed to avoid follow constraints\n");
+        kprintf("Constrained memory check failed, failed to avoid follow constraints\n");
         while(1);
     }
     free(m4);
     free(m5);
     free(m6);
-    printf("Passed constrained memory check");
+    kprintf("Passed constrained memory check");
 }
 void assert_little_endian(){
     uint32_t i = 0x12345678;
@@ -166,80 +174,199 @@ void serial_writer(const char *str){
     serial_write(COM1, "\n\r");
 }
 void console_writer(LoggContext context, LoggLevel level, const char *format, va_list args){
-    StdioColor prevColor = stdio_getColor();
-    StdioColor newColor;
+    KIOColor prevColor = kio_getColor();
+    KIOColor newColor;
     switch(level){
         case LoggLevelDebug:
-            newColor = StdioColorGray;
+            newColor = KIOColorGray;
             break;
         case LoggLevelInfo:
-            newColor = StdioColorWhite;
+            newColor = KIOColorWhite;
             break;
         case LoggLevelWarning:
-            newColor = StdioColorYellow;
+            newColor = KIOColorYellow;
             break;
         case LoggLevelError:
-            newColor = StdioColorRed;
+            newColor = KIOColorRed;
             break;
         default:
             newColor = prevColor;
             break;
     }
-    stdio_setColor(newColor);
+    kio_setColor(newColor);
     char *buffer = malloc(4096); //FIXME: Could lead to array out of bounds
     vsprintf(buffer, format, args);
-    printf(buffer);
-    printf("\n");
-    stdio_setColor(prevColor);
+    kprintf(buffer);
+    kprintf("\n");
+    kio_setColor(prevColor);
 }
 
-void kernel_main(){
-    stdioinit();
-    stdlib_init();
-//     testMemory();
-//     testMemoryConstrained();
-    printf("Kernel started\n");
-    interruptDescriptorTableInit(); 
-    assert_little_endian();
+void myUserspaceFunc(){
+    char *hello = "Hello World! (1)\n";
+    volatile uint32_t eax = (2 << 16 | 1);
+    volatile uint32_t bex = (uint32_t)hello;
+    __asm__ volatile("int $0x80"
+            : 
+            : "a"(eax), "b"(bex));
 
-    physpage_init();
+    while(1);
+}
 
+void myUserspaceFunc2(){
+    char *hello = "Hello World! (2)\n";
+    volatile uint32_t eax = (2 << 16 | 1);
+    volatile uint32_t bex = (uint32_t)hello;
+    __asm__ volatile("int $0x80"
+            : 
+            : "a"(eax), "b"(bex));
+    while(1);
+}
+
+void initLogging(){
     SerialPortConfig serialConfig = serial_defaultConfig();
     serial_initPort(COM1, serialConfig);
 
     LoggWriter consoleWriter = logging_getCustomWriter(console_writer);
     LoggWriter serialWriter = logging_getDefaultWriter(serial_writer);
     serialWriter.loggLevel = LoggLevelDebug;
-    consoleWriter.loggLevel = LoggLevelNone,
+    consoleWriter.loggLevel = LoggLevelInfo,
     logging_init();
     logging_addWriter(consoleWriter);
     logging_addWriter(serialWriter);
+}
 
+static void enter_usermode(){
+    loggInfo("Enter user");
+    __asm__ volatile("\
+        mov $(4 << 3 | 3), %%eax; \
+        mov %%ax, %%ds;    \
+        mov %%ax, %%es;    \
+        mov %%ax, %%fs;    \
+        mov %%ax, %%gs;    \
+                           \
+        mov %%esp, %%eax;  \
+        push $(4 << 3 | 3); \
+        push $0xA00000; \
+        pushf; \
+        push $(3 << 3 | 3); \
+        push $0x800000; \
+        iret;  "
+        :
+        :
+        : "eax");
+}
+
+PagingContext *userspaceContext;
+PagingContext *kernelContext;
+
+void kernel_main(){
+    kio_init();
+    stdlib_init();
+//     testMemory();
+//     testMemoryConstrained();
+    kprintf("Kernel started\n");
+    interruptDescriptorTableInit(); 
+    assert_little_endian();
+    initLogging();
+
+    physpage_init();
+    physpage_markPagesAsUsed4MB(0, 1);
+    physpage_markPagesAsUsed4KB(4194304, 4194304);
+    paging_init();
+
+    acpi_init();
+    ioapic_init();
+
+//     assert(apic_isPresent());
+//     apic_enable();
+
+
+    pit_init();
+
+    LocalApicData localApic;
+    assert(acpi_getLocalApicData(&localApic));
+    loggDebug("Local apic has id %d", localApic.apicId);
+
+    IRQConfig irqConfig = ioapic_getDefaultIRQConfig(localApic.apicId, 0x7F);
+    ioapic_configureIrq(2, irqConfig); //Why 2?
+
+
+    initKernelTask(4 * 1024 * 1024);
+
+    uintptr_t userspaceAddress = 0x800000;
+    uintptr_t func2Addr = (myUserspaceFunc2 - myUserspaceFunc) + userspaceAddress;
+    assert(func2Addr > userspaceAddress);
+
+    physpage_markPagesAsUsed4MB(2, 1);
+
+    uintptr_t funcAddr = (uintptr_t)myUserspaceFunc;
+    memcpy((void*)userspaceAddress, (void*)funcAddr, 4096);
 
     PagingConfig32Bit config = {
         .use4MBytePages = 1,
     };
-    PagingConfig32Bit newConfig = paging_init32Bit(config);
-    assert(config.use4MBytePages == newConfig.use4MBytePages);
+    kernelContext = paging_create32BitContext(config);
+    assert(config.use4MBytePages == kernelContext->config32Bit.use4MBytePages);
+    PagingTableEntry entry = {
+        .physicalAddress = 0,
+        .readWrite = 1,
+        .pageWriteThrough = 1,
+        .pageCahceDisable = 1,
+        .Use4MBPageSize = 1,
+    };
+    PagingStatus status = paging_addEntryToContext(kernelContext, entry, 0);
+    assert(status == PagingOk);
+    loggDebug("Status %X", status);
 
-    for(uint32_t i = 0; i < 1; i++){
-        PagingTableEntry entry = {
-            .physicalAddress = i * 4 * 1024 * 1024,
-            .readWrite = 1,
-            .pageWriteThrough = 1,
-            .pageCahceDisable = 1,
-            .Use4MBPageSize = 1
-        };
-        
-        physpage_markPagesAsUsed4MB(i, 1);
-
-        PagingStatus status = paging_addEntry(entry, i * 4 * 1024 * 1024);
-        assert(status == PagingOk);
-    }
-
+    paging_setContext(kernelContext);
     paging_start();
 
-//     printf("APIC present: %b\n", apic_isPresent());
+    userspaceContext = paging_create32BitContext(config);
+    PagingTableEntry userSpaceEntry = {
+        .physicalAddress = userspaceAddress,
+        .readWrite = 1,
+        .pageWriteThrough = 1,
+        .pageCahceDisable = 1,
+        .Use4MBPageSize = 1,
+        .userSupervisor = 1
+    };
+    uintptr_t newAddress = 0x800000;
+    uint32_t status1 = paging_addEntryToContext(userspaceContext, entry, 0);
+    uint32_t status2 = paging_addEntryToContext(userspaceContext, userSpaceEntry, newAddress);
+
+    loggDebug("status %X %X\n", status1, status2);
+
+    paging_stop();
+    paging_setContext(userspaceContext);
+    paging_start();
+
+    kprintf("jump\n");
+
+    uint32_t eflags = 0;
+    __asm__ volatile("\
+            pushf;\
+            pop %[reg]"
+            : [reg]"=r"(eflags));
+
+    threads_init();
+    ThreadConfig thread1 = {
+        .start = (void (*)(void*))userspaceAddress,
+        .data = 0,
+        .cs = (3 << 3) | 3,
+        .ss = (4 << 3) | 3,
+        .esp = 0xB00000,
+        .eflags = eflags
+    };
+    ThreadConfig thread2 = {
+        .start = (void (*)(void*))func2Addr,
+        .data = 0,
+        .cs = (3 << 3) | 3,
+        .ss = (4 << 3) | 3,
+        .esp = 0xC00000,
+        .eflags = eflags
+    };
+    thread_start(thread1);
+    thread_start(thread2);
 
     PciDescriptor devices[20];
     int count = pci_getDevices(devices, 10);

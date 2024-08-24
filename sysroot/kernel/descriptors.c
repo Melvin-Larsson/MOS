@@ -1,5 +1,6 @@
 #include "kernel/descriptors.h"
 #include "stdlib.h"
+#include "kernel/logging.h"
 
 #define GDT_ENTRIES 1024
 
@@ -25,6 +26,8 @@ static void gdt_loadGdtRegister(uintptr_t address, uint16_t limit);
 static SegmentDescriptor gdt[GDT_ENTRIES];
 
 void gdt_init(){
+   loggError("You are not allowed to realocate gdt rigt now\n");
+   while(1);
    memset(gdt, 0, sizeof(gdt));
    gdt[1] = (SegmentDescriptor){
       .segmentLimitLow = 0xFFFF,
@@ -83,8 +86,6 @@ int gdt_addLdtDescriptor(LdtDescriptor descriptor){
    return addSegmentDescriptor(segmentDescriptor);
 }
 
-#include "stdio.h"
-
 int gdt_addTss32Descriptor(GdtTssDescriptor descriptor){
    SegmentDescriptor segmentDescriptor = {
       .segmentLimitLow = descriptor.size & 0xFFFF,
@@ -98,7 +99,7 @@ int gdt_addTss32Descriptor(GdtTssDescriptor descriptor){
       .baseAddressHigh = (descriptor.address >> 24) & 0xFF
    };
    uint32_t *ptr = &segmentDescriptor;
-   printf("12 %X %X\n", ptr[0], ptr[1]);
+   loggDebug("12 %X %X\n", ptr[0], ptr[1]);
    return addSegmentDescriptor(segmentDescriptor);
 }
 

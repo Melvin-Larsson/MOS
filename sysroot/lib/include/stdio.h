@@ -21,12 +21,9 @@ typedef enum {
 } StdioColor;
 
 
-void stdioinit();
 void stdio_setColor(StdioColor color);
 StdioColor stdio_getColor();
 void printf(const char* format, ...);
-void printc(char c, int x, int y);
-char getc(int x, int y);
 void clear();
 
 #endif

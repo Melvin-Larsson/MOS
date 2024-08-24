@@ -1,6 +1,5 @@
 #include "stdlib.h"
 #include "stdint.h"
-#include "stdio.h"
 
 typedef struct MEMORY{
     uint8_t used;
@@ -29,13 +28,13 @@ void stdlib_init(){
     *memoryDescriptor = (MemoryDescriptor){0,0};
 }
 
-void debug_logMemory(){
-    printf("__Dynamic Memory__\n");
-    for(MemoryDescriptor *desc = memoryDescriptor; desc != 0; desc = desc->next){
-        printf("(%X:%d) ", getMemoryPointer(desc), desc->used);
-    }
-    printf("\n");
-}
+// void debug_logMemory(){
+//     kprintf("__Dynamic Memory__\n");
+//     for(MemoryDescriptor *desc = memoryDescriptor; desc != 0; desc = desc->next){
+//         kprintf("(%X:%d) ", getMemoryPointer(desc), desc->used);
+//     }
+//     kprintf("\n");
+// }
 
 void *calloc(int size){
     void* ptr = malloc(size);

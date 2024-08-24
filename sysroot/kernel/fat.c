@@ -2,9 +2,9 @@
 #include "kernel/fat-disk.h"
 
 #include "stdlib.h"
-#include "stdio.h"
 #include "string.h"
 #include "kernel/buffered-storage.h"
+#include "kernel/logging.h"
 
 
 #define BLOCK_BUFFER_SIZE 20
@@ -103,7 +103,7 @@ static File* createGenericFile(FileSystem *fileSystem, char *path, uint8_t attri
       FatFile *root = fatDisk_openRoot(disk);
       parent = findChild(disk, root, parentPath);
       if(parent == 0){
-         printf("[FAT] no parent\n");
+         loggWarning("[FAT] no parent\n");
          return 0;
       }
       fatDisk_closeFile(disk, root);

@@ -6,7 +6,8 @@ qemu-system-x86_64 -hda build/os.img \
 -m 4G \
 -d guest_errors -d unimp -d pcall -d strace \
 -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
---trace events=trace.event
+--trace events=trace.event \
+-d int,guest_errors -no-reboot
 
 
 # -drive if=none,id=stick,format=raw,file=stick.img \
