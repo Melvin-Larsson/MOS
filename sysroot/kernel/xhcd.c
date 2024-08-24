@@ -121,6 +121,8 @@ XhcStatus xhcd_setInterrupter(XhcDevice *device, int endpoint, void (*handler)(v
 }
 
 static int dequeEventTrb(Xhcd *xhcd, XhcEventTRB *result){
+   semaphore_aquire(xhcd->eventSemaphore);
+
    uint32_t advancedDequeue = (xhcd->eventBufferDequeueIndex + 1) % xhcd->eventBufferSize;
    if(advancedDequeue == xhcd->eventBufferEnqueueIndex){
       return 0;
@@ -148,7 +150,7 @@ static void handler(void *data){
 
          xhcd->eventBuffer[xhcd->eventBufferEnqueueIndex] = events[i];
          xhcd->eventBufferEnqueueIndex = (xhcd->eventBufferEnqueueIndex + 1) % xhcd->eventBufferSize;
-
+         semaphore_release(xhcd->eventSemaphore);
       }
    }while(count != 0);
 }
@@ -164,6 +166,7 @@ XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
       xhcd->eventBufferSize = 32;
       xhcd->eventBufferDequeueIndex = 0;
       xhcd->eventBufferEnqueueIndex = 1;
+      xhcd->eventSemaphore = semaphore_new(0);
 
       PciGeneralDeviceHeader pciHeader;
       pci_getGeneralDevice(descriptor, &pciHeader);
@@ -324,7 +327,6 @@ static XhcStatus initDevice(Xhcd *xhcd, int portIndex, XhcDevice *result){
       return XhcEnablePortError;
    }
 
-
    int slotId = getSlotId(xhcd, portIndex + 1);
    if(slotId < 0){
       return XhcSlotIdError;
@@ -408,6 +410,7 @@ static XhcStatus configureEndpoint(Xhcd *xhcd, int slotId, UsbEndpointDescriptor
    }
 }
 XhcStatus xhcd_readData(const XhcDevice *device, UsbEndpointDescriptor endpoint, void *dataBuffer, uint16_t bufferSize){
+   loggDebug("Read Data\n");
    int endpointIndex = getEndpointIndex(&endpoint);
 
    Xhcd *xhcd = device->data;
@@ -833,7 +836,7 @@ static XhcOutputContext *getOutputContext(Xhcd *xhcd, int slotId){
 
 static int putConfigTD(Xhcd *xhcd, int slotId, TD td){
    XhcEventTRB event;
-   while(dequeEventTrb(xhcd, &event)); //FIXME: Hack
+//    while(dequeEventTrb(xhcd, &event)); //FIXME: Hack
 
    XhcdRing *transferRing = &xhcd->transferRing[slotId][0];
    xhcd_putTD(td, transferRing);

@@ -12,7 +12,15 @@ typedef struct{
    uint32_t eflags;
 }ThreadConfig;
 
+typedef struct{
+   void *data;
+}Semaphore;
+
 void threads_init();
 void thread_start(ThreadConfig config);
+
+Semaphore *semaphore_new(unsigned int count);
+void semaphore_aquire(Semaphore *semaphore);
+void semaphore_release(Semaphore *semaphore);
 
 #endif

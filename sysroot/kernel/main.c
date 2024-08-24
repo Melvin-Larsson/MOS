@@ -222,6 +222,20 @@ void myUserspaceFunc2(){
     while(1);
 }
 
+static Semaphore *s1;
+static Semaphore *s2;
+
+void t1(){
+    kprintf("Hello world! (1)\n");
+    semaphore_aquire(s1);
+    while(1);
+}
+void t2(){
+    kprintf("Hello world! (2)\n");
+    semaphore_aquire(s2);
+    while(1);
+}
+
 void initLogging(){
     SerialPortConfig serialConfig = serial_defaultConfig();
     serial_initPort(COM1, serialConfig);
@@ -350,21 +364,24 @@ void kernel_main(){
 
     threads_init();
     ThreadConfig thread1 = {
-        .start = (void (*)(void*))userspaceAddress,
+        .start = (void (*)(void*))t1,
         .data = 0,
-        .cs = (3 << 3) | 3,
-        .ss = (4 << 3) | 3,
+        .cs = (1 << 3) | 0,
+        .ss = (2 << 3) | 0,
         .esp = 0xB00000,
         .eflags = eflags
     };
     ThreadConfig thread2 = {
-        .start = (void (*)(void*))func2Addr,
+        .start = (void (*)(void*))t2,
         .data = 0,
-        .cs = (3 << 3) | 3,
-        .ss = (4 << 3) | 3,
-        .esp = 0xC00000,
+        .cs = (1 << 3) | 0,
+        .ss = (2 << 3) | 0,
+        .esp = 0xA00000,
         .eflags = eflags
     };
+    s1 = semaphore_new(0);
+    s2 = semaphore_new(0);
+
     thread_start(thread1);
     thread_start(thread2);
 

@@ -6,6 +6,7 @@
 #include "xhcd-ring.h"
 #include "xhcd-event-ring.h"
 #include "xhcd-hardware.h"
+#include "threads.h"
 
 
 typedef struct{
@@ -33,6 +34,7 @@ typedef struct{
    volatile uint32_t eventBufferDequeueIndex;
    volatile uint32_t eventBufferEnqueueIndex;
 
+   Semaphore *eventSemaphore;
 }Xhcd;
 
 
