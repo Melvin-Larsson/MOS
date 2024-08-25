@@ -226,14 +226,24 @@ static Semaphore *s1;
 static Semaphore *s2;
 
 void t1(){
-    kprintf("Hello world! (1)\n");
-    semaphore_aquire(s1);
-    while(1);
+//     kprintf("Hello world! (1)\n");
+//     semaphore_aquire(s1);
+//     while(1);
+    while(1){
+        kprintf("1");
+        semaphore_release(s2);
+        semaphore_aquire(s1);
+    }
 }
 void t2(){
-    kprintf("Hello world! (2)\n");
-    semaphore_aquire(s2);
-    while(1);
+//     kprintf("Hello world! (2)\n");
+//     semaphore_aquire(s2);
+//     while(1);
+    while(1){
+        semaphore_aquire(s2);
+        kprintf("2");
+        semaphore_aquire(s1);
+    }
 }
 
 void initLogging(){

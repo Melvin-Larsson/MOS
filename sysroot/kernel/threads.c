@@ -4,11 +4,10 @@
 #include "stdlib.h"
 #include "stdbool.h"
 
-typedef struct{
+typedef volatile struct{
    uint32_t edi;
    uint32_t esi;
    uint32_t ebp;
-   uint32_t reserved;
    uint32_t ebx;
    uint32_t edx;
    uint32_t ecx;
@@ -17,8 +16,6 @@ typedef struct{
    uint32_t eip;
    uint32_t cs;
    uint32_t eflags;
-   uint32_t esp;
-   uint32_t ss;
 }StackFrame;
 
 typedef enum{
@@ -26,12 +23,12 @@ typedef enum{
    Waiting
 }ThreadStatus;
 
-typedef struct{
-   StackFrame stackFrame;
+typedef volatile struct{
+   uint32_t esp;
    ThreadStatus status;
 }Thread;
 
-typedef struct ThreadList{
+typedef volatile struct ThreadList{
    struct ThreadList *next;
    Thread *thread;
 }ThreadListNode;
@@ -64,18 +61,28 @@ void threads_init(){
    pit_setTimer(0,0,0);
 }
 
+static uint32_t *push(uint32_t *stack, uint32_t value){
+   *--stack = value;
+   return stack;
+}
+
 void thread_start(ThreadConfig config){
    aquireLock();
    Thread *thread = calloc(sizeof(Thread));
 
-   thread->stackFrame = (StackFrame){
+   StackFrame stackFrame = {
       .eip = (uint32_t)config.start,
-         .eax = (uint32_t)config.data,
-         .cs = config.cs,
-         .ss = config.ss,
-         .esp = config.esp,
-         .eflags = config.eflags
+      .eax = (uint32_t)config.data,
+      .cs = config.cs,
+      .eflags = config.eflags
    };
+   uint32_t *ptr = (uint32_t *)&stackFrame.eflags;
+   uint32_t *stack = (uint32_t *)config.esp;
+   for(int i = 0; i < sizeof(StackFrame)/sizeof(uint32_t); i++){
+      stack =  push(stack, *ptr--);
+   }
+   thread->esp = (uint32_t)stack;
+
    thread->status = Running;
 
    scheduleThread(thread);
@@ -107,7 +114,15 @@ void semaphore_aquire(Semaphore *semaphore){
       data->waitingThreads = append(data->waitingThreads, activeThread->thread);
       activeThread->thread->status = Waiting;
       releaseLock();
-      while(data->count == 0);
+      while(1){
+         if(data->count > 0){
+            aquireLock();
+            if(data->count > 0){
+               break;
+            }
+            releaseLock();
+         }
+      }
    }
 
    data->count--;
@@ -200,27 +215,31 @@ static ThreadListNode *remove(ThreadListNode *root, ThreadListNode *node){
 }
 
 #define APIC_EOI_ADDRESS 0xFEE000B0
-void task_switch_handler(StackFrame *stackFrame){
+uint32_t task_switch_handler(uint32_t esp){
+   uint32_t newEsp = esp;
+
    if(activeThread){ 
-      activeThread->thread->stackFrame = *stackFrame;
+      activeThread->thread->esp = esp;
 
       ThreadListNode *nextThread = activeThread->next ? activeThread->next : runningThreads;
-      if(activeThread->thread->status == Waiting){
-         runningThreads = remove(runningThreads, activeThread);
-      }
+//       if(activeThread->thread->status == Waiting){
+//          runningThreads = remove(runningThreads, activeThread);
+//       }
 
-      activeThread = nextThread;
-      if(activeThread){
-         *stackFrame = activeThread->thread->stackFrame;
+      if(nextThread){
+         activeThread = nextThread;
+         newEsp = activeThread->thread->esp;
       }
-   }else if(runningThreads){
+   }
+   else if(runningThreads){
       activeThread = runningThreads;
-      *stackFrame = activeThread->thread->stackFrame;
    }
 
    uint32_t eoiData = 0;
    paging_writePhysicalOfSize(APIC_EOI_ADDRESS, &eoiData, 4, AccessSize32);
 
    pit_setTimer(0,0,0);
+
+   return newEsp;
 }
 

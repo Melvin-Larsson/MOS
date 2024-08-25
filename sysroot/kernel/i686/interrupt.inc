@@ -93,11 +93,24 @@ int0x80_handler:
 
 extern task_switch_handler
 int0x7F_handler:
-    pushad
+    push eax
+    push ecx
+    push edx
+    push ebx
+    push ebp
+    push esi
+    push edi 
     push esp
     call task_switch_handler
     add esp, 4
-    popad
+    mov esp, eax 
+    pop edi 
+    pop esi
+    pop ebp
+    pop ebx
+    pop edx
+    pop ecx
+    pop eax
     iret
     
 
