@@ -105,8 +105,7 @@ static PortUsbType getProtocolSlotType(Xhcd *xhcd, int portNumber);
 //
 static int port = 0;
 
-__attribute__((aligned(64)))
-static XhcInputContext inputContext[MAX_DEVICE_SLOTS_ENABLED];
+__attribute__((aligned(64))) static XhcInputContext inputContext[MAX_DEVICE_SLOTS_ENABLED];
 
 static int count = 0;
 
@@ -836,7 +835,7 @@ static XhcOutputContext *getOutputContext(Xhcd *xhcd, int slotId){
 
 static int putConfigTD(Xhcd *xhcd, int slotId, TD td){
    XhcEventTRB event;
-//    while(dequeEventTrb(xhcd, &event)); //FIXME: Hack
+   //    while(dequeEventTrb(xhcd, &event)); //FIXME: Hack
 
    XhcdRing *transferRing = &xhcd->transferRing[slotId][0];
    xhcd_putTD(td, transferRing);

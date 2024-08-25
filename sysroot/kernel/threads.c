@@ -222,9 +222,9 @@ uint32_t task_switch_handler(uint32_t esp){
       activeThread->thread->esp = esp;
 
       ThreadListNode *nextThread = activeThread->next ? activeThread->next : runningThreads;
-//       if(activeThread->thread->status == Waiting){
-//          runningThreads = remove(runningThreads, activeThread);
-//       }
+      if(activeThread->thread->status == Waiting){
+         runningThreads = remove(runningThreads, activeThread);
+      }
 
       if(nextThread){
          activeThread = nextThread;
