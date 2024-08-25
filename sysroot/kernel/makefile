@@ -140,6 +140,9 @@ ${BUILD}/acpi.o : acpi.c include/kernel/acpi.h
 ${BUILD}/threads.o : threads.c include/kernel/threads.h
 	${COMPILER} ${CFLAGS} -c threads.c -o ${BUILD}/threads.o
 
+${BUILD}/timer.o : timer.c include/kernel/timer.h
+	${COMPILER} ${CFLAGS} -c timer.c -o ${BUILD}/timer.o
+
 include/kernel/xhcd.h: include/kernel/xhcd-registers.h include/kernel/usb-messages.h
 include/kernel/xhcd-ring.h: include/kernel/xhcd-registers.h
 include/kernel/xhcd-event-ring.h: include/kernel/xhcd-registers.h
