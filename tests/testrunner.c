@@ -1,5 +1,5 @@
 #include "testrunner.h"
-#include "stdio.h"
+#include "kernel/kernel-io.h"
 #include "stdlib.h"
 #include "kernel/interrupt.h"
 #include "string.h"
@@ -14,23 +14,23 @@ static int testId;
 static int ignoredTests;
 static TestStatus status[MAX_TEST_COUNT];
 
-static StdioColor prevColor;
-static void setColor(StdioColor color){
+static KIOColor prevColor;
+static void setColor(KIOColor color){
    prevColor = stdio_getColor();
-   stdio_setColor(color);
+   kio_setColor(color);
 }
 static void setErrorColor(){
-   setColor(StdioColorLightRed);
+   setColor(KIOColorLightRed);
 }
 static void restoreColor(){
-   stdio_setColor(prevColor);
+   kio_setColor(prevColor);
 }
 
 int assertIntL(int actual, int expected, int line){
    if(actual != expected){
       setErrorColor();
-      printf("[FAIL] %s (line %d)\n", currTestName, line);
-      printf("   AssertInt: Expected %d, got %d\n", expected, actual);
+      kprintf("[FAIL] %s (line %d)\n", currTestName, line);
+      kprintf("   AssertInt: Expected %d, got %d\n", expected, actual);
       setTestStatus(TestStatusFail);
       restoreColor();
       return 0;
@@ -40,8 +40,8 @@ int assertIntL(int actual, int expected, int line){
 int assertIntNotEqualsL(int actual, int notExpected, int line){
    if(actual == notExpected){
       setErrorColor();
-      printf("[FAIL] %s (line %d)\n", currTestName, line);
-      printf("   AssertIntNotEquals: got %d\n", notExpected);
+      kprintf("[FAIL] %s (line %d)\n", currTestName, line);
+      kprintf("   AssertIntNotEquals: got %d\n", notExpected);
       setTestStatus(TestStatusFail);
       restoreColor();
       return 0;
@@ -51,8 +51,8 @@ int assertIntNotEqualsL(int actual, int notExpected, int line){
 int assertStringL(char* actual, char* expected, int line){
    if(!equals(actual, expected)){
       setErrorColor();
-      printf("[FAIL] %s (line %d)\n", currTestName, line);
-      printf("   AssertString: Expected %s, got %s\n", expected, actual);
+      kprintf("[FAIL] %s (line %d)\n", currTestName, line);
+      kprintf("   AssertString: Expected %s, got %s\n", expected, actual);
       setTestStatus(TestStatusFail);
       restoreColor();
       return 0;
@@ -60,24 +60,24 @@ int assertStringL(char* actual, char* expected, int line){
    return 1;
 }
 static void printArray(char *array, uint32_t size){
-   printf("[");
+   kprintf("[");
    for(uint32_t i = 0; i < size; i++){
-      printf("%X", array[i]);
+      kprintf("%X", array[i]);
       if(i != size - 1){
-         printf(", ");
+         kprintf(", ");
       }
    }
-   printf("]");
+   kprintf("]");
 
 }
 void printArrayError(char* actual, uint32_t actualSize, char* expected, uint32_t expectedSize){
          setErrorColor();
-         printf("[FAIL] %s (line %d)\n", currTestName, currTestLine);
-         printf("   AssertArray: Expected " );
+         kprintf("[FAIL] %s (line %d)\n", currTestName, currTestLine);
+         kprintf("   AssertArray: Expected " );
          printArray(expected, expectedSize);
-         printf(" got ");
+         kprintf(" got ");
          printArray(actual, actualSize);
-         printf("\n");
+         kprintf("\n");
          restoreColor();
 }
 int assertArray(char* actual, uint32_t actualSize, char* expected, uint32_t expectedSize){
@@ -115,7 +115,7 @@ static void setTestStatus(TestStatus s){
 }
 
 void kernel_main(){
-   stdioinit();
+   kio_init();
    stdlib_init();
 
    interruptDescriptorTableInit();
@@ -143,9 +143,13 @@ void kernel_main(){
    if(failed > 0){
       setErrorColor();
    }else{
-      setColor(StdioColorLightGreen);
+      setColor(KIOColorLightGreen);
    }
-   printf("Test done! Fails: %d. Successes: %d. Ignored: %d.\n", failed, successfull, ignoredTests);
+   kprintf("Test done! Fails: %d. Successes: %d. Ignored: %d.\n", failed, successfull, ignoredTests);
    restoreColor();
    while(1);
+}
+
+uint32_t task_switch_handler(uint32_t eip){
+   return eip;
 }

@@ -24,6 +24,8 @@ OBJS = ${BUILD}/boot.o \
 	   ${BUILD}/test.o \
 	   ${BUILD}/testrunner.o \
 	   ${BUILD}/interrupt.o \
+	   ${BUILD}/logging.o \
+	   ${BUILD}/kernel-io.o \
 	   ${BUILD}/mass-storage-device-mock.o \
 	   ${BUILD}/buffered-storage-mock.o \
 	   ${BUILD}/${SUBJECT_FILE}.o \
@@ -35,7 +37,7 @@ all : ${PREFIX}/build/os.img ${OBJS}
 	objcopy -O binary ${PREFIX}/build/os.elf ${PREFIX}/build/os.bin
 
 
-${PREFIX}/build/os.img : ${PREFIX}/build
+${PREFIX}/build/os.img : ${PREFIX}/build ${OBJS}
 	dd if=/dev/zero of=${PREFIX}/build/os.img bs=512 count=2048
 
 ${BUILD} : 
@@ -52,6 +54,12 @@ ${BUILD}/testrunner.o : ${PREFIX}/tests/testrunner.c ${PREFIX}/tests/testrunner.
 	
 ${BUILD}/interrupt.o : ${KERNEL}/interrupt.c ${BUILD};
 	${COMPILER} ${CFLAGS} -c ${KERNEL}/interrupt.c -o ${BUILD}/interrupt.o
+
+${BUILD}/logging.o : ${KERNEL}/logging.c ${KERNEL}/include/kernel/logging.h
+	${COMPILER} ${CFLAGS} -c ${KERNEL}/logging.c -o ${BUILD}/logging.o
+
+${BUILD}/kernel-io.o : ${KERNEL}/kernel-io.c ${KERNEL}/include/kernel/kernel-io.h
+	${COMPILER} ${CFLAGS} -c ${KERNEL}/kernel-io.c -o ${BUILD}/kernel-io.o
 
 ${BUILD}/mass-storage-device-mock.o : ${MOCKS}/mass-storage-device-mock.c ${BUILD};
 	${COMPILER} ${CFLAGS} -c ${MOCKS}/mass-storage-device-mock.c -o ${BUILD}/mass-storage-device-mock.o
