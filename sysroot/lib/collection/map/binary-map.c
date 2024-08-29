@@ -1,4 +1,4 @@
-#include "map.h"
+#include "collection/map.h"
 #include "stdlib.h"
 
 #include "stdio.h" //FIXME: remove

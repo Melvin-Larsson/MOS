@@ -1,4 +1,4 @@
-#include "list.h"
+#include "collection/list.h"
 
 void intlist_add(const struct List *list, uintptr_t val){
     list->add(list, (void*)val);
@@ -26,6 +26,10 @@ bool intlist_contains(const struct List *list, uintptr_t val){
 
 void intlist_freeList(struct List *list){
     list->free(list);
+}
+
+Iterator *intlist_createIterator(struct List *list){
+    return list->createIterator(list);
 }
 
 bool intlist_equals(void *val1, void *val2){

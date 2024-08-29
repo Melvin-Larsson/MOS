@@ -12,6 +12,8 @@ uintptr_t intlist_get(const struct List *list, int index);
 bool intlist_contains(const struct List *list, uintptr_t val);
 void intlist_freeList(struct List *list);
 
+Iterator *intlist_createIterator(struct List *list);
+
 bool intlist_equals(void *val1, void *val2);
 
 #endif

@@ -1,5 +1,5 @@
-SUBJECT_FILE=allocator
-SUBJECT_PARENT=kernel
+SUBJECT_FILE=linked-list
+SUBJECT_PARENT=lib/list
 SUBJECT=${SUBJECT_PARENT}/${SUBJECT_FILE}
 
 COMPILER?=${HOME}/opt/cross2/bin/i686-elf-gcc
@@ -17,7 +17,6 @@ TEST_FILE=${SUBJECT}-test.c
 INCLUDE=-I ${PREFIX}/sysroot/kernel/include -I ${PREFIX}/sysroot/lib/include -I ${PREFIX}/sysroot/kernel -I ${PREFIX}/tests -I ${MOCKS} -I ${PREFIX}/utils/include
 CFLAGS?= -O2 -std=gnu99 -ffreestanding -mno-red-zone -Wall -Wextra ${INCLUDE}
 
-
 LINK_FLAGS?= -nostdlib -lgcc -ffreestanding -O2
 
 OBJS = ${BUILD}/boot.o \
@@ -28,7 +27,7 @@ OBJS = ${BUILD}/boot.o \
 	   ${BUILD}/kernel-io.o \
 	   ${BUILD}/mass-storage-device-mock.o \
 	   ${BUILD}/buffered-storage-mock.o \
-	   ${BUILD}/${SUBJECT_FILE}.o \
+# 	   ${BUILD}/${SUBJECT_FILE}.o \
 
 all : ${PREFIX}/build/os.img ${OBJS}
 	echo ${PREFIX}

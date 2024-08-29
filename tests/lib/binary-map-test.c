@@ -1,6 +1,6 @@
 #include "stdlib.h"
 #include "testrunner.h"
-#include "intmap.h"
+#include "collection/intmap.h"
 
 static Map *map;
 

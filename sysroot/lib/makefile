@@ -16,6 +16,7 @@ OBJS= ${BUILD}/stdio.o \
 	   ${BUILD}/linked-list.o \
 	   ${BUILD}/list.o \
 	   ${BUILD}/intlist.o \
+	   ${BUILD}/int-iterator.o \
 
 ${BUILD}/lib.out : ${BUILD} ${OBJS} 
 	${COMPILER} ${LINK_FLAGS} ${OBJS} -o ${BUILD}/lib.out
@@ -34,23 +35,26 @@ ${BUILD}/memory.o : stdlib/memory.c include/stdlib.h
 ${BUILD}/string.o : string/string.c include/string.h
 	${COMPILER} ${CFLAGS} -c string/string.c -o ${BUILD}/string.o
 
-${BUILD}/map.o : map/map.c include/map.h
-	${COMPILER} ${CFLAGS} -c map/map.c -o ${BUILD}/map.o
+${BUILD}/map.o : collection/map/map.c include/collection/map.h
+	${COMPILER} ${CFLAGS} -c collection/map/map.c -o ${BUILD}/map.o
 
-${BUILD}/binary-map.o : map/binary-map.c include/map.h
-	${COMPILER} ${CFLAGS} -c map/binary-map.c -o ${BUILD}/binary-map.o
+${BUILD}/binary-map.o : collection/map/binary-map.c include/collection/map.h
+	${COMPILER} ${CFLAGS} -c collection/map/binary-map.c -o ${BUILD}/binary-map.o
 
-${BUILD}/intmap.o : map/intmap.c include/map.h
-	${COMPILER} ${CFLAGS} -c map/intmap.c -o ${BUILD}/intmap.o
+${BUILD}/intmap.o : collection/map/intmap.c include/collection/map.h
+	${COMPILER} ${CFLAGS} -c collection/map/intmap.c -o ${BUILD}/intmap.o
 
-${BUILD}/list.o : list/list.c include/list.h
-	${COMPILER} ${CFLAGS} -c list/list.c -o ${BUILD}/list.o
+${BUILD}/list.o : collection/list/list.c include/collection/list.h
+	${COMPILER} ${CFLAGS} -c collection/list/list.c -o ${BUILD}/list.o
 
-${BUILD}/linked-list.o : list/linked-list.c include/list.h
-	${COMPILER} ${CFLAGS} -c list/linked-list.c -o ${BUILD}/linked-list.o
+${BUILD}/linked-list.o : collection/list/linked-list.c include/collection/list.h
+	${COMPILER} ${CFLAGS} -c collection/list/linked-list.c -o ${BUILD}/linked-list.o
 
-${BUILD}/intlist.o : list/intlist.c include/list.h
-	${COMPILER} ${CFLAGS} -c list/intlist.c -o ${BUILD}/intlist.o
+${BUILD}/intlist.o : collection/list/intlist.c include/collection/list.h
+	${COMPILER} ${CFLAGS} -c collection/list/intlist.c -o ${BUILD}/intlist.o
+
+${BUILD}/int-iterator.o : collection/int-iterator.c include/collection/int-iterator.h
+	${COMPILER} ${CFLAGS} -c collection/int-iterator.c -o ${BUILD}/int-iterator.o
 
 clean :
 	rm -f ${BUILD}/*

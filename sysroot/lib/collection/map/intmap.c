@@ -1,4 +1,4 @@
-#include "intmap.h"
+#include "collection/intmap.h"
 
 int intmap_add(const struct Map *map, uintptr_t key, uintptr_t value){
    return map->add(map, (void*)key, (void*)value); 

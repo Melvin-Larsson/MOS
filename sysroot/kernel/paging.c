@@ -5,7 +5,7 @@
 
 #include "stdint.h"
 #include "stdlib.h"
-#include "intmap.h"
+#include "collection/intmap.h"
 
 #include "kernel/logging.h"
 

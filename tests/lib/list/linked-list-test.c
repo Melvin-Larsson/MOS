@@ -1,14 +1,31 @@
 #include "testrunner.h"
-#include "intlist.h"
+#include "collection/intlist.h"
+#include "collection/int-iterator.h"
 
 static List *list;
+static Iterator *iterator;
 
 TEST_GROUP_SETUP(dtg){
    list = list_newLinkedList(intlist_equals);
+   iterator = intlist_createIterator(list);
 }
 
 TEST_GROUP_TEARDOWN(dtg){
    intlist_freeList(list);
+   intIterator_free(iterator);
+}
+
+TEST_GROUP_SETUP(10ItemList){
+   list = list_newLinkedList(intlist_equals);
+   for(int i = 0; i < 10; i++){
+      intlist_add(list, i);
+   }
+   iterator = intlist_createIterator(list);
+}
+
+TEST_GROUP_TEARDOWN(10ItemList){
+   intlist_freeList(list);
+   intIterator_free(iterator);
 }
 
 TESTS
@@ -140,6 +157,166 @@ TEST(dtg, listAddItem_removeItem_addItem_containsNewItem){
 
    assertInt(intlist_contains(list, removeValue), false);
    assertInt(intlist_contains(list, newValue), true);
+}
+
+TEST(dtg, iterator_hasNextOnEmpty_returnsFalse){
+   assertInt(intIterator_hasNext(iterator), false);
+}
+
+TEST(10ItemList, iterator_hasNextOnNonEmpty_returnsTrue){
+   assertInt(intIterator_hasNext(iterator), true);
+}
+
+TEST(10ItemList, iterator_advanceThenGetReturnsFirst){
+   intIterator_advance(iterator);
+   assertInt(intIterator_get(iterator), 0);
+}
+
+TEST(10ItemList, iteratorAdvance_getReturnsCorrect){
+   for(int i = 0; i < 10; i++){
+      intIterator_advance(iterator);
+      if(!assertInt(intIterator_get(iterator), i)){
+         break;
+      }
+   }
+}
+
+TEST(10ItemList, iteratorAddAfterAt0_listContainsValue_newLength){
+   uintptr_t data = 0x69;
+   intIterator_add(iterator, data);
+
+   assertInt(intlist_contains(list, data), true);
+   assertInt(intlist_get(list, 0), data);
+   assertInt(intlist_length(list), 11);
+}
+
+TEST(10ItemList, iteratorAddAfterAt1_listContainsValue_newLength){
+   uintptr_t data = 0x69;
+   intIterator_advance(iterator);
+   intIterator_add(iterator, data);
+
+   assertInt(intlist_contains(list, data), true);
+   assertInt(intlist_get(list, 1), data);
+   assertInt(intlist_length(list), 11);
+}
+
+TEST(10ItemList, iteratorAddAfterAtLast_listContainsValue_newLength){
+   uintptr_t data = 0x69;
+   for(int i = 0; i < 10; i++){
+      intIterator_advance(iterator);
+   }
+   intIterator_add(iterator, data);
+
+   assertInt(intlist_contains(list, data), true);
+   assertInt(intlist_get(list, 10), data);
+   assertInt(intlist_length(list), 11);
+}
+
+TEST(10ItemList, iteratorRemoveFirst_valueNoLongerInList_newLength){
+   intIterator_advance(iterator);
+
+   bool success = intIterator_remove(iterator);
+
+   assertInt(success, true);
+   assertInt(intlist_contains(list, 0), false);
+   assertInt(intlist_get(list, 0), 1);
+   assertInt(intlist_length(list), 9);
+}
+
+TEST(10ItemList, iteratorRemove2nd_valueNoLongerInList_newLength){
+   intIterator_advance(iterator);
+   intIterator_advance(iterator);
+
+   bool success = intIterator_remove(iterator);
+
+   assertInt(success, true);
+   assertInt(intlist_contains(list, 1), false);
+   assertInt(intlist_length(list), 9);
+}
+
+TEST(10ItemList, iteratorRemoveLast_valueNoLongerInList_newLength){
+   for(int i = 0; i < 10; i++){
+      intIterator_advance(iterator);
+   }
+
+   bool success = intIterator_remove(iterator);
+
+   assertInt(success, true);
+   assertInt(intlist_contains(list, 9), false);
+   assertInt(intlist_length(list), 9);
+}
+
+TEST(dtg, iteratorAdd_thenAddNormally_length2_containsBoth){
+   uintptr_t data1 = 0x69, data2 = 0x70;
+   intIterator_add(iterator, data1);
+   intlist_add(list, data2);
+
+   assertInt(intlist_contains(list, data1), true);
+   assertInt(intlist_contains(list, data2), true);
+   assertInt(intlist_length(list), 2);
+}
+
+TEST(10ItemList, iteratorAddLast_thenAddNormally_newLength_containsBoth){
+   uintptr_t data1 = 0x69, data2 = 0x70;
+   for(int i = 0; i < 10; i++){
+      intIterator_advance(iterator);
+   }
+   intIterator_add(iterator, data1);
+   intlist_add(list, data2);
+
+   assertInt(intlist_contains(list, data1), true);
+   assertInt(intlist_contains(list, data2), true);
+   assertInt(intlist_length(list), 12);
+}
+
+TEST(10ItemList, iteratorRemoveLastItem_AddNormally_length10_containsNew){
+   uintptr_t data = 0x70;
+
+   for(int i = 0; i < 10; i++){
+      intIterator_advance(iterator);
+   }
+   intIterator_remove(iterator);
+
+   intlist_add(list, data);
+
+   assertInt(intlist_contains(list, data), true);
+   assertInt(intlist_length(list), 10);
+}
+
+TEST(10ItemList, iteratorRemoveAll_AddNormally_length1_containsNew){
+   uintptr_t data = 0x70;
+
+   intIterator_advance(iterator);
+   for(int i = 0; i < 10; i++){
+      assertInt(intIterator_remove(iterator), true);
+   }
+
+   intlist_add(list, data);
+
+   assertInt(intlist_contains(list, data), true);
+   assertInt(intlist_length(list), 1);
+}
+
+TEST(10ItemList, modifyWhileIterating_allFunctionsReturnFalse){
+   intlist_add(list, 1);
+
+   assertInt(intIterator_hasNext(iterator), false);
+   assertInt(intIterator_advance(iterator), false);
+   assertInt(intIterator_remove(iterator), false);
+   assertInt(intIterator_add(iterator, 0), false);
+   assertInt(intIterator_get(iterator), false);
+}
+
+TEST(10ItemList, iteratorRemoveBeforeAdvance_successFalse){
+   assertInt(intIterator_remove(iterator), false);
+   assertInt(intlist_length(list), 10);
+}
+
+TEST(dtg, iteratorGetBeforeAdvance_returns0){
+   intlist_add(list, 0x69);
+   Iterator *it = intlist_createIterator(list);
+   assertInt(intIterator_get(it), 0);
+   it->free(it);
 }
 
 END_TESTS
