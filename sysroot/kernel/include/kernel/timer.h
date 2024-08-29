@@ -33,6 +33,7 @@ Timer *timer_new(TimerConfig config);
 TimerStatus timer_start(Timer *timer);
 void timer_stop(Timer *timer);
 void timer_free(Timer *timer);
+bool timers_freeAll();
 
 
 #endif

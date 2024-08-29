@@ -1,5 +1,5 @@
-SUBJECT_FILE=linked-list
-SUBJECT_PARENT=lib/list
+SUBJECT_FILE=timer
+SUBJECT_PARENT=kernel
 SUBJECT=${SUBJECT_PARENT}/${SUBJECT_FILE}
 
 COMPILER?=${HOME}/opt/cross2/bin/i686-elf-gcc
@@ -27,7 +27,7 @@ OBJS = ${BUILD}/boot.o \
 	   ${BUILD}/kernel-io.o \
 	   ${BUILD}/mass-storage-device-mock.o \
 	   ${BUILD}/buffered-storage-mock.o \
-# 	   ${BUILD}/${SUBJECT_FILE}.o \
+	   ${BUILD}/${SUBJECT_FILE}.o \
 
 all : ${PREFIX}/build/os.img ${OBJS}
 	echo ${PREFIX}

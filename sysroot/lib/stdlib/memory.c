@@ -28,13 +28,13 @@ void stdlib_init(){
     *memoryDescriptor = (MemoryDescriptor){0,0};
 }
 
-// void debug_logMemory(){
-//     kprintf("__Dynamic Memory__\n");
-//     for(MemoryDescriptor *desc = memoryDescriptor; desc != 0; desc = desc->next){
-//         kprintf("(%X:%d) ", getMemoryPointer(desc), desc->used);
-//     }
-//     kprintf("\n");
-// }
+void debug_logMemory(){
+    kprintf("__Dynamic Memory__\n");
+    for(MemoryDescriptor *desc = memoryDescriptor; desc != 0; desc = desc->next){
+        kprintf("(%X:%d) ", getMemoryPointer(desc), desc->used);
+    }
+    kprintf("\n");
+}
 
 void *calloc(int size){
     void* ptr = malloc(size);

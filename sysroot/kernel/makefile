@@ -38,6 +38,7 @@ OBJS= ${BUILD}/boot.o \
 	   ${BUILD}/ioapic.o \
 	   ${BUILD}/acpi.o \
 	   ${BUILD}/threads.o \
+	   ${BUILD}/timer.o \
 
 ${BUILD}/kernel.o : ${BUILD} ${OBJS} ${PREFIX}/utils/include/utils/assert.h
 	${COMPILER} -T linker.ld ${LINK_FLAGS} ${OBJS} -o ${BUILD}/kernel.out

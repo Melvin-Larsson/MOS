@@ -73,6 +73,7 @@ interrupt_handler_m 31
 interrupt_handler_m 32
 interrupt_handler_m 33
 interrupt_handler_m 34
+interrupt_handler_m 35
 
 int0x80_handler:
     pushad
@@ -117,12 +118,12 @@ int0x7F_handler:
 global interrupt_addr_table
 interrupt_addr_table:
 %assign i 0
-%rep 34
+%rep 35
     dd interrupt_handler_%+i
 %assign i i+1
 %endrep
-%rep (0x7F - 34)
-    dd interrupt_handler_34
+%rep (0x7F - 35)
+    dd interrupt_handler_35
 %endrep
 dd int0x7F_handler
 dd int0x80_handler

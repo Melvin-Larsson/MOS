@@ -250,7 +250,7 @@ static void* iterator_get(const Iterator *iterator){
 
 static void iterator_free(Iterator *iterator){
     ListIterator *listIterator = iterator->data;
-    free(listIterator->node);
+    free(listIterator->dummyNode);
     free(listIterator);
     free(iterator);
 }

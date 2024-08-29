@@ -150,6 +150,8 @@ void kernel_main(){
 
    clear();
 
+   debug_logMemory();
+
    runTests();
 
    uint32_t successfull = 0;
@@ -168,6 +170,7 @@ void kernel_main(){
       setColor(KIOColorLightGreen);
    }
    kprintf("Test done! Fails: %d. Successes: %d. Ignored: %d.\n", failed, successfull, ignoredTests);
+   debug_logMemory();
    restoreColor();
    while(1);
 }
