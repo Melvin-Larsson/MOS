@@ -37,6 +37,28 @@ int assertIntL(int actual, int expected, int line){
    }
    return 1;
 }
+int assertIntGTL(int actual, int lowerBound, int line){
+   if(actual <= lowerBound){
+      setErrorColor();
+      kprintf("[FAIL] %s (line %d)\n", currTestName, line);
+      kprintf("   AssertIntGT: Expected value to be greater than %d, got %d\n", lowerBound, actual);
+      setTestStatus(TestStatusFail);
+      restoreColor();
+      return 0;
+   }
+   return 1;
+}
+int assertIntGTEL(int actual, int lowerBound, int line){
+   if(actual < lowerBound){
+      setErrorColor();
+      kprintf("[FAIL] %s (line %d)\n", currTestName, line);
+      kprintf("   AssertIntGE: Expected value to be greater than, or equal to %d, got %d\n", lowerBound, actual);
+      setTestStatus(TestStatusFail);
+      restoreColor();
+      return 0;
+   }
+   return 1;
+}
 int assertIntNotEqualsL(int actual, int notExpected, int line){
    if(actual == notExpected){
       setErrorColor();

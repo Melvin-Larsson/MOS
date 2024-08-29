@@ -13,6 +13,9 @@ OBJS= ${BUILD}/stdio.o \
 	   ${BUILD}/map.o \
 	   ${BUILD}/binary-map.o \
 	   ${BUILD}/intmap.o \
+	   ${BUILD}/linked-list.o \
+	   ${BUILD}/list.o \
+	   ${BUILD}/intlist.o \
 
 ${BUILD}/lib.out : ${BUILD} ${OBJS} 
 	${COMPILER} ${LINK_FLAGS} ${OBJS} -o ${BUILD}/lib.out
@@ -39,6 +42,15 @@ ${BUILD}/binary-map.o : map/binary-map.c include/map.h
 
 ${BUILD}/intmap.o : map/intmap.c include/map.h
 	${COMPILER} ${CFLAGS} -c map/intmap.c -o ${BUILD}/intmap.o
+
+${BUILD}/list.o : list/list.c include/list.h
+	${COMPILER} ${CFLAGS} -c list/list.c -o ${BUILD}/list.o
+
+${BUILD}/linked-list.o : list/linked-list.c include/list.h
+	${COMPILER} ${CFLAGS} -c list/linked-list.c -o ${BUILD}/linked-list.o
+
+${BUILD}/intlist.o : list/intlist.c include/list.h
+	${COMPILER} ${CFLAGS} -c list/intlist.c -o ${BUILD}/intlist.o
 
 clean :
 	rm -f ${BUILD}/*

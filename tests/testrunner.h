@@ -37,6 +37,12 @@ void kernel_main();
 #define assertInt(actual, expected) assertIntL(actual, expected, __LINE__)
 int assertIntL(int actual, int expected, int line);
 
+#define assertIntGT(actual, lowerBound) assertIntGTL(actual, lowerBound, __LINE__)
+int assertIntGTL(int actual, int lowerBound, int line);
+
+#define assertIntGTE(actual, lowerBound) assertIntGTEL(actual, lowerBound, __LINE__)
+int assertIntGTEL(int actual, int lowerBound, int line);
+
 #define assertIntNotEquals(actual, expected) assertIntNotEqualsL(actual, expected, __LINE__)
 int assertIntNotEqualsL(int actual, int notExpected, int line);
 
