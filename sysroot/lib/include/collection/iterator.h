@@ -7,7 +7,8 @@ typedef struct Iterator{
     void *data;
     void *(*get)(const struct Iterator *iterator);
     void (*free)(struct Iterator *iterator);
-    bool (*add)(const struct Iterator *iterator, void *value);
+    bool (*addAfter)(const struct Iterator *iterator, void *value);
+    bool (*addAt)(const struct Iterator *iterator, void *value);
     bool (*remove)(const struct Iterator *iterator);
     bool (*hasNext)(const struct Iterator *iterator);
     bool (*advance)(const struct Iterator *iterator);

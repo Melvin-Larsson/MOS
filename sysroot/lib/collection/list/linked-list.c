@@ -35,6 +35,7 @@ Iterator *createIterator(struct List *list);
 static void* iterator_get(const Iterator *iterator);
 static void iterator_free(Iterator *iterator);
 static bool iterator_addAfter(const Iterator *iterator, void *value);
+static bool iterator_addAt(const Iterator *iterator, void *value);
 static bool iterator_remove(const Iterator *iterator);
 static bool iterator_hasNext(const Iterator *iterator);
 static bool iterator_advance(const Iterator *iterator);
@@ -222,7 +223,8 @@ Iterator *createIterator(struct List *list){
         .data = listIterator,
         .get = iterator_get,
         .free = iterator_free,
-        .add = iterator_addAfter,
+        .addAfter = iterator_addAfter,
+        .addAt = iterator_addAt,
         .remove = iterator_remove,
         .hasNext = iterator_hasNext,
         .advance = iterator_advance
@@ -274,12 +276,32 @@ static bool iterator_addAfter(const Iterator *iterator, void *value){
     return true;
 }
 
+static bool iterator_addAt(const Iterator *iterator, void *value){
+    ListIterator *listIterator = iterator->data;
+    if(listIterator->list->modifications != listIterator->modificationsOnCreation){
+        return false;
+    }
+
+    if(!listIterator->last){
+        return false;
+    }
+
+    ListNode *newNode = createNewNode(value);
+
+    newNode->next = listIterator->node;
+    listIterator->last->next = newNode;
+
+    listIterator->list->firstNode = listIterator->dummyNode->next;
+    listIterator->list->length++;
+    return true;
+}
+
 static bool iterator_remove(const Iterator *iterator){
     ListIterator *listIterator = iterator->data;
     if(listIterator->list->modifications != listIterator->modificationsOnCreation){
         return false;
     }
-    if(!listIterator->last || listIterator->node == listIterator->dummyNode){
+    if(!listIterator->last){
         return false;
     }
 

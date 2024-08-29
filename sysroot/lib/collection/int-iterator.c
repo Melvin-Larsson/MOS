@@ -6,8 +6,11 @@ uintptr_t intIterator_get(const Iterator *iterator){
 void intIterator_free(Iterator *iterator){
     iterator->free(iterator);
 }
-bool intIterator_add(const Iterator *iterator, uintptr_t value){
-    return iterator->add(iterator, (void*)value);
+bool intIterator_addAfter(const Iterator *iterator, uintptr_t value){
+    return iterator->addAfter(iterator, (void*)value);
+}
+bool intIterator_addAt(const Iterator *iterator, uintptr_t value){
+    return iterator->addAt(iterator, (void*)value);
 }
 bool intIterator_remove(const Iterator *iterator){
     return iterator->remove(iterator);
