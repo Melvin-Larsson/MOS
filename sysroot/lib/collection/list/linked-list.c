@@ -290,6 +290,7 @@ static bool iterator_addAt(const Iterator *iterator, void *value){
 
     newNode->next = listIterator->node;
     listIterator->last->next = newNode;
+    listIterator->node = newNode;
 
     listIterator->list->firstNode = listIterator->dummyNode->next;
     listIterator->list->length++;
@@ -308,7 +309,7 @@ static bool iterator_remove(const Iterator *iterator){
     ListNode *next = listIterator->node->next;
     free(listIterator->node);
     listIterator->last->next = next;
-    listIterator->node = next;
+    listIterator->node = listIterator->last;
 
     listIterator->list->length--;
     listIterator->list->firstNode = listIterator->dummyNode->next;

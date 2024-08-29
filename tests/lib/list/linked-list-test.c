@@ -346,4 +346,35 @@ TEST(10ItemList, iteratorAddAtLast_beforeAdvance_successFalse){
    assertInt(intlist_length(list), 10);
 }
 
+TEST(10ItemList, iteratorRemove_currentMovesToLast){
+   intIterator_advance(iterator);
+
+   intIterator_remove(iterator);
+
+   intIterator_advance(iterator);
+   assertInt(intIterator_get(iterator), 1);
+}
+
+TEST(10ItemList, iteratorAddAfter_currentIsSame_nextIsUpdated){
+   uintptr_t data = 0x69;
+   intIterator_advance(iterator);
+
+   intIterator_addAfter(iterator, data);
+
+   assertInt(intIterator_get(iterator), 0);
+   intIterator_advance(iterator);
+   assertInt(intIterator_get(iterator), data);
+}
+
+TEST(10ItemList, iteratorAddAt_currentIsUpdated_nextIsTheSame){
+   uintptr_t data = 0x69;
+   intIterator_advance(iterator);
+
+   intIterator_addAt(iterator, data);
+
+   assertInt(intIterator_get(iterator), data);
+   intIterator_advance(iterator);
+   assertInt(intIterator_get(iterator), 0);
+}
+
 END_TESTS
