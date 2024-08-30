@@ -5,7 +5,7 @@
 
 void pit_init();
 
-void pit_setTimer(void (*)(void *data, uint16_t), void *data, uint32_t time);
+void pit_setTimer(void (*)(void *data, uint16_t), void *data, uint32_t pitCycles);
 void pit_stopTimer();
 uint16_t pit_getCycles();
 

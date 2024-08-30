@@ -15,6 +15,7 @@
 #include "kernel/acpi.h"
 #include "kernel/ioapic.h"
 #include "kernel/threads.h"
+#include "kernel/timer.h"
 
 #include "kernel/task.h"
 
@@ -283,13 +284,20 @@ static void enter_usermode(){
 PagingContext *userspaceContext;
 PagingContext *kernelContext;
 
+static uint32_t time = 0;
+void timerHandler(void *data){
+    char *message = data;
+    kprintf("%d: %s", time++, message);
+}
+
 void kernel_main(){
+    time = 0;
     kio_init();
     stdlib_init();
 //     testMemory();
 //     testMemoryConstrained();
-    kprintf("Kernel started\n");
     interruptDescriptorTableInit(); 
+    kprintf("Kernel started\n");
     assert_little_endian();
     initLogging();
 
@@ -304,15 +312,17 @@ void kernel_main(){
 //     assert(apic_isPresent());
 //     apic_enable();
 
+    timers_init();
+    TimerConfig config1 = timer_createDefaultConfig(timerHandler, "timer1\n", 1000000000);
+    TimerConfig config2 = timer_createDefaultConfig(timerHandler, "timer2\n", (uint64_t)1000000000 * 60);
+    config1.repeat = true;
+    config2.repeat = true;
+    Timer *timer1 = timer_new(config1);
+    Timer *timer2 = timer_new(config2);
 
-    pit_init();
-
-    LocalApicData localApic;
-    assert(acpi_getLocalApicData(&localApic));
-    loggDebug("Local apic has id %d", localApic.apicId);
-
-    IRQConfig irqConfig = ioapic_getDefaultIRQConfig(localApic.apicId, 0x7F);
-    ioapic_configureIrq(2, irqConfig); //Why 2?
+    timer_start(timer1);
+    timer_start(timer2);
+    while(1);
 
 
     initKernelTask(4 * 1024 * 1024);

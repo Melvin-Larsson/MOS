@@ -87,25 +87,36 @@ void pit_init(){
    interrupt_setHandler(handler, 0, 35);
 }
 
-void pit_setTimer(void (*handler)(void *, uint16_t), void *data, uint32_t time){
-   if(!assert(time <= 0xFFFF)){
+void pit_setTimer(void (*handler)(void *, uint16_t), void *data, uint32_t pitCycles){
+   if(!assert(pitCycles <= 0xFFFF)){
       return;
    }
    interruptData = (InterruptData){
       .handler = handler,
       .data = data,
    };
-   writeChannel(Channel0, 0xFFFF);
+
+   writeChannel(Channel0, pitCycles);
    writeCommand(Channel0, LowThenHighByte, InterruptOnTerminalCount, false);
 }
 
+uint16_t pit_getCycles(){
+   writeCommand(Channel0, 0, 0, 0);
+   uint16_t currCount = readChannel(Channel0);
+   return channels[Channel0].initialValue - currCount;
+}
+
+void pit_stopTimer(){
+   //FIXME
+}
+
 uint64_t pit_cyclesToNanos(uint64_t cycles){
-   assert(cycles * 1000000000 > cycles); //Overflow?
+   assert(cycles * 1000000000 >= cycles); //Overflow?
    return cycles * 1000000000 / 1193182;
 }
 
 uint64_t pit_nanosToCycles(uint64_t nanos){
-   assert(nanos * 1193182 > nanos); //Overflow?
+   assert(nanos * 1193182 >= nanos); //Overflow?
    return nanos * 1193182 / 1000000000;
 }
 
@@ -136,12 +147,6 @@ static void handler(ExceptionInfo info, void *data){
    paging_writePhysicalOfSize(APIC_EOI_ADDRESS, &eoiData, 4, AccessSize32);
 
    if(interruptData.handler){
-      interruptData.handler(interruptData.data, channels[0].initialValue); //FIXME: not exact
+      interruptData.handler(interruptData.data, channels[Channel0].initialValue); //FIXME: not exact
    }
-}
-void pit_stopTimer(){
-
-}
-uint16_t pit_getCycles(){
-   return 0;
 }

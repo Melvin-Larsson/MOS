@@ -115,7 +115,8 @@ static List *removeFinishedTimers(uint64_t passedTime){
    while(iterator->advance(iterator)){
       TimerData *timer = iterator->get(iterator);
 
-      if(timer->timeLeftNanos > passedTime){
+      if(timer->timeLeftNanos > passedTime
+            && pit_nanosToCycles(timer->timeLeftNanos - passedTime) > 0){
          timer->timeLeftNanos -= passedTime;
       }
       else{
@@ -152,6 +153,7 @@ static void pitHandler(void *data, uint16_t pitCycles){
    finishedTimers->free(finishedTimers);
 
    if(timers->length(timers) > 0){
+//       kprintf("cycles %d\n", getPitCycles(timers->get(timers, 0)));
       pit_setTimer(pitHandler, 0, getPitCycles(timers->get(timers, 0)));
    }
 }
