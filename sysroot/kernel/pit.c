@@ -77,6 +77,8 @@ void pit_init(){
 
    while(readChannel(Channel0) <= 1);
 
+   interrupt_setHandler(handler, 0, 35);
+
    LocalApicData localApic;
    assert(acpi_getLocalApicData(&localApic));
    loggDebug("Local apic has id %d", localApic.apicId);
@@ -84,7 +86,6 @@ void pit_init(){
    IRQConfig irqConfig = ioapic_getDefaultIRQConfig(localApic.apicId, 35);
    ioapic_configureIrq(2, irqConfig); //Why 2?
 
-   interrupt_setHandler(handler, 0, 35);
 }
 
 void pit_setTimer(void (*handler)(void *, uint16_t), void *data, uint32_t pitCycles){
