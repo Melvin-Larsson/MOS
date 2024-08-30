@@ -38,8 +38,23 @@ typedef struct{
     };
 }ExceptionInfo;
 
+typedef enum{
+    Ring0 = 0,
+    Ring1 = 1,
+    Ring2 = 2,
+    Ring3 = 3,
+}InterruptPrivilegeLevel;
+
 //__attribute__((packed)) 
 
 void interruptDescriptorTableInit();
-InterruptStatus interrupt_setHandler(void (*interruptHandler)(ExceptionInfo, void *), void *data, uint8_t vector);
+InterruptStatus interrupt_setHandler(
+        void (*interruptHandler)(ExceptionInfo, void *),
+        void *data,
+        uint8_t vector);
+
+InterruptStatus interrupt_setHardwareHandler(
+        void (*interruptHandler)(void),
+        uint8_t vector,
+        InterruptPrivilegeLevel privilegeLevel);
 #endif

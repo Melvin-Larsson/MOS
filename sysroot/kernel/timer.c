@@ -9,12 +9,25 @@ typedef struct TimerData{
    bool started;
 }TimerData;
 
+typedef struct{
+   CriticalTimerConfig config;
+   uint64_t cycles;
+   bool started;
+}CriticalTimerData;
+
+typedef struct{
+   uint32_t nonCriticalUsers;
+   uint32_t criticalUsers;
+}HardwareTimerStatus;
+
 static List *timers;
+static HardwareTimerStatus pitTimer;
 
 static void pitHandler(void *data, uint16_t cylces);
 static uint16_t getPitCycles(TimerData *timer);
 
 void timers_init(){
+   memset(&pitTimer, 0, sizeof(pitTimer));
    pit_init();
    timers = list_newLinkedList(list_pointerEquals);
 }
@@ -38,6 +51,11 @@ TimerConfig timer_createDefaultConfig(void (*handler)(void *data), void *data, u
 }
 
 Timer *timer_new(TimerConfig config){
+   if(pitTimer.criticalUsers > 0){
+      return 0;
+   }
+   pitTimer.nonCriticalUsers++;
+
    TimerData *timerData = malloc(sizeof(TimerData));
    *timerData = (TimerData){
       .config = config,
@@ -99,6 +117,7 @@ void timer_stop(Timer *timer){
 }
 
 void timer_free(Timer *timer){
+   pitTimer.nonCriticalUsers--;
    TimerData *timerData = timer->data;
 
    timerData->started = false;
@@ -153,7 +172,6 @@ static void pitHandler(void *data, uint16_t pitCycles){
    finishedTimers->free(finishedTimers);
 
    if(timers->length(timers) > 0){
-//       kprintf("cycles %d\n", getPitCycles(timers->get(timers, 0)));
       pit_setTimer(pitHandler, 0, getPitCycles(timers->get(timers, 0)));
    }
 }
@@ -165,4 +183,71 @@ static uint16_t getPitCycles(TimerData *timer){
 
    uint64_t cycles = pit_nanosToCycles(timer->timeLeftNanos);
    return cycles > 0xFFFF ? 0xFFFF : cycles;
+}
+
+
+CriticalTimerConfig criticalTimer_createDefaultConfig(void (*handler)(), uint64_t timeNanos){
+   return (CriticalTimerConfig){
+      .handler = handler,
+      .timeNanos = timeNanos,
+      .repeat = false
+   };
+}
+CriticalTimer *criticalTimer_new(CriticalTimerConfig config){
+   if(pitTimer.nonCriticalUsers > 0 || pitTimer.criticalUsers > 0){
+      return 0;
+   }
+   pitTimer.criticalUsers++;
+
+   CriticalTimerData *timerData = malloc(sizeof(CriticalTimerData));
+   *timerData = (CriticalTimerData){
+      .config = config,
+      .started = false,
+      .cycles = pit_nanosToCycles(config.timeNanos)
+   };
+
+   CriticalTimer *timer = malloc(sizeof(CriticalTimer)); 
+   timer->data = timerData;
+
+   return timer;
+}
+
+bool criticalTimer_start(CriticalTimer *criticalTimer){
+   CriticalTimerData *timerData = criticalTimer->data;
+   if(timerData->started){
+      return false;
+   }
+   timerData->started = true;
+   pit_setDirectTimer(timerData->config.handler, timerData->cycles);
+
+   return true;
+}
+
+bool criticalTimer_stop(CriticalTimer *criticalTimer){
+   CriticalTimerData *timerData = criticalTimer->data;
+   if(!timerData->started){
+      return false;
+   }
+
+   pit_stopTimer();
+   timerData->started = false;
+   return true; 
+}
+void criticalTimer_checkoutInterrupt(CriticalTimer *criticalTimer){
+   pit_checkoutInterrupt();
+
+   CriticalTimerData *timerData = criticalTimer->data;
+   if(timerData->config.repeat){
+      pit_setDirectTimer(timerData->config.handler, timerData->cycles);
+   }
+   else{
+      timerData->started = false;
+   }
+}
+
+void criticalTimer_free(CriticalTimer *criticalTimer){
+   CriticalTimerData *timerData = criticalTimer->data;
+   free(timerData);
+   free(criticalTimer);
+   pitTimer.criticalUsers--;
 }

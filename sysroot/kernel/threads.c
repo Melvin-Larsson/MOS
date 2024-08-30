@@ -1,5 +1,5 @@
 #include "kernel/threads.h"
-#include "kernel/pit.h"
+#include "kernel/timer.h"
 #include "kernel/paging.h"
 #include "stdlib.h"
 #include "stdbool.h"
@@ -47,10 +47,20 @@ static void releaseLock();
 
 static void scheduleThread(Thread *thread);
 
+extern void task_switch_handler(void);
+
 static ThreadListNode *runningThreads;
 static ThreadListNode *activeThread;
+static CriticalTimer *timer;
 
-void threads_init(){
+ThreadsStatus threads_init(){
+   CriticalTimerConfig cconfig = criticalTimer_createDefaultConfig(task_switch_handler, 10000000);
+   cconfig.repeat = true;
+   timer = criticalTimer_new(cconfig);
+   if(!timer){
+      return ThreadsUnableToAquireTimer;
+   }
+
    runningThreads = 0;
    activeThread = 0;
 
@@ -58,7 +68,8 @@ void threads_init(){
    thread->status = Running;
 
    scheduleThread(thread);
-   pit_setTimer(0,0,0);
+   criticalTimer_start(timer);
+   return ThreadsOk;
 }
 
 static uint32_t *push(uint32_t *stack, uint32_t value){
@@ -94,7 +105,7 @@ Semaphore *semaphore_new(unsigned int count){
    SemaphoreData *semaphoreData = malloc(sizeof(SemaphoreData));
    *semaphoreData = (SemaphoreData){
       .count = count,
-      .waitingThreads = 0
+         .waitingThreads = 0
    };
 
    Semaphore *semaphore = malloc(sizeof(Semaphore));
@@ -173,7 +184,7 @@ static ThreadListNode *append(ThreadListNode *root, Thread *thread){
    ThreadListNode *node = malloc(sizeof(ThreadListNode));
    *node = (ThreadListNode){
       .next = 0,
-      .thread = thread
+         .thread = thread
    };
 
    if(!root){
@@ -214,8 +225,7 @@ static ThreadListNode *remove(ThreadListNode *root, ThreadListNode *node){
    return root;
 }
 
-#define APIC_EOI_ADDRESS 0xFEE000B0
-uint32_t task_switch_handler(uint32_t esp){
+uint32_t thread_getNewEsp(uint32_t esp){
    uint32_t newEsp = esp;
 
    if(activeThread){ 
@@ -235,11 +245,7 @@ uint32_t task_switch_handler(uint32_t esp){
       activeThread = runningThreads;
    }
 
-   uint32_t eoiData = 0;
-   paging_writePhysicalOfSize(APIC_EOI_ADDRESS, &eoiData, 4, AccessSize32);
-
-   pit_setTimer(0,0,0);
+   criticalTimer_checkoutInterrupt(timer);
 
    return newEsp;
 }
-

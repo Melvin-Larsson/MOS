@@ -254,7 +254,7 @@ void initLogging(){
     LoggWriter consoleWriter = logging_getCustomWriter(console_writer);
     LoggWriter serialWriter = logging_getDefaultWriter(serial_writer);
     serialWriter.loggLevel = LoggLevelDebug;
-    consoleWriter.loggLevel = LoggLevelInfo,
+    consoleWriter.loggLevel = LoggLevelWarning,
     logging_init();
     logging_addWriter(consoleWriter);
     logging_addWriter(serialWriter);
@@ -284,16 +284,21 @@ static void enter_usermode(){
 PagingContext *userspaceContext;
 PagingContext *kernelContext;
 
-static uint32_t time = 0;
+static uint64_t timeMillis = 0;
 void timerHandler(void *data){
-    char *message = data;
-    kprintf("%d: %s", time++, message);
+    timeMillis += 10;
+    uint32_t minute = timeMillis / (60 * 1000);
+    uint32_t seconds = ((timeMillis - minute * 60 * 1000) / 1000);
+    uint32_t millis = ((timeMillis - minute * 60 * 1000 - seconds * 1000));
+    kclear();
+    kprintf("%d:%d:%d", minute, seconds, millis);
 }
 
 void kernel_main(){
-    time = 0;
+    timeMillis = 0;
     kio_init();
     stdlib_init();
+
 //     testMemory();
 //     testMemoryConstrained();
     interruptDescriptorTableInit(); 
@@ -313,17 +318,6 @@ void kernel_main(){
 //     apic_enable();
 
     timers_init();
-    TimerConfig config1 = timer_createDefaultConfig(timerHandler, "timer1\n", 1000000000);
-    TimerConfig config2 = timer_createDefaultConfig(timerHandler, "timer2\n", (uint64_t)1000000000 * 60);
-    config1.repeat = true;
-    config2.repeat = true;
-    Timer *timer1 = timer_new(config1);
-    Timer *timer2 = timer_new(config2);
-
-    timer_start(timer1);
-    timer_start(timer2);
-    while(1);
-
 
     initKernelTask(4 * 1024 * 1024);
 

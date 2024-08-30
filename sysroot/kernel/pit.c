@@ -16,6 +16,8 @@
 #define CHANNEL_2_DATA_PORT 0x42
 #define MODE_COMMAND_REGISTER 0x43
 
+#define PIT_VECTOR 35
+
 #define SELECT_CHANNEL_POS 6
 #define SELECT_CHANNEL_MASK (0b11000000)
 #define ACCESS_MODE_POS 4
@@ -24,6 +26,8 @@
 #define OPERATING_MODE_MASK (0b1110)
 #define BCD_BINARY_MODE_POS 0
 #define BCD_BINARY_MODE_MASK 1
+
+#define APIC_EOI_ADDRESS 0xFEE000B0 //FIXME: move
 
 typedef enum{
    Channel0 = 0,
@@ -77,13 +81,13 @@ void pit_init(){
 
    while(readChannel(Channel0) <= 1);
 
-   interrupt_setHandler(handler, 0, 35);
+   interrupt_setHandler(handler, 0, PIT_VECTOR);
 
    LocalApicData localApic;
    assert(acpi_getLocalApicData(&localApic));
    loggDebug("Local apic has id %d", localApic.apicId);
 
-   IRQConfig irqConfig = ioapic_getDefaultIRQConfig(localApic.apicId, 35);
+   IRQConfig irqConfig = ioapic_getDefaultIRQConfig(localApic.apicId, PIT_VECTOR);
    ioapic_configureIrq(2, irqConfig); //Why 2?
 
 }
@@ -101,6 +105,16 @@ void pit_setTimer(void (*handler)(void *, uint16_t), void *data, uint32_t pitCyc
    writeCommand(Channel0, LowThenHighByte, InterruptOnTerminalCount, false);
 }
 
+void pit_setDirectTimer(void (*handler)(void), uint32_t pitCycles){
+   if(!assert(pitCycles <= 0xFFFF)){
+      return;
+   }
+
+   interrupt_setHardwareHandler(handler, PIT_VECTOR, Ring3);
+   writeChannel(Channel0, pitCycles);
+   writeCommand(Channel0, LowThenHighByte, InterruptOnTerminalCount, false);
+}
+
 uint16_t pit_getCycles(){
    writeCommand(Channel0, 0, 0, 0);
    uint16_t currCount = readChannel(Channel0);
@@ -109,6 +123,11 @@ uint16_t pit_getCycles(){
 
 void pit_stopTimer(){
    //FIXME
+}
+
+void pit_checkoutInterrupt(){
+   uint32_t eoiData = 0;
+   paging_writePhysicalOfSize(APIC_EOI_ADDRESS, &eoiData, 4, AccessSize32);
 }
 
 uint64_t pit_cyclesToNanos(uint64_t cycles){
@@ -142,7 +161,6 @@ static void writeCommand(Channel channel, AccessMode accessMode, OperatingMode o
          channel << SELECT_CHANNEL_POS | accessMode << ACCESS_MODE_POS | operatingMode << OPERATING_MODE_POS | useBcd << BCD_BINARY_MODE_POS);
 }
 
-#define APIC_EOI_ADDRESS 0xFEE000B0
 static void handler(ExceptionInfo info, void *data){
    uint32_t eoiData = 0;
    paging_writePhysicalOfSize(APIC_EOI_ADDRESS, &eoiData, 4, AccessSize32);

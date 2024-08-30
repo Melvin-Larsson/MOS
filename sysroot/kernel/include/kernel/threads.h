@@ -3,6 +3,11 @@
 
 #include "stdint.h"
 
+typedef enum{
+   ThreadsOk,
+   ThreadsUnableToAquireTimer
+}ThreadsStatus;
+
 typedef struct{
    void (*start)(void *data);
    void *data;
@@ -16,7 +21,7 @@ typedef struct{
    void *data;
 }Semaphore;
 
-void threads_init();
+ThreadsStatus threads_init();
 void thread_start(ThreadConfig config);
 
 Semaphore *semaphore_new(unsigned int count);

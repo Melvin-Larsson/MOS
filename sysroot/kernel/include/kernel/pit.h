@@ -6,6 +6,8 @@
 void pit_init();
 
 void pit_setTimer(void (*)(void *data, uint16_t), void *data, uint32_t pitCycles);
+void pit_setDirectTimer(void (*handler)(void), uint32_t pitCycles);
+void pit_checkoutInterrupt();
 void pit_stopTimer();
 uint16_t pit_getCycles();
 

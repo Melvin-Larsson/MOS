@@ -129,3 +129,9 @@ InterruptStatus interrupt_setHandler(void (*interruptHandler)(ExceptionInfo, voi
 
    return InterruptStatusSuccess;
 }
+
+InterruptStatus interrupt_setHardwareHandler(void (*interruptHandler)(void), uint8_t vector, InterruptPrivilegeLevel privilegeLevel){
+   setInterruptDescriptor(vector, interruptHandler, 0x8E | privilegeLevel << 5);
+
+   return InterruptStatusSuccess;
+}

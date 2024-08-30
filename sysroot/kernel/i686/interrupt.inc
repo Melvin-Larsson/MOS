@@ -92,8 +92,10 @@ int0x80_handler:
     add esp, 4
     iret
 
-extern task_switch_handler
-int0x7F_handler:
+
+extern thread_getNewEsp
+global task_switch_handler
+task_switch_handler:
     push eax
     push ecx
     push edx
@@ -102,7 +104,7 @@ int0x7F_handler:
     push esi
     push edi 
     push esp
-    call task_switch_handler
+    call thread_getNewEsp
     add esp, 4
     mov esp, eax 
     pop edi 
@@ -113,7 +115,7 @@ int0x7F_handler:
     pop ecx
     pop eax
     iret
-    
+
 
 global interrupt_addr_table
 interrupt_addr_table:
@@ -122,8 +124,7 @@ interrupt_addr_table:
     dd interrupt_handler_%+i
 %assign i i+1
 %endrep
-%rep (0x7F - 35)
+%rep (0x80 - 35)
     dd interrupt_handler_35
 %endrep
-dd int0x7F_handler
 dd int0x80_handler
