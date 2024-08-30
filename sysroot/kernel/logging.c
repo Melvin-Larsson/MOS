@@ -1,8 +1,7 @@
 #include "kernel/logging.h"
-
+#include "kernel/memory.h"
 #include "stdarg.h"
 #include "string.h"
-#include "stdlib.h"
 
 #define ASSERTS_ENABLED
 #include "utils/assert.h"
@@ -72,9 +71,9 @@ static LoggContextValue *append(LoggContextValue *list, LoggContextValue *newVal
    return newValue;
 }
 void logging_addValueToContext(LoggContext *localContext, char *key, char *value){
-   LoggContextValue *newValue = malloc(sizeof(LoggContextValue));
-   char *keyCopy = malloc(strlen(key) + 1);
-   char *valueCopy = malloc(strlen(value) + 1);
+   LoggContextValue *newValue = kmalloc(sizeof(LoggContextValue));
+   char *keyCopy = kmalloc(strlen(key) + 1);
+   char *valueCopy = kmalloc(strlen(value) + 1);
    strcpy(keyCopy, key);
    strcpy(valueCopy, value);
    *newValue = (LoggContextValue){ .key = keyCopy, .value = valueCopy };
@@ -95,9 +94,9 @@ static void removeValuesFromContext(LoggContext *loggContext){
       LoggContextValue *temp = value;
       value = temp->next;
 
-      free(temp->key);
-      free(temp->value);
-      free(temp);
+      kfree(temp->key);
+      kfree(temp->value);
+      kfree(temp);
    }
 }
 
@@ -122,10 +121,10 @@ LoggContext *removeLastLoggContext(LoggContext *rootContext){
 void logging_startLoggContext(char *name, LoggContext *localContext){
    localContext->depth++;
 
-   char *nameCopy = malloc(strlen(name) + 1);
+   char *nameCopy = kmalloc(strlen(name) + 1);
    strcpy(nameCopy, name);
 
-   LoggContext *newContext = malloc(sizeof(LoggContext));
+   LoggContext *newContext = kmalloc(sizeof(LoggContext));
    *newContext = (LoggContext){
       .name = nameCopy,
       .values = 0,
@@ -138,9 +137,9 @@ void logging_endLoggContext(LoggContext *localContext){
    localContext->depth--;
    LoggContext *lastContext = removeLastLoggContext(&globalContext);
 
-   free(lastContext->name);
+   kfree(lastContext->name);
    removeValuesFromContext(lastContext);
-   free(lastContext);
+   kfree(lastContext);
 }
 
 void logging_log(LoggContext context, LoggLevel loggLevel, char *data, ...){
@@ -153,15 +152,15 @@ void logging_log(LoggContext context, LoggLevel loggLevel, char *data, ...){
 void logging_vlog(LoggContext context, LoggLevel loggLevel, char *data, va_list args){
    char *header = getLoggHeader(loggLevel, context);
 
-   char *message = malloc(4096); //FIXME: Unsafe
+   char *message = kmalloc(4096); //FIXME: Unsafe
    vsprintf(message, data, args);
 
-   char *log = malloc(4096);
+   char *log = kmalloc(4096);
 
    strcpy(log, header);
    strAppend(log, message);
-   free(message);
-   free(header);
+   kfree(message);
+   kfree(header);
 
 
    for(uint32_t i = 0; i < config.writerCount; i++){  
@@ -174,7 +173,7 @@ void logging_vlog(LoggContext context, LoggLevel loggLevel, char *data, va_list 
       }
    }
 
-   free(log);
+   kfree(log);
 }
 
 static int getContextValueStrLength(const LoggContext *context){
@@ -189,7 +188,7 @@ static int getContextValueStrLength(const LoggContext *context){
 
 static char *formatSingleContext(const LoggContext *context){
    int nameLength = strlen(context->name);
-   char *currContext = malloc(nameLength + 7 + getContextValueStrLength(context));
+   char *currContext = kmalloc(nameLength + 7 + getContextValueStrLength(context));
 
    char *ptr = currContext;
    ptr = sprintf(ptr, "[%s", context->name);
@@ -216,22 +215,22 @@ static char *formatContext(const LoggContext *globalContext, const LoggContext *
    char *nestedContext = formatContext(globalContext->nestedContext, localContext);
    char *currContext = formatSingleContext(globalContext);
 
-   char *result = malloc(strlen(nestedContext) + strlen(currContext) + 5);
+   char *result = kmalloc(strlen(nestedContext) + strlen(currContext) + 5);
    strcpy(result, currContext);
    strAppend(result, nestedContext);
-   free(nestedContext);
-   free(currContext);
+   kfree(nestedContext);
+   kfree(currContext);
 
    return result;
 }
 
 static char* getLoggHeader(LoggLevel loggLevel, LoggContext localContext){
    char *contextStr = formatContext(globalContext.nestedContext, &localContext);
-   char *buffer = malloc(15 + strlen(contextStr));
+   char *buffer = kmalloc(15 + strlen(contextStr));
 
    char *ptr = buffer;
    ptr = strcpy(ptr, contextStr);
-   free(contextStr);
+   kfree(contextStr);
 
    switch(loggLevel){
       case LoggLevelDebug:

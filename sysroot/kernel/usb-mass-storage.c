@@ -1,8 +1,8 @@
 #include "kernel/usb-mass-storage.h"
 #include "kernel/usb.h"
 #include "kernel/scsi.h"
-
 #include "kernel/logging.h"
+#include "stdlib.h"
 
 #define CLASS_MASS_STORAGE 0x08
 #define SUBCLASS_SCSI 0x06

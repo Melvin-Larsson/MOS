@@ -1,5 +1,7 @@
-#include "stdlib.h"
+#include "kernel/memory.h"
+#include "kernel/logging.h"
 #include "stdint.h"
+#include "stdlib.h"
 
 typedef struct MEMORY{
     uint8_t used;
@@ -29,25 +31,24 @@ void stdlib_init(){
 }
 
 void debug_logMemory(){
-    kprintf("__Dynamic Memory__\n");
+    loggDebug("__Dynamic Memory__");
     for(MemoryDescriptor *desc = memoryDescriptor; desc != 0; desc = desc->next){
-        kprintf("(%X:%d) ", getMemoryPointer(desc), desc->used);
+        loggDebug("(%X:%d) ", getMemoryPointer(desc), desc->used);
     }
-    kprintf("\n");
 }
 
-void *calloc(int size){
-    void* ptr = malloc(size);
+void *kcalloc(int size){
+    void* ptr = kmalloc(size);
     memset(ptr, 0, size);
     return ptr;
 }
-void *callocco(int size, int alignment, int boundaries){
-    void *ptr = mallocco(size, alignment, boundaries);
+void *kcallocco(int size, int alignment, int boundaries){
+    void *ptr = kmallocco(size, alignment, boundaries);
     memset(ptr, 0, size);
     return ptr;
 }
 
-void *malloc(int size){
+void *kmalloc(int size){
     for(MemoryDescriptor *desc = memoryDescriptor; desc != 0; desc = desc->next){
         if(useDescriptor(desc, size)){
             return getMemoryPointer(desc);
@@ -55,7 +56,7 @@ void *malloc(int size){
     }
     return 0;
 }
-void *mallocco(int size, int alignment, int boundary){
+void *kmallocco(int size, int alignment, int boundary){
     if(!isValidConstraint(size, alignment, boundary)){
         return 0;
     }
@@ -82,7 +83,7 @@ void *mallocco(int size, int alignment, int boundary){
     return 0;
 
 }
-void free(void *ptr){
+void kfree(void *ptr){
     MemoryDescriptor *last = 0;
     for(MemoryDescriptor *desc = memoryDescriptor; desc != 0; desc = desc->next){
         if((uint8_t*)desc + sizeof(MemoryDescriptor) == ptr){

@@ -3,7 +3,7 @@
 #include "kernel/xhcd-event-ring.h"
 #include "kernel/usb-messages.h"
 #include "kernel/logging.h"
-#include "stdlib.h"
+#include "kernel/memory.h"
 
 #define DESCRIPTOR_TYPE_DEVICE 1
 #define DESCRIPTOR_TYPE_CONFIGURATION 2
@@ -36,9 +36,9 @@ UsbStatus usb_init(PciDescriptor pci, Usb *result){
       }
       if(pci.pciHeader.progIf == PCI_PROG_IF_XHCI){
          logging_addValue("controller", "xhc");
-         Xhci *xhci = malloc(sizeof(Xhci));
+         Xhci *xhci = kmalloc(sizeof(Xhci));
          if(xhcd_init(pci, xhci) != XhcOk){
-            free(xhci);
+            kfree(xhci);
             lreturn StatusError;
          }
          *result  = (Usb){.type = UsbControllerXhci, {.xhci = xhci}};
@@ -56,13 +56,13 @@ int usb_getNewlyAttachedDevices(Usb *usb, UsbDevice *resultBuffer, int bufferSiz
       return -1;
    }
    logging_startContext("usb get devices"){
-      XhcDevice *deviceBuffer = malloc(bufferSize * sizeof(XhcDevice));
+      XhcDevice *deviceBuffer = kmalloc(bufferSize * sizeof(XhcDevice));
       int attachedPortsCount = xhcd_getDevices(usb->xhci, deviceBuffer, bufferSize);
       for(int i = 0; i < attachedPortsCount; i++){
          UsbControllerDevice device = {.type = UsbControllerXhci, {.xhcDevice = &deviceBuffer[i]}};
          resultBuffer[i] = initUsbDevice(usb, device);
       }
-      free(deviceBuffer);
+      kfree(deviceBuffer);
 
       lreturn attachedPortsCount;
    }
@@ -161,7 +161,7 @@ UsbStatus usb_writeData(UsbDevice *device, UsbEndpointDescriptor endpoint, void 
 }
 static UsbDevice initUsbDevice(Usb *usb, UsbControllerDevice device){
    logging_startContext("init usb"){
-      XhcDevice *xhcDevice = malloc(sizeof(XhcDevice));
+      XhcDevice *xhcDevice = kmalloc(sizeof(XhcDevice));
       *xhcDevice = *device.xhcDevice;
       device.xhcDevice = xhcDevice;
       UsbDevice usbDevice = {.controllerDevice = device, .usb = usb};
@@ -169,12 +169,12 @@ static UsbDevice initUsbDevice(Usb *usb, UsbControllerDevice device){
       getDeviceDescriptor(&usbDevice);
 
       int configCount = usbDevice.deviceDescriptor.bNumConfigurations;
-      UsbConfiguration *configurations = malloc(sizeof(UsbConfiguration) * configCount);
+      UsbConfiguration *configurations = kmalloc(sizeof(UsbConfiguration) * configCount);
       for(int j = 0; j < configCount; j++){
          UsbConfiguration *config;
          getConfiguration(&usbDevice, j, &config);
          configurations[j] = *config;
-         free(config);
+         kfree(config);
       }
       usbDevice.configuration = configurations;
       usbDevice.configurationCount = configCount;
@@ -231,17 +231,17 @@ static UsbStatus getConfiguration(const UsbDevice *device, int configuration, Us
 }
 static UsbConfiguration *parseConfiguration(uint8_t *configBuffer){
    uint8_t *pos = configBuffer;
-   UsbConfiguration *config = malloc(sizeof(UsbConfiguration));
+   UsbConfiguration *config = kmalloc(sizeof(UsbConfiguration));
    UsbConfigurationDescriptor *configDescriptor = (UsbConfigurationDescriptor*)configBuffer;
    config->descriptor = *configDescriptor;
-   config->interfaces = malloc(sizeof(UsbInterface) * configDescriptor->bNumInterfaces);
+   config->interfaces = kmalloc(sizeof(UsbInterface) * configDescriptor->bNumInterfaces);
    pos += sizeof(UsbConfigurationDescriptor);
 
    for(int i = 0; i < configDescriptor->bNumInterfaces; i++){
       UsbInterfaceDescriptor *interfaceDescriptor = (UsbInterfaceDescriptor*)pos;
       UsbInterface *interface = &config->interfaces[i];
       interface->descriptor = *interfaceDescriptor;
-      interface->endpoints = malloc(sizeof(UsbEndpointDescriptor) * interfaceDescriptor->bNumEndpoints);
+      interface->endpoints = kmalloc(sizeof(UsbEndpointDescriptor) * interfaceDescriptor->bNumEndpoints);
       pos += sizeof(UsbInterfaceDescriptor);
 
       for(int j = 0; j < interfaceDescriptor->bNumEndpoints; j++){
@@ -262,7 +262,7 @@ static UsbConfiguration *parseConfiguration(uint8_t *configBuffer){
          UsbSuperSpeedEndpointDescriptor *superSpeedDescriptor = (UsbSuperSpeedEndpointDescriptor*)pos;
          if(superSpeedDescriptor->bDescriptorType == DESCRIPTOR_TYPE_SUPER_SPEED_ENDPOINT){
             loggWarning("UsbSuperSpeedDescriptor found! This is not really implemented!"); //FIXME
-            endpoint->superSpeedDescriptor = malloc(sizeof(UsbSuperSpeedEndpointDescriptor));
+            endpoint->superSpeedDescriptor = kmalloc(sizeof(UsbSuperSpeedEndpointDescriptor));
             *endpoint->superSpeedDescriptor = *superSpeedDescriptor;
             pos += superSpeedDescriptor->bLength;
          }else{
@@ -277,11 +277,11 @@ static void freeConfiguration(UsbConfiguration *config){
    for(int i = 0; i < config->descriptor.bNumInterfaces; i++){
       freeInterface((void*)&config->interfaces[i]);
    }
-   free(config);
+   kfree(config);
 }
 static void freeInterface(UsbInterface *interface){
    for(int i = 0; i < interface->descriptor.bNumEndpoints; i++){
-      free((void*)&interface->endpoints[i]);
+      kfree((void*)&interface->endpoints[i]);
    }
-   free(interface);
+   kfree(interface);
 }

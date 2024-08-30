@@ -1,5 +1,5 @@
 #include "collection/list.h"
-#include "stdlib.h"
+#include "kernel/memory.h"
 
 typedef struct ListNode{
     struct ListNode *next;
@@ -41,7 +41,7 @@ static bool iterator_hasNext(const Iterator *iterator);
 static bool iterator_advance(const Iterator *iterator);
 
 List *list_newLinkedList(bool (*equals)(void *val1, void *val2)){
-    LinkedList *list = malloc(sizeof(LinkedList));
+    LinkedList *list = kmalloc(sizeof(LinkedList));
     *list = (LinkedList){
         .firstNode = 0,
         .lastNode = 0,
@@ -49,7 +49,7 @@ List *list_newLinkedList(bool (*equals)(void *val1, void *val2)){
         .equals = equals,
         .modifications = 0,
     };
-    List *result = malloc(sizeof(List));
+    List *result = kmalloc(sizeof(List));
     *result = (List){
         .data = list,
         .add = add,
@@ -65,7 +65,7 @@ List *list_newLinkedList(bool (*equals)(void *val1, void *val2)){
 }
 
 static ListNode *createNewNode(void *value){
-    ListNode *newNode = malloc(sizeof(ListNode));
+    ListNode *newNode = kmalloc(sizeof(ListNode));
     *newNode = (ListNode){
         .value = value,
         .next = 0,
@@ -130,7 +130,7 @@ static void removeNode(LinkedList *list, ListNode *prev, ListNode *toRemove){
     }
 
     list->length--;
-    free(toRemove);
+    kfree(toRemove);
 }
 
 static bool removeAt(const struct List *list, unsigned int index){
@@ -192,24 +192,24 @@ static void freeList(struct List *list){
     ListNode *node = linkedList->firstNode;
     while(node){
         ListNode *next = node->next;
-        free(node);
+        kfree(node);
         node = next;
     }
 
-    free(linkedList);
-    free(list);
+    kfree(linkedList);
+    kfree(list);
 }
 
 Iterator *createIterator(struct List *list){
     LinkedList *linkedList = list->data;
 
-    ListNode *dummyNode = malloc(sizeof(ListNode));
+    ListNode *dummyNode = kmalloc(sizeof(ListNode));
     *dummyNode = (ListNode){
         .next = linkedList->firstNode,
         .value = 0
     };
 
-    ListIterator *listIterator = malloc(sizeof(ListIterator));
+    ListIterator *listIterator = kmalloc(sizeof(ListIterator));
     *listIterator = (ListIterator){
         .dummyNode = dummyNode,
         .node = dummyNode,
@@ -218,7 +218,7 @@ Iterator *createIterator(struct List *list){
         .modificationsOnCreation = linkedList->modifications
     };
 
-    Iterator *iterator = malloc(sizeof(Iterator));
+    Iterator *iterator = kmalloc(sizeof(Iterator));
     *iterator = (Iterator){
         .data = listIterator,
         .get = iterator_get,
@@ -250,9 +250,9 @@ static void* iterator_get(const Iterator *iterator){
 
 static void iterator_free(Iterator *iterator){
     ListIterator *listIterator = iterator->data;
-    free(listIterator->dummyNode);
-    free(listIterator);
-    free(iterator);
+    kfree(listIterator->dummyNode);
+    kfree(listIterator);
+    kfree(iterator);
 }
 
 static bool iterator_addAfter(const Iterator *iterator, void *value){
@@ -307,7 +307,7 @@ static bool iterator_remove(const Iterator *iterator){
     }
 
     ListNode *next = listIterator->node->next;
-    free(listIterator->node);
+    kfree(listIterator->node);
     listIterator->last->next = next;
     listIterator->node = listIterator->last;
 

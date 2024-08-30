@@ -1,6 +1,6 @@
 #include "kernel/fat-disk.h"
 #include "kernel/logging.h"
-#include "stdlib.h"
+#include "kernel/memory.h"
 
 static uint32_t readClusterNumbers(FatDisk* disk, uint32_t dataCluster, uint32_t *result, uint32_t resultCount);
 static uint32_t findFreeClusters(FatDisk* disk, uint32_t result[], uint32_t clusterCount);
@@ -50,7 +50,7 @@ FatStatus fatDisk_init(MassStorageDevice *device, FatDisk *result){
 FatFile *fatDisk_openRoot(FatDisk *disk){
    BiosParameterBlock *bpb = &disk->diskInfo.parameterBlock;
 
-   FatFile *file = malloc(sizeof(FatFile));
+   FatFile *file = kmalloc(sizeof(FatFile));
    *file = (FatFile){
       .isRoot = 1,
       .buffer = bufferedStorage_newBuffer(BLOCK_BUFFER_SIZE, disk->device->blockSize),
@@ -124,7 +124,7 @@ uint32_t fatDisk_writeFile(FatDisk *disk, FatFile *file, uint32_t offset, uint32
    }
    uint32_t cluster = file->directoryEntry.firstClusterHigh << 16 | file->directoryEntry.firstClusterLow; 
    uint32_t clusterCount = (offset + size + getClusterSize(disk) - 1) / getClusterSize(disk);
-   uint32_t *clusterNumbers = malloc(clusterCount * sizeof(uint32_t));
+   uint32_t *clusterNumbers = kmalloc(clusterCount * sizeof(uint32_t));
    uint32_t newClusterCount = resizeClusterChain(disk, cluster, clusterNumbers, clusterCount);
 
    uint32_t totalData = size;
@@ -158,12 +158,12 @@ uint32_t fatDisk_writeFile(FatDisk *disk, FatFile *file, uint32_t offset, uint32
       bufferedStorage_freeBuffer(disk->device, buffer);
    }
 
-   free(clusterNumbers);
+   kfree(clusterNumbers);
    return totalData;
 }
 void fatDisk_closeFile(FatDisk *disk, FatFile *file){
    bufferedStorage_freeBuffer(disk->device, file->buffer);
-   free(file);
+   kfree(file);
 }
 FatFile* fatDisk_newFile(FatDisk *disk, FatFile *parent, char filename[11], uint8_t attributes){
    uint32_t cluster;
@@ -207,7 +207,7 @@ FatFile *fatDisk_openChild(FatDisk *disk, FatFile *parent, int childIndex){
    uint32_t address = getAddressFromOffset(disk, parent, offset); 
 
 
-   FatFile *result = malloc(sizeof(FatFile));
+   FatFile *result = kmalloc(sizeof(FatFile));
    *result = (FatFile){
       .directoryEntry = entry,
       .directoryEntryAddress = address,
@@ -442,7 +442,7 @@ static FatFile* addDirectoryEntry(FatDisk *disk, FatFile *parent, FatDirectoryEn
    
    uint32_t offset = i * sizeof(FatDirectoryEntry);
 
-   FatFile *file = malloc(sizeof(FatFile));
+   FatFile *file = kmalloc(sizeof(FatFile));
    *file = (FatFile){
       .isRoot = 0,
       .directoryEntry = newEntry,

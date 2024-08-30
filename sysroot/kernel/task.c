@@ -1,8 +1,8 @@
 #include "kernel/task-structures.h"
 #include "kernel/task.h"
-#include "stdlib.h"
 #include "kernel/logging.h"
 #include "kernel/descriptors.h"
+#include "kernel/memory.h"
 
 typedef volatile struct{
    uint64_t segmentLimitLow : 16;
@@ -33,7 +33,7 @@ static void test(){
 }
 
 void initKernelTask(uintptr_t stack){
-   TaskStateSegment32 *tssSegment = callocco(sizeof(TaskStateSegment32), 4096, 0);
+   TaskStateSegment32 *tssSegment = kcallocco(sizeof(TaskStateSegment32), 4096, 0);
    tssSegment->ss0 = (2 << 3 | 0);
    tssSegment->esp0 = stack;
 
@@ -48,7 +48,7 @@ void initKernelTask(uintptr_t stack){
 }
 
 static void initCurrTask(){
-   TaskStateSegment32 *tss = malloc(sizeof(TaskStateSegment32) + 32);
+   TaskStateSegment32 *tss = kmalloc(sizeof(TaskStateSegment32) + 32);
 
    *tss = (TaskStateSegment32){
       .ioMapBaseAddress = sizeof(TaskStateSegment32) + 32,
@@ -106,7 +106,7 @@ struct far_ptr {
 void task_test(){
    initCurrTask();
 //    loggInfo("inited\n");
-   TaskStateSegment32 *tss = callocco(sizeof(TaskStateSegment32) + 32, 1024, 1024);
+   TaskStateSegment32 *tss = kcallocco(sizeof(TaskStateSegment32) + 32, 1024, 1024);
 
    *tss = (TaskStateSegment32){
       .es = 0x10,

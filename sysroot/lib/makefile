@@ -1,14 +1,13 @@
 COMPILER?=${HOME}/opt/cross2/bin/i686-elf-gcc
 PREFIX?= ${HOME}/Programmering/OS
-INCLUDE=${PREFIX}/sysroot/lib/include
-CFLAGS?= -O2 -std=gnu99 -ffreestanding -mno-red-zone -Wall -Wextra -I ${INCLUDE}
+INCLUDE=-I ${PREFIX}/sysroot/lib/include -I ${PREFIX}/sysroot/kernel/include
+CFLAGS?= -O2 -std=gnu99 -ffreestanding -mno-red-zone -Wall -Wextra ${INCLUDE}
 BUILD=${PREFIX}/sysroot/lib/build
 
 LINK_FLAGS?= -nostdlib -lgcc -ffreestanding -O2 -r
 
 OBJS= ${BUILD}/stdio.o \
        ${BUILD}/stdlib.o \
-       ${BUILD}/memory.o \
 	   ${BUILD}/string.o \
 	   ${BUILD}/map.o \
 	   ${BUILD}/binary-map.o \
@@ -29,8 +28,6 @@ ${BUILD}/stdio.o : stdio/stdio.c include/stdio.h
 
 ${BUILD}/stdlib.o : stdlib/stdlib.c include/stdlib.h
 	${COMPILER} ${CFLAGS} -c stdlib/stdlib.c -o ${BUILD}/stdlib.o
-${BUILD}/memory.o : stdlib/memory.c include/stdlib.h
-	${COMPILER} ${CFLAGS} -c stdlib/memory.c -o ${BUILD}/memory.o
 
 ${BUILD}/string.o : string/string.c include/string.h
 	${COMPILER} ${CFLAGS} -c string/string.c -o ${BUILD}/string.o

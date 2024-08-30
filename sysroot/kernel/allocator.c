@@ -1,5 +1,5 @@
 #include "kernel/allocator.h"
-#include "stdlib.h"
+#include "kernel/memory.h"
 
 typedef struct AllocatorList{
    struct AllocatorList *next;
@@ -8,18 +8,18 @@ typedef struct AllocatorList{
 }AllocatorList;
 
 Allocator* allocator_init(uintptr_t address, unsigned int size){
-   Allocator *allocator = calloc(sizeof(Allocator));
+   Allocator *allocator = kcalloc(sizeof(Allocator));
    if(size == 0){
       return allocator;
    }
-   AllocatorList *entry = malloc(sizeof(AllocatorList));
+   AllocatorList *entry = kmalloc(sizeof(AllocatorList));
    *entry = (AllocatorList){
       .next = 0,
       .address = address,
       .size = size
    };
 
-   AllocatorList *dummyEntry = malloc(sizeof(AllocatorList));
+   AllocatorList *dummyEntry = kmalloc(sizeof(AllocatorList));
    *dummyEntry = (AllocatorList){
       .next = entry,
       .address = 0,
@@ -34,11 +34,11 @@ void allocator_free(Allocator *allocator){
 
    while(entry){
       AllocatorList *next = entry->next;
-      free(entry);
+      kfree(entry);
       entry = next;
    }
 
-   free(allocator);
+   kfree(allocator);
 }
 
 static void merge(Allocator *allocator){
@@ -48,7 +48,7 @@ static void merge(Allocator *allocator){
    while(list){
       if(list->size <= 0){
          AllocatorList *next = list->next;
-         free(list);
+         kfree(list);
          prev->next = next;
          list = next;
          continue;
@@ -58,7 +58,7 @@ static void merge(Allocator *allocator){
          int newSize = next->address + next->size - list->address;
          next->address = list->address;
          next->size = newSize;
-         free(list);
+         kfree(list);
          prev->next = next;
          list = next; 
          continue;
@@ -121,7 +121,7 @@ void allocator_release(Allocator *allocator, uintptr_t address, int size){
    while(list->next && address > list->next->address){
       list = list->next;
    }
-   AllocatorList *newEntry = malloc(sizeof(AllocatorList));
+   AllocatorList *newEntry = kmalloc(sizeof(AllocatorList));
    *newEntry = (AllocatorList){
       .next = list->next,
       .address = address,
@@ -136,7 +136,7 @@ static int overlaps(uintptr_t address1, int size1, uintptr_t address2, int size2
    return address1 < address2 + size2 && address1 + size1 > address2;
 }
 static AllocatorList *split(AllocatorList *area, int lowerSize){
-   AllocatorList *newArea = malloc(sizeof(AllocatorList));
+   AllocatorList *newArea = kmalloc(sizeof(AllocatorList));
    *newArea = (AllocatorList){
       .next = area->next,
       .address = area->address + lowerSize,
@@ -148,7 +148,7 @@ static AllocatorList *split(AllocatorList *area, int lowerSize){
 }
 static void remove(AllocatorList *toRemove, AllocatorList *prev){
    prev->next = toRemove->next;
-   free(toRemove);
+   kfree(toRemove);
 }
 
 void allocator_markAsReserved(Allocator *allocator, uintptr_t address, int size){

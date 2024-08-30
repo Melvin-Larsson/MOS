@@ -1,7 +1,7 @@
 #include "kernel/paging.h"
 #include "kernel/xhcd-event-ring.h"
 #include "kernel/logging.h"
-#include "stdlib.h"
+#include "kernel/memory.h"
 
 //FIXME: not all TRB slots are used in a segment
 
@@ -19,9 +19,9 @@ static int incrementSegment(XhcHardware xhc, XhcEventRing *eventRing);
 XhcEventRing xhcd_newEventRing(int trbCount){
 //    EventRingSegmentTableEntry *segmentTable = mallocco(sizeof(EventRingSegmentTableEntry), 64, 0);
    unsigned int size = sizeof(XhcEventTRB) * trbCount + sizeof(XhcEventTRB) * trbCount % 64;
-   void* segmentPtr = callocco(size, 64, 64000);
+   void* segmentPtr = kcallocco(size, 64, 64000);
 
-   EventRingSegmentTableEntry *segmentTable = callocco(64, 64, 0);
+   EventRingSegmentTableEntry *segmentTable = kcallocco(64, 64, 0);
 
    segmentTable->baseAddress = paging_getPhysicalAddress((uintptr_t)segmentPtr);
    segmentTable->ringSegmentSize = trbCount;

@@ -1,4 +1,5 @@
 #include "kernel/buffered-storage.h"
+#include "kernel/memory.h"
 #include "stdlib.h"
 #include "stdio.h"
 
@@ -74,9 +75,9 @@ void bufferedStorage_write(
 
 
 BufferedStorageBuffer* bufferedStorage_newBuffer(uint32_t blockCount, uint32_t blockSize){
-   BufferedStorageBuffer *buffer = malloc(sizeof(BufferedStorageBuffer));
+   BufferedStorageBuffer *buffer = kmalloc(sizeof(BufferedStorageBuffer));
    *buffer = (BufferedStorageBuffer){
-      .data = malloc(blockCount * blockSize),
+      .data = kmalloc(blockCount * blockSize),
       .blockAddress = 0,
       .count = 0,
       .maxCount = blockCount,
@@ -87,8 +88,8 @@ BufferedStorageBuffer* bufferedStorage_newBuffer(uint32_t blockCount, uint32_t b
 
 void bufferedStorage_freeBuffer(MassStorageDevice *device, BufferedStorageBuffer *buffer){
    bufferedStorage_writeBuffer(device, buffer);
-   free(buffer->data);
-   free(buffer);
+   kfree(buffer->data);
+   kfree(buffer);
 }
 
 void bufferedStorage_writeBuffer(MassStorageDevice *device, BufferedStorageBuffer *buffer){

@@ -1,5 +1,6 @@
 #include "kernel/timer.h"
 #include "kernel/pit.h"
+#include "kernel/memory.h"
 #include "collection/list.h"
 #include "stdlib.h"
 
@@ -56,14 +57,14 @@ Timer *timer_new(TimerConfig config){
    }
    pitTimer.nonCriticalUsers++;
 
-   TimerData *timerData = malloc(sizeof(TimerData));
+   TimerData *timerData = kmalloc(sizeof(TimerData));
    *timerData = (TimerData){
       .config = config,
       .timeLeftNanos = config.timeNanos,
       .started = false,
    };
 
-   Timer *timer = malloc(sizeof(Timer));
+   Timer *timer = kmalloc(sizeof(Timer));
    timer->data = timerData;
    return timer;
 }
@@ -123,8 +124,8 @@ void timer_free(Timer *timer){
    timerData->started = false;
    timers->remove(timers, timerData);
 
-   free(timerData);
-   free(timer);
+   kfree(timerData);
+   kfree(timer);
 }
 
 static List *removeFinishedTimers(uint64_t passedTime){
@@ -199,14 +200,14 @@ CriticalTimer *criticalTimer_new(CriticalTimerConfig config){
    }
    pitTimer.criticalUsers++;
 
-   CriticalTimerData *timerData = malloc(sizeof(CriticalTimerData));
+   CriticalTimerData *timerData = kmalloc(sizeof(CriticalTimerData));
    *timerData = (CriticalTimerData){
       .config = config,
       .started = false,
       .cycles = pit_nanosToCycles(config.timeNanos)
    };
 
-   CriticalTimer *timer = malloc(sizeof(CriticalTimer)); 
+   CriticalTimer *timer = kmalloc(sizeof(CriticalTimer)); 
    timer->data = timerData;
 
    return timer;
@@ -247,7 +248,7 @@ void criticalTimer_checkoutInterrupt(CriticalTimer *criticalTimer){
 
 void criticalTimer_free(CriticalTimer *criticalTimer){
    CriticalTimerData *timerData = criticalTimer->data;
-   free(timerData);
-   free(criticalTimer);
+   kfree(timerData);
+   kfree(criticalTimer);
    pitTimer.criticalUsers--;
 }

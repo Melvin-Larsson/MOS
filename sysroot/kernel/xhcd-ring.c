@@ -1,7 +1,8 @@
 #include "kernel/paging.h"
 #include "kernel/xhcd-ring.h"
 #include "kernel/logging.h"
-#include "stdlib.h"
+#include "kernel/memory.h"
+ #include "stdlib.h"
 #include "stdint.h"
 
 #define DEFAULT_PCS 1
@@ -40,7 +41,7 @@
 static void initSegment(Segment segment, Segment nextSegment, int isLast);
 
 XhcdRing xhcd_newRing(int trbCount){
-   void* ringAddress = callocco(trbCount * sizeof(TRB), 64, 64000);
+   void* ringAddress = kcallocco(trbCount * sizeof(TRB), 64, 64000);
    loggDebug("Ring Address %X", ringAddress);
    Segment segment = {(uintptr_t)ringAddress, trbCount};
    initSegment(segment, segment, 1); //FIXME: isLast = 1

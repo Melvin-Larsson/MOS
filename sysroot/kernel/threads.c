@@ -1,7 +1,7 @@
 #include "kernel/threads.h"
 #include "kernel/timer.h"
 #include "kernel/paging.h"
-#include "stdlib.h"
+#include "kernel/memory.h"
 #include "stdbool.h"
 
 typedef volatile struct{
@@ -64,7 +64,7 @@ ThreadsStatus threads_init(){
    runningThreads = 0;
    activeThread = 0;
 
-   Thread *thread = calloc(sizeof(Thread));
+   Thread *thread = kcalloc(sizeof(Thread));
    thread->status = Running;
 
    scheduleThread(thread);
@@ -79,7 +79,7 @@ static uint32_t *push(uint32_t *stack, uint32_t value){
 
 void thread_start(ThreadConfig config){
    aquireLock();
-   Thread *thread = calloc(sizeof(Thread));
+   Thread *thread = kcalloc(sizeof(Thread));
 
    StackFrame stackFrame = {
       .eip = (uint32_t)config.start,
@@ -102,13 +102,13 @@ void thread_start(ThreadConfig config){
 
 Semaphore *semaphore_new(unsigned int count){
    aquireLock();
-   SemaphoreData *semaphoreData = malloc(sizeof(SemaphoreData));
+   SemaphoreData *semaphoreData = kmalloc(sizeof(SemaphoreData));
    *semaphoreData = (SemaphoreData){
       .count = count,
          .waitingThreads = 0
    };
 
-   Semaphore *semaphore = malloc(sizeof(Semaphore));
+   Semaphore *semaphore = kmalloc(sizeof(Semaphore));
    *semaphore = (Semaphore){
       .data = (void*)semaphoreData
    };
@@ -156,7 +156,7 @@ void semaphore_release(Semaphore *semaphore){
 }
 
 static void scheduleThread(Thread *thread){
-   ThreadListNode *node = malloc(sizeof(ThreadListNode));
+   ThreadListNode *node = kmalloc(sizeof(ThreadListNode));
    node->thread = thread;
 
    if(!activeThread){
@@ -181,7 +181,7 @@ static inline void releaseLock(){
 }
 
 static ThreadListNode *append(ThreadListNode *root, Thread *thread){
-   ThreadListNode *node = malloc(sizeof(ThreadListNode));
+   ThreadListNode *node = kmalloc(sizeof(ThreadListNode));
    *node = (ThreadListNode){
       .next = 0,
          .thread = thread
@@ -202,7 +202,7 @@ static ThreadListNode *append(ThreadListNode *root, Thread *thread){
 
 static ThreadListNode *removeFirst(ThreadListNode *root){
    ThreadListNode *next = root->next;
-   free(root);
+   kfree(root);
    return next;
 }
 
@@ -221,7 +221,7 @@ static ThreadListNode *remove(ThreadListNode *root, ThreadListNode *node){
    }
 
    curr->next = curr->next->next;
-   free(node);
+   kfree(node);
    return root;
 }
 

@@ -1,10 +1,10 @@
 #include "kernel/fat.h"
 #include "kernel/fat-disk.h"
-
-#include "stdlib.h"
-#include "string.h"
 #include "kernel/buffered-storage.h"
 #include "kernel/logging.h"
+#include "kernel/memory.h"
+#include "stdlib.h"
+#include "string.h"
 
 
 #define BLOCK_BUFFER_SIZE 20
@@ -39,7 +39,7 @@ static char* parentFromPath(char *path);
 static uint32_t equalPrefixLength(const char *s1, const char *s2);
 
 FatStatus fat_init(MassStorageDevice* device, FileSystem *result){
-   FatDisk *disk = malloc(sizeof(FatDisk));
+   FatDisk *disk = kmalloc(sizeof(FatDisk));
    fatDisk_init(device, disk);
 
    *result = (FileSystem){
@@ -74,11 +74,11 @@ static File *openFile(FileSystem *fileSystem, char *path){
    if(!file){
       return 0;
    }
-   File *result = malloc(sizeof(File));
+   File *result = kmalloc(sizeof(File));
    *result = (File){
       .file = file,
       .fileSystem = fileSystem,
-      .name = malloc(13),
+      .name = kmalloc(13),
       .offset = 0,
    };
    getFileName(file->directoryEntry, (uint8_t*)result->name);
@@ -89,7 +89,7 @@ static File* createGenericFile(FileSystem *fileSystem, char *path, uint8_t attri
 
    char *fileName = fileNameFromPath(path);
    if(!isValidFileName(fileName)){
-      free(fileName);
+      kfree(fileName);
       return 0;
    }
    char fatFileName[11];
@@ -110,14 +110,14 @@ static File* createGenericFile(FileSystem *fileSystem, char *path, uint8_t attri
    }
    if(directoryContains(disk, parent, fileName)){
       fatDisk_closeFile(disk, parent);
-      free(parentPath);
-      free(fileName);
+      kfree(parentPath);
+      kfree(fileName);
       return 0;
 
    }
    FatFile *file = fatDisk_newFile(disk, parent, fatFileName, attributes);
 
-   File *result = malloc(sizeof(File));
+   File *result = kmalloc(sizeof(File));
    *result = (File){
       .file = file,
       .fileSystem = fileSystem, 
@@ -125,7 +125,7 @@ static File* createGenericFile(FileSystem *fileSystem, char *path, uint8_t attri
       .offset = 0,
    };
 
-   free(parentPath);
+   kfree(parentPath);
    fatDisk_closeFile(disk, parent);
 
    return result;
@@ -139,7 +139,7 @@ void closeFile(File *file){
    FatDisk *fatDisk = file->fileSystem->data;
    FatFile *fatFile = file->file;
    fatDisk_closeFile(fatDisk, fatFile);
-   free(file->name);
+   kfree(file->name);
 }
 
 static uint32_t readFile(File *file, void *buffer, uint32_t size){
@@ -160,19 +160,19 @@ static Directory *openDirectory(struct FileSystem *fileSystem, char *directoryNa
    if(strlen(directoryName) == 1 && directoryName[0] == '/'){
       FatDisk *disk = fileSystem->data;
       FatFile *file = fatDisk_openRoot(disk);
-      Directory *result = malloc(sizeof(Directory));
+      Directory *result = kmalloc(sizeof(Directory));
 
       *result = (Directory){
          .data = file,
          .fileSystem = fileSystem,
-         .name = malloc(2),
+         .name = kmalloc(2),
          .offset = 0,
       };
       strcpy(result->name, "/");
       return result;
    }
    uint32_t pathLength = strlen(directoryName);
-   char *path = malloc(pathLength + 1);
+   char *path = kmalloc(pathLength + 1);
    strcpy(path, directoryName);
    if(path[pathLength - 1] == '/'){
       path[pathLength - 1] = 0;
@@ -182,7 +182,7 @@ static Directory *openDirectory(struct FileSystem *fileSystem, char *directoryNa
    if(!file){
       return 0;
    }
-   Directory *result = malloc(sizeof(Directory));
+   Directory *result = kmalloc(sizeof(Directory));
 
    *result = (Directory){
       .data = file->file,
@@ -190,13 +190,13 @@ static Directory *openDirectory(struct FileSystem *fileSystem, char *directoryNa
       .name = file->name,
       .offset = 0,
    };
-   free(file);
-   free(path);
+   kfree(file);
+   kfree(path);
    return result;
 }
 static Directory *createDirectory(struct FileSystem *fileSystem, char *directoryName){
    int pathLength = strlen(directoryName);
-   char *path = malloc(pathLength + 1);
+   char *path = kmalloc(pathLength + 1);
    strcpy(path, directoryName);
    if(path[pathLength - 1] == '/'){
       path[pathLength - 1] = 0;
@@ -207,7 +207,7 @@ static Directory *createDirectory(struct FileSystem *fileSystem, char *directory
       return 0;
    }
    
-   Directory *result = malloc(sizeof(Directory));
+   Directory *result = kmalloc(sizeof(Directory));
 
    *result = (Directory){
       .data = file->file,
@@ -215,14 +215,14 @@ static Directory *createDirectory(struct FileSystem *fileSystem, char *directory
       .name = file->name,
       .offset = 0,
    };
-   free(file);
+   kfree(file);
    return result;
 }
 static void closeDirectory(Directory *dir){
    FatFile *file = dir->data;
    FatDisk *disk = dir->fileSystem->data;
    fatDisk_closeFile(disk, file);
-   free(dir->name);
+   kfree(dir->name);
 }
 
 static DirectoryEntry *readDirectory(Directory *directory){
@@ -237,10 +237,10 @@ static DirectoryEntry *readDirectory(Directory *directory){
    }
    
 
-   DirectoryEntry *result = malloc(sizeof(DirectoryEntry));
-   char *filename = malloc(13);
+   DirectoryEntry *result = kmalloc(sizeof(DirectoryEntry));
+   char *filename = kmalloc(13);
    getFileName(entry, (uint8_t*)filename);
-   char *path = malloc(strlen(directory->name) + 1);
+   char *path = kmalloc(strlen(directory->name) + 1);
    strcpy(path, directory->name);
    *result = (DirectoryEntry){
       .filename = filename,
@@ -353,7 +353,7 @@ static void getFileName(const FatDirectoryEntry entry, uint8_t result[13]){
 
 static FatStatus strToFilename(char *str, char dst[11]){
    memset(dst, ' ', 11);
-   char *cpy = malloc(strlen(str) + 1);
+   char *cpy = kmalloc(strlen(str) + 1);
    strcpy(cpy, str);
    toupper(cpy);
 
@@ -397,24 +397,24 @@ static char* findLast(char *str, char val){
 static char* fileNameFromPath(char *path){
    char *last = findLast(path, '/');
    if(!last){
-      char* result = malloc(strlen(path) + 1);
+      char* result = kmalloc(strlen(path) + 1);
       strcpy(result, path);
       return result;
    }
    uint32_t length = strlen(path) - (last - path) - 1;
-   char *result = malloc(length + 1);
+   char *result = kmalloc(length + 1);
    memcpy(result, last + 1, length + 1);
    return result;
 }
 static char* parentFromPath(char *path){
    char *last = findLast(path, '/');
    if(!last){
-      char *result = malloc(1);
+      char *result = kmalloc(1);
       *result = 0;
       return result;
    }
    uint32_t length = last - path;
-   char *result = malloc(length + 1);
+   char *result = kmalloc(length + 1);
    memcpy(result, path, length);
    result[length] = 0;
    return result;

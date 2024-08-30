@@ -1,5 +1,5 @@
 #include "collection/map.h"
-#include "stdlib.h"
+#include "kernel/memory.h"
 
 #include "stdio.h" //FIXME: remove
 
@@ -34,8 +34,8 @@ static Node *rotateLeft(Node *root);
 static Node *rotateRight(Node *root);
 
 Map *map_newBinaryMap(int (*comparitor)(void *key1, void *key2)){
-    Map *map = malloc(sizeof(Map));
-    Node **rootPointer = malloc(sizeof(Node *));
+    Map *map = kmalloc(sizeof(Map));
+    Node **rootPointer = kmalloc(sizeof(Node *));
     *rootPointer = 0;
     *map = (Map){
         .data = rootPointer,
@@ -62,7 +62,7 @@ static int add(const struct Map *map, void *key, void* value){
 
 static Node *addNode(Node *node, int (*comparitor)(void *, void *), void *key, void* value){
     if(node == 0){
-        Node *newNode = malloc(sizeof(Node));
+        Node *newNode = kmalloc(sizeof(Node));
         *newNode = (Node){
             .key = key,
             .value = value,
@@ -126,7 +126,7 @@ static Node *removeNode(Node *root, int (*comparitor)(void *, void *), void *key
             res->left = root->left;
             res->childDepth = max(getChildDepth(res->left), getChildDepth(res->right)) + 1;
         }
-        free(root);
+        kfree(root);
         return res;
     }
    
@@ -175,8 +175,8 @@ static void freeMap(struct Map *map, void (*freeValue)(void *value)){
     Node **rootNode = map->data;
     freeNode(*rootNode, freeValue);
 
-    free(rootNode);
-    free(map);
+    kfree(rootNode);
+    kfree(map);
 }
 static void freeNode(Node *node, void (*freeValue)(void *value)){
     if(!node){
@@ -187,7 +187,7 @@ static void freeNode(Node *node, void (*freeValue)(void *value)){
     if(freeValue){
         freeValue(node->value);
     }
-    free(node);
+    kfree(node);
 }
 static int calculateChildDepth(Node *node);
 static Node *balanceTree(Node *root){

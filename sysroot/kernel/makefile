@@ -39,6 +39,7 @@ OBJS= ${BUILD}/boot.o \
 	   ${BUILD}/acpi.o \
 	   ${BUILD}/threads.o \
 	   ${BUILD}/timer.o \
+	   ${BUILD}/memory.o \
 
 ${BUILD}/kernel.o : ${BUILD} ${OBJS} ${PREFIX}/utils/include/utils/assert.h
 	${COMPILER} -T linker.ld ${LINK_FLAGS} ${OBJS} -o ${BUILD}/kernel.out
@@ -143,6 +144,9 @@ ${BUILD}/threads.o : threads.c include/kernel/threads.h
 
 ${BUILD}/timer.o : timer.c include/kernel/timer.h
 	${COMPILER} ${CFLAGS} -c timer.c -o ${BUILD}/timer.o
+
+${BUILD}/memory.o : memory.c include/kernel/memory.h
+	${COMPILER} ${CFLAGS} -c memory.c -o ${BUILD}/memory.o
 
 include/kernel/xhcd.h: include/kernel/xhcd-registers.h include/kernel/usb-messages.h
 include/kernel/xhcd-ring.h: include/kernel/xhcd-registers.h

@@ -2,13 +2,14 @@
 #include "kernel/xhcd-ring.h"
 #include "kernel/xhcd-event-ring.h"
 #include "kernel/usb-descriptors.h"
-#include "kernel/kernel-io.h"
-#include "stdlib.h"
 #include "string.h"
 #include "kernel/interrupt.h"
 #include "kernel/paging.h"
-
+#include "kernel/kernel-io.h"
 #include "kernel/logging.h"
+#include "kernel/memory.h"
+#include "stdlib.h"
+
 
 //FIXME: remove
 #include "kernel/pci.h"
@@ -159,9 +160,9 @@ XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
    {
       loggDebug("init xhcd");
 
-      Xhcd *xhcd = calloc(sizeof(Xhcd));
+      Xhcd *xhcd = kcalloc(sizeof(Xhcd));
       xhci->data = xhcd;
-      xhcd->eventBuffer = malloc(sizeof(XhcEventTRB) * 32);
+      xhcd->eventBuffer = kmalloc(sizeof(XhcEventTRB) * 32);
       xhcd->eventBufferSize = 32;
       xhcd->eventBufferDequeueIndex = 0;
       xhcd->eventBufferEnqueueIndex = 1;
@@ -198,7 +199,7 @@ XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
 
       uint32_t devices = getMaxEnabledDeviceSlots(xhcd);
       setMaxEnabledDeviceSlots(xhcd, devices);
-      xhcd->handlers = calloc(devices * 32 * sizeof(XhcInterruptHandler));
+      xhcd->handlers = kcalloc(devices * 32 * sizeof(XhcInterruptHandler));
 
       initDCAddressArray(xhcd);
       initScratchPad(xhcd);
@@ -228,7 +229,7 @@ XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
 int xhcd_getDevices(Xhci *xhci, XhcDevice *resultBuffer, int bufferSize){
    Xhcd *xhcd = xhci->data;
 
-   uint32_t *portIndexes = malloc(bufferSize * sizeof(uint32_t));
+   uint32_t *portIndexes = kmalloc(bufferSize * sizeof(uint32_t));
    int count = getNewlyAttachedDevices(xhcd, portIndexes, bufferSize);
    for(int i = 0; i < count; i++){
       XhcStatus status = initDevice(xhcd, portIndexes[i], &resultBuffer[i]);
@@ -239,7 +240,7 @@ int xhcd_getDevices(Xhci *xhci, XhcDevice *resultBuffer, int bufferSize){
          //FIXME: Some kind of error message here?
       }
    }
-   free(portIndexes);
+   kfree(portIndexes);
    return count;
 }
 static int getNewlyAttachedDevices(Xhcd *xhcd, uint32_t *result, int bufferSize){
@@ -258,7 +259,7 @@ static int getNewlyAttachedDevices(Xhcd *xhcd, uint32_t *result, int bufferSize)
 }
 static void readPortInfo(Xhcd *xhcd){
    uint8_t maxPorts = xhcd->enabledPorts;
-   xhcd->portInfo = calloc((maxPorts + 1) * sizeof(UsbPortInfo));
+   xhcd->portInfo = kcalloc((maxPorts + 1) * sizeof(UsbPortInfo));
 
    XhcExtendedCapabilityEnumerator enumerator = xhcd_newExtendedCapabilityEnumerator(xhcd->hardware);
 
@@ -656,7 +657,7 @@ static int addressDevice(Xhcd *xhcd, int slotId, int portIndex){
    memset((void*)&inputContext, 0, sizeof(XhcInputContext));
 
    loggDebug("Address device");
-   XhcOutputContext *outputContext = callocco(sizeof(XhcOutputContext), 64, 0);
+   XhcOutputContext *outputContext = kcallocco(sizeof(XhcOutputContext), 64, 0);
    xhcd->dcBaseAddressArray[slotId] = paging_getPhysicalAddress((uintptr_t)outputContext);
 
    XhcdRing transferRing = xhcd_newRing(DEFAULT_TRANSFER_RING_TRB_COUNT);
@@ -983,7 +984,7 @@ static void initDCAddressArray(Xhcd *xhcd){
    uint8_t maxSlots = config.enabledDeviceSlots;
    uint32_t pageSize = getPageSize(xhcd);
    uint32_t arraySize = (maxSlots + 1) * 64;
-   xhcd->dcBaseAddressArray = callocco(arraySize, 64, pageSize);
+   xhcd->dcBaseAddressArray = kcallocco(arraySize, 64, pageSize);
 
    uintptr_t dcAddressArrayPointer = paging_getPhysicalAddress((uintptr_t)xhcd->dcBaseAddressArray);
    xhcd_writeRegister(xhcd->hardware, DCBAAP, dcAddressArrayPointer);
@@ -997,10 +998,10 @@ static void initScratchPad(Xhcd *xhcd){
 
    uint32_t pageSize = getPageSize(xhcd);
    loggDebug("PageSize: %d %d", pageSize, xhcd_readRegister(xhcd->hardware, PAGESIZE));
-   volatile uint64_t *scratchpadPointers = mallocco(scratchpadSize * sizeof(uint64_t), 64, pageSize);
+   volatile uint64_t *scratchpadPointers = kmallocco(scratchpadSize * sizeof(uint64_t), 64, pageSize);
 
    for(uint32_t i = 0; i < scratchpadSize; i++){
-      void* scratchpadStart = callocco(pageSize, 1, pageSize);
+      void* scratchpadStart = kcallocco(pageSize, 1, pageSize);
       scratchpadPointers[i] = (uintptr_t)paging_getPhysicalAddress((uintptr_t)scratchpadStart);
    }
    xhcd->dcBaseAddressArray[0] = (uint64_t)paging_getPhysicalAddress((uintptr_t)scratchpadPointers);

@@ -2,12 +2,13 @@
 #include "kernel/physpage.h"
 #include "kernel/interrupt.h"
 #include "kernel/allocator.h"
+#include "kernel/memory.h"
+#include "kernel/logging.h"
 
 #include "stdint.h"
 #include "stdlib.h"
 #include "collection/intmap.h"
 
-#include "kernel/logging.h"
 
 #define ASSERTS_ENABLED
 #include "utils/assert.h"
@@ -164,8 +165,8 @@ void paging_init(){
 }
 
 PagingContext *paging_create32BitContext(PagingConfig32Bit config){
-    PagingContext *result = malloc(sizeof(PagingContext));
-    PagingData *data = malloc(sizeof(PagingData));
+    PagingContext *result = kmalloc(sizeof(PagingContext));
+    PagingData *data = kmalloc(sizeof(PagingData));
 
     data->physicalToLogicalPage = map_newBinaryMap(intmap_comparitor);
     data->pageAllocator = allocator_init(0, 1048576);

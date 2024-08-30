@@ -1,9 +1,9 @@
 #include "kernel/file-system.h"
-#include "stdlib.h"
+#include "kernel/memory.h"
 
 void directoryEntry_free(DirectoryEntry *entry){
-   free(entry->path);
-   free(entry->filename);
-   free(entry);
+   kfree(entry->path);
+   kfree(entry->filename);
+   kfree(entry);
 }
 

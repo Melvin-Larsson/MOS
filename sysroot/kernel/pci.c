@@ -1,10 +1,10 @@
 #include "kernel/paging.h"
 #include "kernel/pci.h"
 #include "kernel/logging.h"
-#include "string.h"
 #include "kernel/msix-structures.h"
 #include "kernel/interrupt.h"
-#include "stdlib.h"
+#include "kernel/memory.h"
+#include "string.h"
 
 #define ASSERTS_ENABLED
 #include "utils/assert.h"
@@ -512,7 +512,7 @@ int pci_initMsi(PciDescriptor pci, MsiDescriptor *result, MsiInitData data, uint
    }
 
    for(int i = 0; i < (int)data.vectorCount; i++){
-      InterruptData *interruptData = malloc(sizeof(InterruptData));
+      InterruptData *interruptData = kmalloc(sizeof(InterruptData));
       *interruptData = (InterruptData){
          .data = data.data[i],
          .handler = data.handlers[i]
@@ -577,7 +577,7 @@ int pci_setMsiXVector(const MsiXDescriptor msix, int msiVectorNr, int interruptV
    paging_writePhysicalOfSize(address + 8, &msgData, sizeof(msgAddr), AccessSize64);
 
    //FIXME:!!Can not just create and forget here
-   InterruptData *data = malloc(sizeof(InterruptData));
+   InterruptData *data = kmalloc(sizeof(InterruptData));
    *data = (InterruptData){
       .data = vectorData.data,
       .handler = vectorData.handler
