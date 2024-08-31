@@ -25,7 +25,7 @@ static void *getMemoryPointer(MemoryDescriptor *descriptor);
 
 static MemoryDescriptor *memoryDescriptor;
 
-void stdlib_init(){
+void memory_init(){
     memoryDescriptor = (MemoryDescriptor*)0x200000; //FIXME
     *memoryDescriptor = (MemoryDescriptor){0,0};
 }

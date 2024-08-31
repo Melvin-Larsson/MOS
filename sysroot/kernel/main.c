@@ -297,7 +297,7 @@ void timerHandler(void *data){
 void kernel_main(){
     timeMillis = 0;
     kio_init();
-    stdlib_init();
+    memory_init();
 
 //     testMemory();
 //     testMemoryConstrained();
