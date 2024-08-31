@@ -12,6 +12,8 @@ static uint32_t pitTimersStoped;
 static uint16_t currPitTime;
 
 void pit_init(){}
+void pit_setDirectTimer(void (*handler)(void), uint32_t pitCycles){}
+void pit_checkoutInterrupt(){}
 void pit_setTimer(void (*handler)(void *, uint16_t), void *data, uint32_t time){
    pitHandler = handler;
    pitData = data;

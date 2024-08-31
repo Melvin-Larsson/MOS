@@ -1,9 +1,10 @@
+#include "kernel/memory.h"
 #include "testrunner.h"
 #include "physpage.c"
 #include "stdlib.h"
 
 TEST_GROUP_SETUP(consecutive){
-   stack = malloc(sizeof(PageStack));
+   stack = kmalloc(sizeof(PageStack));
    *stack = (PageStack){
       .page = 0,
       .pageCount4KB = 1024 * 1024,
@@ -20,7 +21,7 @@ TEST_GROUP_TEARDOWN(consecutive){
 
 TEST_GROUP_SETUP(fourthsMissing){
    for(int i = 1023; i >= 0; i--){
-      PageStack *ptr = malloc(sizeof(PageStack));
+      PageStack *ptr = kmalloc(sizeof(PageStack));
       *ptr = (PageStack){
          .page = i * 4,
          .pageCount4KB = 3,
@@ -32,7 +33,7 @@ TEST_GROUP_SETUP(fourthsMissing){
 TEST_GROUP_TEARDOWN(fourthsMissing){
    while(stack){
       PageStack *next = stack->next;
-      free(stack);
+      kfree(stack);
       stack = next;
    }
 }

@@ -1,7 +1,8 @@
-#include "testrunner.h"
 #include "kernel/kernel-io.h"
-#include "stdlib.h"
 #include "kernel/interrupt.h"
+#include "kernel/memory.h"
+#include "testrunner.h"
+#include "stdlib.h"
 #include "string.h"
 
 #define MAX_TEST_COUNT 1000
@@ -25,6 +26,8 @@ static void setErrorColor(){
 static void restoreColor(){
    kio_setColor(prevColor);
 }
+
+uint32_t thread_getNewEsp(uint32_t esp){ return esp; }
 
 int assertIntL(int actual, int expected, int line){
    if(actual != expected){
@@ -138,7 +141,7 @@ static void setTestStatus(TestStatus s){
 
 void kernel_main(){
    kio_init();
-   stdlib_init();
+   memory_init();
 
    interruptDescriptorTableInit();
 
@@ -173,8 +176,4 @@ void kernel_main(){
    debug_logMemory();
    restoreColor();
    while(1);
-}
-
-uint32_t task_switch_handler(uint32_t eip){
-   return eip;
 }

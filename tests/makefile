@@ -25,6 +25,7 @@ OBJS = ${BUILD}/boot.o \
 	   ${BUILD}/interrupt.o \
 	   ${BUILD}/logging.o \
 	   ${BUILD}/kernel-io.o \
+	   ${BUILD}/memory.o \
 	   ${BUILD}/mass-storage-device-mock.o \
 	   ${BUILD}/buffered-storage-mock.o \
 	   ${BUILD}/${SUBJECT_FILE}.o \
@@ -65,6 +66,9 @@ ${BUILD}/mass-storage-device-mock.o : ${MOCKS}/mass-storage-device-mock.c ${BUIL
 
 ${BUILD}/buffered-storage-mock.o : ${MOCKS}/buffered-storage-mock.c ${BUILD};
 	${COMPILER} ${CFLAGS} -c ${MOCKS}/buffered-storage-mock.c -o ${BUILD}/buffered-storage-mock.o
+
+${BUILD}/memory.o : ${KERNEL}/memory.c ${KERNEL}/include/kernel/memory.h ${BUILD};
+	${COMPILER} ${CFLAGS} -c ${KERNEL}/memory.c -o ${BUILD}/memory.o
 
 ${BUILD}/boot.o : ${PREFIX}/sysroot/kernel/i686 ${BUILD}
 	cd ${PREFIX}/sysroot/kernel/i686 && \

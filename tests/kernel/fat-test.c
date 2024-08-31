@@ -79,7 +79,7 @@ TEST_GROUP_SETUP(string){}
 TEST_GROUP_TEARDOWN(string){}
 
 TEST_GROUP_SETUP(read_write){
-    data = malloc(MEMORY_SIZE);
+    data = kmalloc(MEMORY_SIZE);
     bufferedStorageMock_init(data);
     memset(data, 0, MEMORY_SIZE);
     if(sizeof(bytes) > MEMORY_SIZE){
@@ -95,7 +95,7 @@ TEST_GROUP_SETUP(read_write){
     fat_init(device, &fatSystem);
 }
 TEST_GROUP_TEARDOWN(read_write){
-    free(data); 
+    kfree(data); 
     massStorageDeviceMock_free(device);
     fatSystem.closeFileSystem(&fatSystem);
 }
@@ -445,53 +445,53 @@ TEST(string, equalPrefixLength_2Equal){
 TEST(string, parentFromPath_noParent){
     char *result = parentFromPath("file.txt");
     assertString(result, "");
-    free(result);
+    kfree(result);
 }
 TEST(string, parentFromPath_noFile){
     char *result = parentFromPath("dir/");
     assertString(result, "dir");
-    free(result);
+    kfree(result);
 }
 TEST(string, parentFromPath_noPath){
     char *result = parentFromPath("");
     assertString(result, "");
-    free(result);
+    kfree(result);
 }
 TEST(string, parentFromPath_pathAndFile){
     char *result = parentFromPath("dir/file.txt");
     assertString(result, "dir");
-    free(result);
+    kfree(result);
 }
 TEST(string, parentFromPath_longPathAndFile){
     char *result = parentFromPath("dir1/dir2/dir3/file.txt");
     assertString(result, "dir1/dir2/dir3");
-    free(result);
+    kfree(result);
 }
 
 TEST(string, fileNameFromPath_noParent){
     char *result = fileNameFromPath("file.txt");
     assertString(result, "file.txt");
-    free(result);
+    kfree(result);
 }
 TEST(string, fileNameFromPath_noFile){
     char *result = fileNameFromPath("dir/");
     assertString(result, "");
-    free(result);
+    kfree(result);
 }
 TEST(string, fileNameFromPath_noPath){
     char *result = fileNameFromPath("");
     assertString(result, "");
-    free(result);
+    kfree(result);
 }
 TEST(string, fileNameFromPath_pathAndFile){
     char *result = fileNameFromPath("dir/file.txt");
     assertString(result, "file.txt");
-    free(result);
+    kfree(result);
 }
 TEST(string, fileNameFromPath_longPathAndFile){
     char *result = fileNameFromPath("dir1/dir2/dir3/file.txt");
     assertString(result, "file.txt");
-    free(result);
+    kfree(result);
 }
 
 

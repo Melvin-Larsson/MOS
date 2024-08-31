@@ -41,7 +41,7 @@ int write(void *d,
 }
 
 MassStorageDevice *massStorageDeviceMock_init(void *data, uint32_t dataSize, uint32_t blockSize){
-   MassStorageDevice *device = malloc(sizeof(MassStorageDevice));
+   MassStorageDevice *device = kmalloc(sizeof(MassStorageDevice));
    *device = (MassStorageDevice){
       .blockSize = blockSize,
       .read = read,
@@ -55,5 +55,5 @@ MassStorageDevice *massStorageDeviceMock_init(void *data, uint32_t dataSize, uin
    return device;
 }
 void massStorageDeviceMock_free(MassStorageDevice *device){
-   free(device);
+   kfree(device);
 }

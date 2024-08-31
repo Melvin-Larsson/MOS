@@ -1,3 +1,4 @@
+#include "kernel/memory.h"
 #include "testrunner.h"
 #include "stdio.h"
 #include "buffered-storage.c"
@@ -27,7 +28,7 @@ int writeFake(void *device, uint32_t logicalBlockAddress, void *dataToWrite, uin
 
 
 TEST_GROUP_SETUP(group){
-    data = malloc(DATA_SIZE);
+    data = kmalloc(DATA_SIZE);
     memset(data, 0x69, DATA_SIZE);
     blockSize = 512;
     device = (MassStorageDevice){
@@ -38,7 +39,7 @@ TEST_GROUP_SETUP(group){
     buffer = bufferedStorage_newBuffer(5, blockSize);
 }
 TEST_GROUP_TEARDOWN(group){
-   free(data);
+   kfree(data);
 }
 
 TESTS

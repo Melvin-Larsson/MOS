@@ -1,5 +1,6 @@
 #include "buffered-storage-mock.h"
 #include "kernel/buffered-storage.h"
+#include "kernel/memory.h"
 #include "stdlib.h"
 #include "stdio.h"
 
@@ -39,14 +40,14 @@ BufferedStorageBuffer* bufferedStorage_newBuffer(
       uint32_t blockCount,
       uint32_t blockSize){
 
-    return malloc(sizeof(BufferedStorageBuffer));
+    return kmalloc(sizeof(BufferedStorageBuffer));
 }
 
 void bufferedStorage_freeBuffer(
       MassStorageDevice *device,
       BufferedStorageBuffer *buffer){
 
-    free(buffer);
+    kfree(buffer);
 }
 
 void bufferedStorage_writeBuffer(
