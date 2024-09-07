@@ -289,6 +289,7 @@ TEST(10ItemList, iteratorRemoveAll_AddNormally_length1_containsNew){
    intIterator_advance(iterator);
    for(int i = 0; i < 10; i++){
       assertInt(intIterator_remove(iterator), true);
+      intIterator_advance(iterator);
    }
 
    intlist_add(list, data);

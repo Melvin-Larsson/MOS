@@ -1,6 +1,8 @@
 #include "kernel/allocator.h"
 #include "kernel/memory.h"
 
+#include "stdio.h"
+
 typedef struct AllocatorList{
    struct AllocatorList *next;
    uintptr_t address;

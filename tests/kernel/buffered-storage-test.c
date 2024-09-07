@@ -5,12 +5,16 @@
 
 #define DATA_SIZE 1024 * 1024
 
+#define UNUSED(x) (void)(x)
+
 static uint32_t blockSize;
-static void *data;
+static char *data;
 static BufferedStorageBuffer *buffer;
 static MassStorageDevice device;
 
 int readFake(void *device, uint32_t logicalBlockAddress, void *result, uint32_t bufferSize){
+   UNUSED(device);
+
    uint32_t address = logicalBlockAddress * blockSize; 
    memcpy(result, data + address, bufferSize);
    return bufferSize;
@@ -19,6 +23,8 @@ void f(){
 
 }
 int writeFake(void *device, uint32_t logicalBlockAddress, void *dataToWrite, uint32_t dataSize){
+   UNUSED(device);
+
    uint32_t address = logicalBlockAddress * blockSize; 
    memcpy(data + address, dataToWrite, dataSize);
 

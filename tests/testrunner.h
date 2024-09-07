@@ -49,7 +49,8 @@ int assertIntNotEqualsL(int actual, int notExpected, int line);
 #define assertString(actual, expected) assertStringL(actual, expected, __LINE__)
 int assertStringL(char* actual, char* expected, int line);
 
-int assertArrayL(char* actual, uint32_t actualSize, char* expected, uint32_t expectedSize);
+#define assertArray(actual, actualSize, expected, expectedSize) assertArrayL(actual, actualSize, expected, expectedSize, 3)
+int assertArrayL(char* actual, uint32_t actualSize, char* expected, uint32_t expectedSize, int line);
 
 void setTestName(char * name);
 void setTestLine(int line);
