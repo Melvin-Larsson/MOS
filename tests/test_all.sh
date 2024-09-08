@@ -11,19 +11,18 @@ if ! make -C "$PREFIX/tests"; then
 fi
 
 
-success="1"
+success=0
 
 for testFile in $PREFIX/tests/bin/*.o; do
     printf "\033[0;37m"
     echo "Running $testFile"
     $testFile
 
-    if [ $? -eq 0 ]; then
-        success="0"
+    if [ $? -ne 0 ]; then
+        success=1
     fi
 done
 
 printf "\033[0;37m"
-echo "$success"
 
-
+exit $success
