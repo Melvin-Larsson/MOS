@@ -4,22 +4,26 @@
 #include "stdio.h"
 #include "stdint.h"
 
-#define TESTS void runTests(){                        \
-   printf("Running %s...\n", __FILE__);               \
+// #define TESTS void runTests(){                        \
+//    printf("Running %s...\n", __FILE__);               \
 
-#define TEST(Group, Name)\
-            incTestId();                              \
-            setTestName(#Name);                       \
-            setTestLine(__LINE__);                    \
-            testSetup_##Group();                      \
-            for(int i = 0; i < 1;                     \
-               i++ ? testTeardown_##Group() : testTeardown_##Group())\
+#define TESTS ;
 
-#define IGNORE_TEST(Group, Name)\
-         incIgnoredTests(); \
-         if(0) \
+#define TEST(Group, Name) void test_##Name()
 
-#define END_TESTS }
+/* #define TEST(Group, Name)\ */
+/*             incTestId();                              \ */
+/*             setTestName(#Name);                       \ */
+/*             setTestLine(__LINE__);                    \ */
+/*             testSetup_##Group();                      \ */
+/*             for(int i = 0; i < 1;                     \ */
+/*                i++ ? testTeardown_##Group() : testTeardown_##Group())\ */
+
+#define IGNORE_TEST(Group, Name) void test_##Name()
+//          incIgnoredTests(); \
+//         if(0) \
+
+#define END_TESTS ;
 
 #define TEST_GROUP_SETUP(Group) void testSetup_##Group()
 

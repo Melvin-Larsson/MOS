@@ -49,8 +49,8 @@ static void allocateMultiple(int count, int size, AllocatedArea *results){
 TESTS
 
 TEST(size1, get100_gets100){
-//    AllocatedArea area = allocator_get(allocator, 100);
-//    assertInt(area.size, 100);
+   AllocatedArea area = allocator_get(allocator, 100);
+   assertInt(area.size, 100);
 }
 TEST(size1, get200_gets200){
    AllocatedArea area = allocator_get(allocator, 200);

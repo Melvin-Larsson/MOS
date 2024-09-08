@@ -152,7 +152,7 @@ TEST(group, addLeftGet){
    }
 }
 
-TEST(group, addLeftThenRightContains){
+TEST(group, addLeftThenRight_getSuccessfull){
    intmap_add(map, 5, 5);
    intmap_add(map, 4, 4);
    intmap_add(map, 6, 6);

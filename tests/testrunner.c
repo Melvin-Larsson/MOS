@@ -1,13 +1,15 @@
-#include "kernel/kernel-io.h"
-#include "kernel/interrupt.h"
-#include "kernel/memory.h"
 #include "testrunner.h"
+#include "kernel/kernel-io.h"
 #include "stdlib.h"
 #include "string.h"
+#include "test-list.h"
 
 #define MAX_TEST_COUNT 1000
 
+void printf(const char *, ...);
+
 static void setTestStatus(TestStatus status);
+int strcmp(const char *, const char *);
 
 static char *currTestName;
 static int currTestLine;
@@ -16,15 +18,68 @@ static int ignoredTests;
 static TestStatus status[MAX_TEST_COUNT];
 
 static KIOColor prevColor;
+
 static void setColor(KIOColor color){
-   prevColor = stdio_getColor();
-   kio_setColor(color);
+   switch (color) {
+      case KIOColorBlack:
+         printf("\033[0;30m");
+         break;
+      case KIOColorBlue:
+         printf("\033[0;34m");
+         break;
+      case KIOColorGreen:
+         printf("\033[0;32m");
+         break;
+      case KIOColorCyan:
+         printf("\033[0;36m");
+         break;
+      case KIOColorRed:
+         printf("\033[0;31m");
+         break;
+      case KIOColorPurple:
+         printf("\033[0;35m");
+         break;
+      case KIOColorBrown:
+         printf("\033[0;33m");
+         break;
+      case KIOColorGray:
+         printf("\033[0;37m");
+         break;
+      case KIOColorDarkGray:
+         printf("\033[1;30m");
+         break;
+      case KIOColorLightBlue:
+         printf("\033[1;34m");
+         break;
+      case KIOColorLightGreen:
+         printf("\033[1;32m");
+         break;
+      case KIOColorLightCyan:
+         printf("\033[1;36m");
+         break;
+      case KIOColorLightRed:
+         printf("\033[1;31m");
+         break;
+      case KIOColorLightPurple:
+         printf("\033[1;35m");
+         break;
+      case KIOColorYellow:
+         printf("\033[1;33m");
+         break;
+      case KIOColorWhite:
+         printf("\033[1;37m");
+         break;
+      default:
+         printf("\033[0m");
+         break;
+   }
+   prevColor = color;
 }
 static void setErrorColor(){
    setColor(KIOColorLightRed);
 }
 static void restoreColor(){
-   kio_setColor(prevColor);
+   setColor(prevColor);
 }
 
 uint32_t thread_getNewEsp(uint32_t esp){ return esp; }
@@ -32,8 +87,8 @@ uint32_t thread_getNewEsp(uint32_t esp){ return esp; }
 int assertIntL(int actual, int expected, int line){
    if(actual != expected){
       setErrorColor();
-      kprintf("[FAIL] %s (line %d)\n", currTestName, line);
-      kprintf("   AssertInt: Expected %d, got %d\n", expected, actual);
+      printf("[FAIL] %s (line %d)\n", currTestName, line);
+      printf("   AssertInt: Expected %d, got %d\n", expected, actual);
       setTestStatus(TestStatusFail);
       restoreColor();
       return 0;
@@ -43,8 +98,8 @@ int assertIntL(int actual, int expected, int line){
 int assertIntGTL(int actual, int lowerBound, int line){
    if(actual <= lowerBound){
       setErrorColor();
-      kprintf("[FAIL] %s (line %d)\n", currTestName, line);
-      kprintf("   AssertIntGT: Expected value to be greater than %d, got %d\n", lowerBound, actual);
+      printf("[FAIL] %s (line %d)\n", currTestName, line);
+      printf("   AssertIntGT: Expected value to be greater than %d, got %d\n", lowerBound, actual);
       setTestStatus(TestStatusFail);
       restoreColor();
       return 0;
@@ -54,8 +109,8 @@ int assertIntGTL(int actual, int lowerBound, int line){
 int assertIntGTEL(int actual, int lowerBound, int line){
    if(actual < lowerBound){
       setErrorColor();
-      kprintf("[FAIL] %s (line %d)\n", currTestName, line);
-      kprintf("   AssertIntGE: Expected value to be greater than, or equal to %d, got %d\n", lowerBound, actual);
+      printf("[FAIL] %s (line %d)\n", currTestName, line);
+      printf("   AssertIntGE: Expected value to be greater than, or equal to %d, got %d\n", lowerBound, actual);
       setTestStatus(TestStatusFail);
       restoreColor();
       return 0;
@@ -65,8 +120,8 @@ int assertIntGTEL(int actual, int lowerBound, int line){
 int assertIntNotEqualsL(int actual, int notExpected, int line){
    if(actual == notExpected){
       setErrorColor();
-      kprintf("[FAIL] %s (line %d)\n", currTestName, line);
-      kprintf("   AssertIntNotEquals: got %d\n", notExpected);
+      printf("[FAIL] %s (line %d)\n", currTestName, line);
+      printf("   AssertIntNotEquals: got %d\n", notExpected);
       setTestStatus(TestStatusFail);
       restoreColor();
       return 0;
@@ -74,10 +129,10 @@ int assertIntNotEqualsL(int actual, int notExpected, int line){
    return 1;
 }
 int assertStringL(char* actual, char* expected, int line){
-   if(!equals(actual, expected)){
+   if(strcmp(actual, expected) != 0){
       setErrorColor();
-      kprintf("[FAIL] %s (line %d)\n", currTestName, line);
-      kprintf("   AssertString: Expected %s, got %s\n", expected, actual);
+      printf("[FAIL] %s (line %d)\n", currTestName, line);
+      printf("   AssertString: Expected %s, got %s\n", expected, actual);
       setTestStatus(TestStatusFail);
       restoreColor();
       return 0;
@@ -85,24 +140,24 @@ int assertStringL(char* actual, char* expected, int line){
    return 1;
 }
 static void printArray(char *array, uint32_t size){
-   kprintf("[");
+   printf("[");
    for(uint32_t i = 0; i < size; i++){
-      kprintf("%X", array[i]);
+      printf("%X", array[i]);
       if(i != size - 1){
-         kprintf(", ");
+         printf(", ");
       }
    }
-   kprintf("]");
+   printf("]");
 
 }
 void printArrayError(char* actual, uint32_t actualSize, char* expected, uint32_t expectedSize, int line){
          setErrorColor();
-         kprintf("[FAIL] %s (line %d)\n", currTestName, line);
-         kprintf("   AssertArray: Expected " );
+         printf("[FAIL] %s (line %d)\n", currTestName, line);
+         printf("   AssertArray: Expected " );
          printArray(expected, expectedSize);
-         kprintf(" got ");
+         printf(" got ");
          printArray(actual, actualSize);
-         kprintf("\n");
+         printf("\n");
          restoreColor();
 }
 int assertArrayL(char* actual, uint32_t actualSize, char* expected, uint32_t expectedSize, int line){
@@ -139,11 +194,8 @@ static void setTestStatus(TestStatus s){
    }
 }
 
-void kernel_main(){
-   kio_init();
-   memory_init();
-
-   interruptDescriptorTableInit();
+int main(){
+   prevColor = KIOColorWhite;
 
    testId = -1;
    ignoredTests = 0;
@@ -151,11 +203,23 @@ void kernel_main(){
       status[i] = TestStatusSucess;
    }
 
-   clear();
+//    clear();
 
-   debug_logMemory();
+   for(int i = 0; i < tests.testCount; i++){
+      Test test = tests.tests[i];
 
-   runTests();
+      incTestId();
+      setTestName(test.name);
+         
+      if(test.setup){
+         test.setup();
+      }
+      test.test();
+      if(test.teardown){
+         test.teardown();
+      }
+   }
+
 
    uint32_t successfull = 0;
    uint32_t failed = 0;
@@ -172,8 +236,9 @@ void kernel_main(){
    }else{
       setColor(KIOColorLightGreen);
    }
-   kprintf("Test done! Fails: %d. Successes: %d. Ignored: %d.\n", failed, successfull, ignoredTests);
-   debug_logMemory();
+
+   printf("Test done! Fails: %d. Successes: %d. Ignored: %d.\n", failed, successfull, ignoredTests);
    restoreColor();
-   while(1);
+
+   return failed;
 }

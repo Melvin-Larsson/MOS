@@ -506,13 +506,6 @@ TEST(string, removeTrailingSpaces_noSpaces){
   result[newLength] = 0;
   assertString(result, "abcdef");
 }
-TEST(string, removeTrailingSpaces_noSpaces){
-  char arr[] = "abcdef";
-  char result[sizeof(arr)];
-  uint32_t newLength = removeTrailingSpaces((uint8_t*)arr, sizeof(arr) - 1, (uint8_t*)result);
-  result[newLength] = 0;
-  assertString(result, "abcdef");
-}
 TEST(string, removeTrailingSpaces_onlySpaces){
   char arr[] = "   ";
   char result[sizeof(arr)];
