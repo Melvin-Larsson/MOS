@@ -4,7 +4,7 @@ on:
     branches: [ master ]
   workflow_dispatch:
 jobs:
-  container-test-job:
+  build:
     runs-on: ubuntu-latest
     container:
       image: melvinlarsson/myrepo:1.1
@@ -19,3 +19,22 @@ jobs:
         uses: actions/checkout@v4.1.7
       - name: Build
         run: make
+  test:
+    runs-on: ubuntu-latest
+
+    env:
+      PREFIX: "${{ github.workspace }}"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.1.7
+
+      - name: Run Tests
+        run: |
+          ./tests/test_all.sh
+          if [ $? -eq 0 ]; then
+            echo "Tests passed!"
+          else
+            echo "Tests failed!" >&2
+            exit 1
+          fi
