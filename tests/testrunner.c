@@ -17,8 +17,6 @@ static int testId;
 static int ignoredTests;
 static TestStatus status[MAX_TEST_COUNT];
 
-static KIOColor prevColor;
-
 static void setColor(KIOColor color){
    switch (color) {
       case KIOColorBlack:
@@ -73,13 +71,18 @@ static void setColor(KIOColor color){
          printf("\033[0m");
          break;
    }
-   prevColor = color;
 }
 static void setErrorColor(){
    setColor(KIOColorLightRed);
 }
+static void setWarningColor(){
+   setColor(KIOColorYellow);
+}
+static void setSuccessColor(){
+   setColor(KIOColorGreen);
+}
 static void restoreColor(){
-   setColor(prevColor);
+   setColor(KIOColorWhite);
 }
 
 uint32_t thread_getNewEsp(uint32_t esp){ return esp; }
@@ -195,8 +198,6 @@ static void setTestStatus(TestStatus s){
 }
 
 int main(){
-   prevColor = KIOColorWhite;
-
    testId = -1;
    ignoredTests = 0;
    for(int i = 0; i < MAX_TEST_COUNT; i++){
@@ -233,11 +234,14 @@ int main(){
    }
    if(failed > 0){
       setErrorColor();
+   }
+   else if(tests.ignoredTestCount > 0){
+      setWarningColor();
    }else{
-      setColor(KIOColorLightGreen);
+      setSuccessColor();
    }
 
-   printf("Test done! Fails: %d. Successes: %d. Ignored: %d.\n", failed, successfull, ignoredTests);
+   printf("Test done! Fails: %d. Successes: %d. Ignored: %d.\n", failed, successfull, tests.ignoredTestCount);
    restoreColor();
 
    return failed;

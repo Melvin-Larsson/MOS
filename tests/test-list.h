@@ -12,6 +12,7 @@ typedef struct{
 typedef struct{
     Test *tests;
     unsigned int testCount;
+    unsigned int ignoredTestCount;
 }TestArray;
 
 extern TestArray tests;
