@@ -7,6 +7,8 @@
 #define MAX_TEST_COUNT 1000
 
 void printf(const char *, ...);
+void *malloc(unsigned long);
+void free(void *);
 
 static void setTestStatus(TestStatus status);
 int strcmp(const char *, const char *);
@@ -197,52 +199,109 @@ static void setTestStatus(TestStatus s){
    }
 }
 
-int main(){
-   testId = -1;
-   ignoredTests = 0;
-   for(int i = 0; i < MAX_TEST_COUNT; i++){
-      status[i] = TestStatusSucess;
+static TestStatus runTest(Test test){
+   testId = 0;
+   status[0] = TestStatusSucess;
+   currTestName = test.name;
+
+   if(test.setup){
+      test.setup();
+   }
+   test.test();
+   if(test.teardown){
+      test.teardown();
    }
 
-//    clear();
+   return status[0];
+}
 
-   for(int i = 0; i < tests.testCount; i++){
-      Test test = tests.tests[i];
+static int runSingleTest(Test test){
+   TestStatus status = runTest(test);
 
-      incTestId();
-      setTestName(test.name);
-         
-      if(test.setup){
-         test.setup();
-      }
-      test.test();
-      if(test.teardown){
-         test.teardown();
-      }
+   if(status ==  TestStatusFail){
+      setErrorColor();
+      printf("Test '%s' in group '%s' failed\n", test.name, test.group);
+      restoreColor();
+      return 1;
    }
+   else{
+      setSuccessColor();
+      printf("Test '%s' in group '%s' succeeded\n", test.name, test.group);
+      restoreColor();
+      return 0;
+   }
+}
 
-
+static int runMultipleTests(TestArray tests){
    uint32_t successfull = 0;
    uint32_t failed = 0;
-   for(int i = 0; i <= testId; i++){
-      if(status[i] == TestStatusSucess){
+   for(int i = 0; i < tests.testCount; i++){
+      Test test = tests.tests[i];
+      TestStatus status = runTest(test);
+
+      if(status == TestStatusSucess){
          successfull++;
       }
-      else if(status[i] == TestStatusFail){
+      else{
          failed++;
       }
    }
    if(failed > 0){
       setErrorColor();
+      printf("Tests failed! Fails: %d. Successes: %d. Ignored: %d.\n", failed, successfull, tests.ignoredTestCount);
    }
    else if(tests.ignoredTestCount > 0){
       setWarningColor();
+      printf("Tests ignored! Successes: %d. Ignored: %d.\n", successfull, tests.ignoredTestCount);
    }else{
       setSuccessColor();
+      printf("All %d tests successfull!\n", successfull, tests.ignoredTestCount);
    }
 
-   printf("Test done! Fails: %d. Successes: %d. Ignored: %d.\n", failed, successfull, tests.ignoredTestCount);
    restoreColor();
 
    return failed;
+}
+
+static Test *findTest(char *name){
+   for(int i = 0; i < tests.testCount; i++){
+      if(strcmp(tests.tests[i].name, name) == 0){
+         return &tests.tests[i];
+      }
+   }
+
+   return 0;
+}
+
+int main(int argc, char *argv[]){
+   if(argc == 1){
+      return runMultipleTests(tests);
+   }
+
+   Test *testsToRun = malloc(sizeof(Test) * argc - 1);
+   unsigned int testsToRunCount = 0;
+   unsigned int ignoredTestCount = 0;
+   for(int i = 1; i < argc; i++){
+      Test *test = findTest(argv[i]);
+
+      if(!test){
+         setErrorColor();
+         printf("Unable to find test %s. Marking it as ignored.\n", argv[i]);
+         restoreColor();
+         ignoredTestCount++;
+      }
+      else{
+         memcpy(&testsToRun[testsToRunCount], test, sizeof(Test));
+         testsToRunCount++;
+      }
+   }
+   TestArray testArray = {
+      .tests = testsToRun,
+      .testCount = testsToRunCount,
+      .ignoredTestCount = ignoredTestCount
+   };
+   int failedCount =  runMultipleTests(testArray);
+   free(testsToRun);
+
+   return failedCount;
 }
