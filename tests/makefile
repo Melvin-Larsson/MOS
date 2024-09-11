@@ -13,54 +13,54 @@ CFLAGS?= -std=gnu99 -Wno-builtin-declaration-mismatch ${INCLUDE}
 TESTS_BIN=${TESTS}/bin
 TEST_LISTS=${TESTS}/testlists
 
-OBJS = ${TESTS_BIN}/timer.o \
-	   ${TESTS_BIN}/allocator.o \
-	   ${TESTS_BIN}/linked-list.o \
-	   ${TESTS_BIN}/binary-map.o \
-	   ${TESTS_BIN}/buffered-storage.o \
-	   ${TESTS_BIN}/fat.o \
+OBJS = ${TESTS_BIN}/timer-test.o \
+	   ${TESTS_BIN}/allocator-test.o \
+	   ${TESTS_BIN}/linked-list-test.o \
+	   ${TESTS_BIN}/binary-map-test.o \
+	   ${TESTS_BIN}/buffered-storage-test.o \
+	   ${TESTS_BIN}/fat-test.o \
 
 all : ${TESTS_BIN} ${TEST_LISTS} ${OBJS}
 
 # Timer test
-${TESTS_BIN}/timer.o : testrunner.c ${TEST_LISTS}/timer-test-list.c ${TESTS}/kernel/timer-test.c ${KERNEL}/timer.c ${MOCKS}/memory-mock.c ${LIBS}/collection/list/linked-list.c ${LIBS}/collection/list/list.c
-	gcc ${CFLAGS} ${INCLUDE} testrunner.c ${TEST_LISTS}/timer-test-list.c ${TESTS}/kernel/timer-test.c ${MOCKS}/memory-mock.c ${KERNEL}/timer.c ${LIBS}/collection/list/linked-list.c ${LIBS}/collection/list/list.c -o ${TESTS_BIN}/timer.o
+${TESTS_BIN}/timer-test.o : testrunner.c ${TEST_LISTS}/timer-test-list.c ${TESTS}/kernel/timer-test.c ${KERNEL}/timer.c ${MOCKS}/memory-mock.c ${LIBS}/collection/list/linked-list.c ${LIBS}/collection/list/list.c
+	gcc ${CFLAGS} ${INCLUDE} testrunner.c ${TEST_LISTS}/timer-test-list.c ${TESTS}/kernel/timer-test.c ${MOCKS}/memory-mock.c ${KERNEL}/timer.c ${LIBS}/collection/list/linked-list.c ${LIBS}/collection/list/list.c -o ${TESTS_BIN}/timer-test.o
 
 ${TEST_LISTS}/timer-test-list.c : ${TESTS}/kernel/timer-test.c
 	${TESTS}/test.sh ${TESTS}/kernel/timer-test.c
 
 # # Allocator test
-${TESTS_BIN}/allocator.o : testrunner.c ${TEST_LISTS}/allocator-test-list.c ${TESTS}/kernel/allocator-test.c ${KERNEL}/allocator.c ${MOCKS}/memory-mock.c
-	gcc ${CFLAGS} ${INCLUDE} testrunner.c ${TEST_LISTS}/allocator-test-list.c ${TESTS}/kernel/allocator-test.c ${MOCKS}/memory-mock.c ${KERNEL}/allocator.c  -o ${TESTS_BIN}/allocator.o
+${TESTS_BIN}/allocator-test.o : testrunner.c ${TEST_LISTS}/allocator-test-list.c ${TESTS}/kernel/allocator-test.c ${KERNEL}/allocator.c ${MOCKS}/memory-mock.c
+	gcc ${CFLAGS} ${INCLUDE} testrunner.c ${TEST_LISTS}/allocator-test-list.c ${TESTS}/kernel/allocator-test.c ${MOCKS}/memory-mock.c ${KERNEL}/allocator.c  -o ${TESTS_BIN}/allocator-test.o
 
 ${TEST_LISTS}/allocator-test-list.c : ${TESTS}/kernel/allocator-test.c
 	${TESTS}/test.sh ${TESTS}/kernel/allocator-test.c
 
 # Linked list test
-${TESTS_BIN}/linked-list.o : testrunner.c ${TEST_LISTS}/linked-list-test-list.c  ${TESTS}/lib/list/linked-list-test.c ${LIBS}/collection/list/linked-list.c ${LIBS}/collection/list/intlist.c ${MOCKS}/memory-mock.c ${LIBS}/collection/int-iterator.c
-	gcc ${CFLAGS} testrunner.c ${TESTS}/lib/list/linked-list-test.c ${TEST_LISTS}/linked-list-test-list.c ${MOCKS}/memory-mock.c ${LIBS}/collection/list/linked-list.c ${LIBS}/collection/list/intlist.c  ${LIBS}/collection/int-iterator.c -o ${TESTS_BIN}/linked-list.o
+${TESTS_BIN}/linked-list-test.o : testrunner.c ${TEST_LISTS}/linked-list-test-list.c  ${TESTS}/lib/list/linked-list-test.c ${LIBS}/collection/list/linked-list.c ${LIBS}/collection/list/intlist.c ${MOCKS}/memory-mock.c ${LIBS}/collection/int-iterator.c
+	gcc ${CFLAGS} testrunner.c ${TESTS}/lib/list/linked-list-test.c ${TEST_LISTS}/linked-list-test-list.c ${MOCKS}/memory-mock.c ${LIBS}/collection/list/linked-list.c ${LIBS}/collection/list/intlist.c  ${LIBS}/collection/int-iterator.c -o ${TESTS_BIN}/linked-list-test.o
 
 
 ${TEST_LISTS}/linked-list-test-list.c : ${TESTS}/lib/list/linked-list-test.c
 	${TESTS}/test.sh ${TESTS}/lib/list/linked-list-test.c
 
 # Binary map test
-${TESTS_BIN}/binary-map.o : testrunner.c ${TEST_LISTS}/binary-map-test-list.c  ${TESTS}/lib/binary-map-test.c ${LIBS}/collection/map/binary-map.c ${LIBS}/collection/map/intmap.c ${LIBS}/collection/map/map.c ${MOCKS}/memory-mock.c 
-	gcc ${CFLAGS} testrunner.c ${TESTS}/lib/binary-map-test.c ${TEST_LISTS}/binary-map-test-list.c ${MOCKS}/memory-mock.c ${LIBS}/collection/map/binary-map.c ${LIBS}/collection/map/intmap.c ${LIBS}/collection/map/map.c  -o ${TESTS_BIN}/binary-map.o
+${TESTS_BIN}/binary-map-test.o : testrunner.c ${TEST_LISTS}/binary-map-test-list.c  ${TESTS}/lib/binary-map-test.c ${LIBS}/collection/map/binary-map.c ${LIBS}/collection/map/intmap.c ${LIBS}/collection/map/map.c ${MOCKS}/memory-mock.c 
+	gcc ${CFLAGS} testrunner.c ${TESTS}/lib/binary-map-test.c ${TEST_LISTS}/binary-map-test-list.c ${MOCKS}/memory-mock.c ${LIBS}/collection/map/binary-map.c ${LIBS}/collection/map/intmap.c ${LIBS}/collection/map/map.c  -o ${TESTS_BIN}/binary-map-test.o
 
 ${TEST_LISTS}/binary-map-test-list.c : ${TESTS}/lib/binary-map-test.c
 	${TESTS}/test.sh ${TESTS}/lib/binary-map-test.c
 
 # Buffered storage test
-${TESTS_BIN}/buffered-storage.o : testrunner.c ${TEST_LISTS}/buffered-storage-test-list.c ${TESTS}/kernel/buffered-storage-test.c ${MOCKS}/memory-mock.c
-	gcc ${CFLAGS} ${INCLUDE} -I ${KERNEL} testrunner.c ${TEST_LISTS}/buffered-storage-test-list.c ${TESTS}/kernel/buffered-storage-test.c ${MOCKS}/memory-mock.c -o ${TESTS_BIN}/buffered-storage.o
+${TESTS_BIN}/buffered-storage-test.o : testrunner.c ${TEST_LISTS}/buffered-storage-test-list.c ${TESTS}/kernel/buffered-storage-test.c ${MOCKS}/memory-mock.c
+	gcc ${CFLAGS} ${INCLUDE} -I ${KERNEL} testrunner.c ${TEST_LISTS}/buffered-storage-test-list.c ${TESTS}/kernel/buffered-storage-test.c ${MOCKS}/memory-mock.c -o ${TESTS_BIN}/buffered-storage-test.o
 
 ${TEST_LISTS}/buffered-storage-test-list.c : ${TESTS}/kernel/buffered-storage-test.c
 	${TESTS}/test.sh ${TESTS}/kernel/buffered-storage-test.c
 
 # Fat test
-${TESTS_BIN}/fat.o : testrunner.c ${TEST_LISTS}/fat-test-list.c ${TESTS}/kernel/fat-test.c ${MOCKS}/memory-mock.c ${MOCKS}/buffered-storage-mock.c ${MOCKS}/mass-storage-device-mock.c ${MOCKS}/logging-mock.c ${LIBS}/string/string.c
-	gcc ${CFLAGS} ${INCLUDE} -I ${KERNEL} testrunner.c ${TEST_LISTS}/fat-test-list.c ${TESTS}/kernel/fat-test.c ${MOCKS}/buffered-storage-mock.c ${MOCKS}/mass-storage-device-mock.c ${MOCKS}/memory-mock.c ${MOCKS}/logging-mock.c ${LIBS}/string/string.c -o ${TESTS_BIN}/fat.o
+${TESTS_BIN}/fat-test.o : testrunner.c ${TEST_LISTS}/fat-test-list.c ${TESTS}/kernel/fat-test.c ${MOCKS}/memory-mock.c ${MOCKS}/buffered-storage-mock.c ${MOCKS}/mass-storage-device-mock.c ${MOCKS}/logging-mock.c ${LIBS}/string/string.c
+	gcc ${CFLAGS} ${INCLUDE} -I ${KERNEL} testrunner.c ${TEST_LISTS}/fat-test-list.c ${TESTS}/kernel/fat-test.c ${MOCKS}/buffered-storage-mock.c ${MOCKS}/mass-storage-device-mock.c ${MOCKS}/memory-mock.c ${MOCKS}/logging-mock.c ${LIBS}/string/string.c -o ${TESTS_BIN}/fat-test.o
 
 ${TEST_LISTS}/fat-test-list.c : ${TESTS}/kernel/fat-test.c
 	${TESTS}/test.sh ${TESTS}/kernel/fat-test.c

@@ -1,2 +1,2 @@
 make -C tests &&
-./run_nobuild.sh
+./tests/test_all.sh
