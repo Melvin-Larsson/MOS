@@ -179,13 +179,13 @@ XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
          MsiXVectorData vectorData = pci_getDefaultMsiXVectorData(handler, xhcd);
          MsiXDescriptor msiDescriptor;
          pci_initMsiX(&descriptor, &msiDescriptor);
-         pci_setMsiXVector(msiDescriptor, 0, 33, vectorData);
+         pci_setMsiXVector(msiDescriptor, 0, vectorData);
          pci_enableMsiX(descriptor, msiDescriptor);
       }else if(pci_isMsiPresent(descriptor)){
          loggInfo("Using msi");
          MsiInitData initData = pci_getDefaultSingleHandlerMsiInitData(handler, xhcd);
          MsiDescriptor result;
-         pci_initMsi(descriptor, &result, initData, 32);
+         pci_initMsi(descriptor, &result, initData);
       }else{
          loggError("Unable to init msi ans msix. This situaion is not implemented");
          while(1);

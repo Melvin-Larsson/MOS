@@ -3,10 +3,12 @@
 #define INTERRUPT_H_INCLUDED
 
 #include "stdint.h"
+#include "stdbool.h"
 
 typedef enum{
     InterruptStatusVectorAlreadyDefined,
-    InterruptStatusSuccess
+    InterruptStatusSuccess,
+    InterruptStatusInvalidVector,
 }InterruptStatus;
 
 typedef volatile struct{
@@ -45,13 +47,23 @@ typedef enum{
     Ring3 = 3,
 }InterruptPrivilegeLevel;
 
+typedef struct{
+   void (*handle)(void *);
+   void *data;
+}InterruptHandler;
+
+
 //__attribute__((packed)) 
 
 void interruptDescriptorTableInit();
-InterruptStatus interrupt_setHandler(
-        void (*interruptHandler)(ExceptionInfo, void *),
+uint8_t interrupt_setHandler(void (*handler)(void *), void *data);
+uint8_t interrupt_setContinuousHandlers(InterruptHandler *handler, uint8_t handlerCount, bool aligned);
+
+InterruptStatus interrupt_setExceptionHandler(
+        void (*handler)(ExceptionInfo, void *),
         void *data,
-        uint8_t vector);
+        uint8_t vector
+        );
 
 InterruptStatus interrupt_setHardwareHandler(
         void (*interruptHandler)(void),

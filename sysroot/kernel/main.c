@@ -233,7 +233,7 @@ void t1(){
     while(1){
         kprintf("1");
         semaphore_release(s2);
-        semaphore_aquire(s1);
+        thread_sleep(1000);
     }
 }
 void t2(){

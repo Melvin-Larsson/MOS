@@ -158,7 +158,7 @@ static Allocator *pageTableAllocator;
 static uintptr_t pageTablePageAddress;
 
 void paging_init(){
-    interrupt_setHandler(handlePageFault, 0, 14);
+    interrupt_setExceptionHandler(handlePageFault, 0, 14);
 
     pageTablePageAddress = physpage_getPage4MB() * SIZE_4MB;
     pageTableAllocator = allocator_init(pageTablePageAddress, SIZE_4MB);

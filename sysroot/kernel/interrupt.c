@@ -12,11 +12,17 @@ __attribute__((aligned(0x10)))
 static InterruptDescriptor interruptDescriptorTable[256];
 static InterruptTableDescriptor interruptTableDescriptor;
 
-static void (*interruptHandlers[256])(ExceptionInfo, void *);
-static void *interruptData[256];
+typedef struct{
+   void (*handle)(ExceptionInfo, void *);
+   void *data;
+}ExceptionHandler;
+
+static ExceptionHandler exceptionHandlers[32];
+static InterruptHandler interruptHandlers[256];
 
 extern void (*interrupt_addr_table[0x81])(void);
 
+static uint8_t getFreeInterruptVector(uint8_t count, bool aligned);
 
 static void setInterruptDescriptor(uint8_t pos, void (*func)(void), uint8_t flags){
    InterruptDescriptor *desc = &interruptDescriptorTable[pos];
@@ -28,12 +34,25 @@ static void setInterruptDescriptor(uint8_t pos, void (*func)(void), uint8_t flag
    desc->reserved = 0;
 }
 static int interruptNr = 0;
+
 void exception_handler(unsigned char interruptVector, ExceptionInfo *info){
    interruptNr++;
-   if(interruptHandlers[interruptVector]){
-      interruptHandlers[interruptVector](*info, interruptData[interruptVector]);
+   ExceptionHandler handler = exceptionHandlers[interruptVector];
+   if(handler.handle){
+      handler.handle(*info, handler.data);
    }else{
-      loggError("%d: Interrupt %d, %X %X %X", interruptNr, interruptVector, info->errorCode, info->instructionOffset, info->codeSegment);
+      loggError("%d: Interrupt vector: %d, error code: %X instruction offset: %X code segment: %X\n", interruptNr, interruptVector, info->errorCode, info->instructionOffset, info->codeSegment);
+      while(1);
+   }
+}
+
+void interrupt_handler(unsigned char interruptVector){
+   interruptNr++;
+   InterruptHandler handler = interruptHandlers[interruptVector];
+   if(handler.handle){
+      handler.handle(handler.data);
+   }else{
+      loggError("%d: Interrupt vector %d\n", interruptNr, interruptVector);
       while(1);
    }
 }
@@ -101,7 +120,7 @@ void interruptDescriptorTableInit(){
    interruptTableDescriptor.base = (uint32_t)&interruptDescriptorTable[0];
    interruptTableDescriptor.limit = (uint16_t)sizeof(InterruptDescriptor) * IDT_MAX_DESCRIPTIONS - 1;
    memset(interruptHandlers, 0, sizeof(interruptHandlers));
-   memset(interruptData, 0, sizeof(interruptData));
+   memset(exceptionHandlers, 0, sizeof(exceptionHandlers));
 
    memset((void*)interruptDescriptorTable, 0, interruptTableDescriptor.limit);
    for(uint8_t pos = 0; pos < 0x80; pos++){
@@ -118,16 +137,53 @@ void interruptDescriptorTableInit(){
    loggInfo("Interrupts activated");
 }
 
-InterruptStatus interrupt_setHandler(void (*interruptHandler)(ExceptionInfo, void *), void *data, uint8_t vector){
-   if(interruptHandlers[vector]){
+InterruptStatus interrupt_setExceptionHandler(void (*handler)(ExceptionInfo, void *), void *data, uint8_t vector){
+   if(vector >= 32){
+      loggError("Invalid exception vector %d. Max is 31", vector);
+      return InterruptStatusInvalidVector;
+   }
+
+   if(exceptionHandlers[vector].handle){
       loggError("Interrupt handler already defined");
       return InterruptStatusVectorAlreadyDefined;
    }
 
-   interruptHandlers[vector] = interruptHandler;
-   interruptData[vector] = data;
-
+   exceptionHandlers[vector] = (ExceptionHandler){
+      .handle = handler,
+      .data = data,
+   };
+   
    return InterruptStatusSuccess;
+}
+
+uint8_t interrupt_setHandler(void (*handler)(void *), void *data){
+   uint8_t vector = getFreeInterruptVector(1, false);
+   if(vector == 0){
+      return 0;
+   }
+
+   interruptHandlers[vector] = (InterruptHandler){
+      .data = data,
+      .handle = handler
+   };
+
+   return vector;
+}
+
+uint8_t interrupt_setContinuousHandlers(InterruptHandler *handler, uint8_t handlerCount, bool aligned){
+   uint8_t firstVector = getFreeInterruptVector(handlerCount, aligned);
+   if(firstVector == 0){
+      return 0;
+   }
+
+   for(int i = 0; i < handlerCount; i++){
+      interruptHandlers[firstVector + i] = (InterruptHandler){
+         .handle = handler[i].handle,
+         .data = handler[i].data,
+      };
+   }
+
+   return firstVector;
 }
 
 InterruptStatus interrupt_setHardwareHandler(void (*interruptHandler)(void), uint8_t vector, InterruptPrivilegeLevel privilegeLevel){
@@ -135,3 +191,33 @@ InterruptStatus interrupt_setHardwareHandler(void (*interruptHandler)(void), uin
 
    return InterruptStatusSuccess;
 }
+
+static bool areHandlersContiniuouslyFree(uint8_t startIndex, uint8_t count){
+   if(startIndex + count >= 255){
+      return false;
+   }
+
+   for(int i = startIndex; i < startIndex + count; i++){
+      if(interruptHandlers[i].handle){
+         return false;
+      }
+   }
+
+   return true;
+}
+
+static uint8_t getFreeInterruptVector(uint8_t count, bool aligned){
+   for(uint8_t i = 32; i < 255; i++){
+      if(aligned && i % count != 0){
+         continue;
+      }
+
+      if(areHandlersContiniuouslyFree(i, count)){
+         return i;
+      }
+
+   }
+
+   return 0;
+}
+

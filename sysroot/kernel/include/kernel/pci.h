@@ -200,12 +200,12 @@ int pci_isMsiXPresent(PciDescriptor pci);
 int pci_initMsiX(const PciDescriptor *pci, MsiXDescriptor *result);
 int pci_enableMsiX(PciDescriptor pci, MsiXDescriptor msi);
 MsiXVectorData pci_getDefaultMsiXVectorData(void (*handler)(void *), void *data);
-int pci_setMsiXVector(const MsiXDescriptor msix, int msiVectorNr, int interruptVectorNr, MsiXVectorData vectorData);
+int pci_setMsiXVector(const MsiXDescriptor msix, int msiVectorNr, MsiXVectorData vectorData);
 
 int pci_isMsiPresent(PciDescriptor pci);
 MsiInitData pci_getDefaultSingleHandlerMsiInitData(void (*handler)(void *), void *data);
 int pci_getMsiCapabilities(PciDescriptor pci, MsiCapabilities *result);
-int pci_initMsi(PciDescriptor pci, MsiDescriptor *result, MsiInitData data, uint8_t startVector);
+int pci_initMsi(PciDescriptor pci, MsiDescriptor *result, MsiInitData data);
 
 void pci_getGeneralDevice(const PciDescriptor descriptor, PciGeneralDeviceHeader* output);
 void pci_getClassName(PciHeader* pci, char* output);
