@@ -18,10 +18,10 @@ The following features have been worked on, enough to get them running on my mac
 But... [this](https://wiki.osdev.org/GCC_Cross-Compiler) is how to compile the cross-compiler, and the [run.sh](https://github.com/Melvin-Larsson/BBP/blob/master/run.sh) might be useful when running in qemu.
 **Don't run [build.sh](https://github.com/Melvin-Larsson/BBP/blob/master/build.sh), it is dangerous**.
 
-Also, you need to set the ```PREFIX``` and the ```COMPILER``` environmental variables:
+Also, you need to set the ```PREFIX``` and the ```COMPILER``` environment variables:
 ```bash
 export PREFIX="{...}/BBP"
-export COMPILER="{..}/bin/i686-elf-gcc"
+export COMPILER="{...}/bin/i686-elf-gcc"
 ```
 
  The [Dockerfile](https://github.com/Melvin-Larsson/BBP/blob/master/Dockerfile) might be useful too. 
