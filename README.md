@@ -4,7 +4,7 @@ Or... at least some parts of an operating system that I found interesting at the
 # Features
 The following features have been worked on, enough to get them running on my machines and/or qemu, but with many shortcuts and assumptions about the hardware. So it is unlikely that this will work on other machines.
 
-- Usb drivers (using xhcd controller)
+- Usb drivers (using xHCI controller)
   - Keyboard
   - Usb mass storage devices using SCSI (currently, this only works in qemu)
 - Multithreading
