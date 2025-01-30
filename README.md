@@ -20,7 +20,7 @@ But... [this](https://wiki.osdev.org/GCC_Cross-Compiler) is how to compile the c
 
 Also, you need to set the ```PREFIX``` and the ```COMPILER``` environment variables:
 ```bash
-export PREFIX="{...}/BBP"
+export PREFIX="{...}/MOS"
 export COMPILER="{...}/bin/i686-elf-gcc"
 ```
 
