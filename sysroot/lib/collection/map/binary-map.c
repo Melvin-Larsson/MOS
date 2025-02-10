@@ -121,7 +121,8 @@ static Node *removeNode(Node *root, int (*comparitor)(void *, void *), void *key
             res = root->right;
         }
         else{
-            res = getLeftmost(root->right);
+            res = kmalloc(sizeof(Node));
+            *res = *getLeftmost(root->right);
             res->right = removeNode(root->right, comparitor, res->key);
             res->left = root->left;
             res->childDepth = max(getChildDepth(res->left), getChildDepth(res->right)) + 1;

@@ -1,8 +1,4 @@
-SUBJECT_FILE=timer
-SUBJECT_PARENT=kernel
-SUBJECT=${SUBJECT_PARENT}/${SUBJECT_FILE}
-
-COMPILER?=${HOME}/opt/cross2/bin/i686-elf-gcc
+COMPILER?=gcc
 PREFIX?= ${HOME}/Programmering/OS
 SYSROOT=${PREFIX}/sysroot
 BUILD=${PREFIX}/tests/kernel/build
@@ -11,78 +7,75 @@ TESTS=${PREFIX}/tests
 LIBS=${SYSROOT}/lib
 MOCKS=${PREFIX}/tests/kernel/mocks
 
-SUBJECT_SOURCE=${SYSROOT}/${SUBJECT}.c
-TEST_FILE=${SUBJECT}-test.c
+INCLUDE=-I ${PREFIX}/sysroot/kernel/include -I ${LIBS}/include -I ${PREFIX}/sysroot/kernel -I ${PREFIX}/tests -I ${MOCKS} -I ${PREFIX}/utils/include
+CFLAGS?= -std=gnu99 -Wno-builtin-declaration-mismatch ${INCLUDE}
 
-INCLUDE=-I ${PREFIX}/sysroot/kernel/include -I ${PREFIX}/sysroot/lib/include -I ${PREFIX}/sysroot/kernel -I ${PREFIX}/tests -I ${MOCKS} -I ${PREFIX}/utils/include
-CFLAGS?= -O2 -std=gnu99 -ffreestanding -mno-red-zone -Wall -Wextra ${INCLUDE}
+TESTS_BIN=${TESTS}/bin
+TEST_LISTS=${TESTS}/testlists
 
-LINK_FLAGS?= -nostdlib -lgcc -ffreestanding -O2
+OBJS = ${TESTS_BIN}/timer-test.o \
+	   ${TESTS_BIN}/allocator-test.o \
+	   ${TESTS_BIN}/linked-list-test.o \
+	   ${TESTS_BIN}/binary-map-test.o \
+	   ${TESTS_BIN}/buffered-storage-test.o \
+	   ${TESTS_BIN}/fat-test.o \
 
-OBJS = ${BUILD}/boot.o \
-	   ${BUILD}/test.o \
-	   ${BUILD}/testrunner.o \
-	   ${BUILD}/interrupt.o \
-	   ${BUILD}/logging.o \
-	   ${BUILD}/kernel-io.o \
-	   ${BUILD}/memory.o \
-	   ${BUILD}/mass-storage-device-mock.o \
-	   ${BUILD}/buffered-storage-mock.o \
-	   ${BUILD}/${SUBJECT_FILE}.o \
+all : ${TESTS_BIN} ${TEST_LISTS} ${OBJS}
 
-all : ${PREFIX}/build/os.img ${OBJS}
-	echo ${PREFIX}
-	$(MAKE) lib
-	${COMPILER} -T ${PREFIX}/linker.ld ${OBJS} ${LIBS}/build/lib.out ${LINK_FLAGS}  -o ${PREFIX}/build/os.elf
-	objcopy -O binary ${PREFIX}/build/os.elf ${PREFIX}/build/os.bin
+# Timer test
+${TESTS_BIN}/timer-test.o : testrunner.c ${TEST_LISTS}/timer-test-list.c ${TESTS}/kernel/timer-test.c ${KERNEL}/timer.c ${MOCKS}/memory-mock.c ${LIBS}/collection/list/linked-list.c ${LIBS}/collection/list/list.c
+	gcc ${CFLAGS} ${INCLUDE} testrunner.c ${TEST_LISTS}/timer-test-list.c ${TESTS}/kernel/timer-test.c ${MOCKS}/memory-mock.c ${KERNEL}/timer.c ${LIBS}/collection/list/linked-list.c ${LIBS}/collection/list/list.c -o ${TESTS_BIN}/timer-test.o
+
+${TEST_LISTS}/timer-test-list.c : ${TESTS}/kernel/timer-test.c
+	${TESTS}/test.sh ${TESTS}/kernel/timer-test.c
+
+# # Allocator test
+${TESTS_BIN}/allocator-test.o : testrunner.c ${TEST_LISTS}/allocator-test-list.c ${TESTS}/kernel/allocator-test.c ${KERNEL}/allocator.c ${MOCKS}/memory-mock.c
+	gcc ${CFLAGS} ${INCLUDE} testrunner.c ${TEST_LISTS}/allocator-test-list.c ${TESTS}/kernel/allocator-test.c ${MOCKS}/memory-mock.c ${KERNEL}/allocator.c  -o ${TESTS_BIN}/allocator-test.o
+
+${TEST_LISTS}/allocator-test-list.c : ${TESTS}/kernel/allocator-test.c
+	${TESTS}/test.sh ${TESTS}/kernel/allocator-test.c
+
+# Linked list test
+${TESTS_BIN}/linked-list-test.o : testrunner.c ${TEST_LISTS}/linked-list-test-list.c  ${TESTS}/lib/list/linked-list-test.c ${LIBS}/collection/list/linked-list.c ${LIBS}/collection/list/intlist.c ${MOCKS}/memory-mock.c ${LIBS}/collection/int-iterator.c
+	gcc ${CFLAGS} testrunner.c ${TESTS}/lib/list/linked-list-test.c ${TEST_LISTS}/linked-list-test-list.c ${MOCKS}/memory-mock.c ${LIBS}/collection/list/linked-list.c ${LIBS}/collection/list/intlist.c  ${LIBS}/collection/int-iterator.c -o ${TESTS_BIN}/linked-list-test.o
 
 
-${PREFIX}/build/os.img : ${PREFIX}/build ${OBJS}
-	dd if=/dev/zero of=${PREFIX}/build/os.img bs=512 count=2048
+${TEST_LISTS}/linked-list-test-list.c : ${TESTS}/lib/list/linked-list-test.c
+	${TESTS}/test.sh ${TESTS}/lib/list/linked-list-test.c
 
-${BUILD} : 
-	mkdir ${BUILD}
+# Binary map test
+${TESTS_BIN}/binary-map-test.o : testrunner.c ${TEST_LISTS}/binary-map-test-list.c  ${TESTS}/lib/binary-map-test.c ${LIBS}/collection/map/binary-map.c ${LIBS}/collection/map/intmap.c ${LIBS}/collection/map/map.c ${MOCKS}/memory-mock.c 
+	gcc ${CFLAGS} testrunner.c ${TESTS}/lib/binary-map-test.c ${TEST_LISTS}/binary-map-test-list.c ${MOCKS}/memory-mock.c ${LIBS}/collection/map/binary-map.c ${LIBS}/collection/map/intmap.c ${LIBS}/collection/map/map.c  -o ${TESTS_BIN}/binary-map-test.o
 
-${PREFIX}/build : 
-	mkdir ${PREFIX}/build
+${TEST_LISTS}/binary-map-test-list.c : ${TESTS}/lib/binary-map-test.c
+	${TESTS}/test.sh ${TESTS}/lib/binary-map-test.c
 
-${BUILD}/test.o : ${TESTS}/${TEST_FILE} ${PREFIX}/tests/testrunner.h ${BUILD};
-	${COMPILER} ${CFLAGS} -c ${TESTS}/${TEST_FILE} -o ${BUILD}/test.o
+# Buffered storage test
+${TESTS_BIN}/buffered-storage-test.o : testrunner.c ${TEST_LISTS}/buffered-storage-test-list.c ${TESTS}/kernel/buffered-storage-test.c ${MOCKS}/memory-mock.c
+	gcc ${CFLAGS} ${INCLUDE} -I ${KERNEL} testrunner.c ${TEST_LISTS}/buffered-storage-test-list.c ${TESTS}/kernel/buffered-storage-test.c ${MOCKS}/memory-mock.c -o ${TESTS_BIN}/buffered-storage-test.o
 
-${BUILD}/testrunner.o : ${PREFIX}/tests/testrunner.c ${PREFIX}/tests/testrunner.h ${BUILD};
-	${COMPILER} ${CFLAGS} -c ${PREFIX}/tests/testrunner.c -o ${BUILD}/testrunner.o
-	
-${BUILD}/interrupt.o : ${KERNEL}/interrupt.c ${BUILD};
-	${COMPILER} ${CFLAGS} -c ${KERNEL}/interrupt.c -o ${BUILD}/interrupt.o
+${TEST_LISTS}/buffered-storage-test-list.c : ${TESTS}/kernel/buffered-storage-test.c
+	${TESTS}/test.sh ${TESTS}/kernel/buffered-storage-test.c
 
-${BUILD}/logging.o : ${KERNEL}/logging.c ${KERNEL}/include/kernel/logging.h
-	${COMPILER} ${CFLAGS} -c ${KERNEL}/logging.c -o ${BUILD}/logging.o
+# Fat test
+${TESTS_BIN}/fat-test.o : testrunner.c ${TEST_LISTS}/fat-test-list.c ${TESTS}/kernel/fat-test.c ${MOCKS}/memory-mock.c ${MOCKS}/buffered-storage-mock.c ${MOCKS}/mass-storage-device-mock.c ${MOCKS}/logging-mock.c ${LIBS}/string/string.c
+	gcc ${CFLAGS} ${INCLUDE} -I ${KERNEL} testrunner.c ${TEST_LISTS}/fat-test-list.c ${TESTS}/kernel/fat-test.c ${MOCKS}/buffered-storage-mock.c ${MOCKS}/mass-storage-device-mock.c ${MOCKS}/memory-mock.c ${MOCKS}/logging-mock.c ${LIBS}/string/string.c -o ${TESTS_BIN}/fat-test.o
 
-${BUILD}/kernel-io.o : ${KERNEL}/kernel-io.c ${KERNEL}/include/kernel/kernel-io.h
-	${COMPILER} ${CFLAGS} -c ${KERNEL}/kernel-io.c -o ${BUILD}/kernel-io.o
+${TEST_LISTS}/fat-test-list.c : ${TESTS}/kernel/fat-test.c
+	${TESTS}/test.sh ${TESTS}/kernel/fat-test.c
 
-${BUILD}/mass-storage-device-mock.o : ${MOCKS}/mass-storage-device-mock.c ${BUILD};
-	${COMPILER} ${CFLAGS} -c ${MOCKS}/mass-storage-device-mock.c -o ${BUILD}/mass-storage-device-mock.o
+#Ignoring phsypage # FIXME: Remove tests for physpage? New implementation that uses allocator, might not need testing? Or rewrite tests.
+# test.o : testrunner.c ${TESTS}/kernel/physpage-test.c ${MOCKS}/memory-mock.c
+# 	gcc ${CFLAGS} ${INCLUDE} -I ${KERNEL} testrunner.c ${TESTS}/kernel/physpage-test.c ${MOCKS}/memory-mock.c -o test.o
 
-${BUILD}/buffered-storage-mock.o : ${MOCKS}/buffered-storage-mock.c ${BUILD};
-	${COMPILER} ${CFLAGS} -c ${MOCKS}/buffered-storage-mock.c -o ${BUILD}/buffered-storage-mock.o
+${TESTS_BIN} : 
+	mkdir ${TESTS_BIN}
 
-${BUILD}/memory.o : ${KERNEL}/memory.c ${KERNEL}/include/kernel/memory.h ${BUILD};
-	${COMPILER} ${CFLAGS} -c ${KERNEL}/memory.c -o ${BUILD}/memory.o
+${TEST_LISTS} : 
+	mkdir ${TEST_LISTS}
 
-${BUILD}/boot.o : ${PREFIX}/sysroot/kernel/i686 ${BUILD}
-	cd ${PREFIX}/sysroot/kernel/i686 && \
-	nasm -f elf program.s -o boot.o && \
-	mv boot.o ${BUILD}/boot.o && \
-	cd -
+clean :
+	rm -r ${TESTS_BIN}
+	rm -r ${TEST_LISTS}
 
-${BUILD}/${SUBJECT_FILE}.o : ${SUBJECT_SOURCE} ${KERNEL}/include/kernel/allocator.h;
-	${COMPILER} ${CFLAGS} -c ${SUBJECT_SOURCE} -o ${BUILD}/${SUBJECT_FILE}.o
-
-.PHONY: lib
-lib :
-	make -C ${LIBS}
-
-.PHONY: kernel
-kernel :
-	make -C ${KERNEL}

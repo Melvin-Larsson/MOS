@@ -23,6 +23,7 @@ typedef struct{
 
 ThreadsStatus threads_init();
 void thread_start(ThreadConfig config);
+void thread_sleep(unsigned int millis);
 
 Semaphore *semaphore_new(unsigned int count);
 void semaphore_aquire(Semaphore *semaphore);

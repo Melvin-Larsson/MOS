@@ -16,8 +16,6 @@
 #define CHANNEL_2_DATA_PORT 0x42
 #define MODE_COMMAND_REGISTER 0x43
 
-#define PIT_VECTOR 35
-
 #define SELECT_CHANNEL_POS 6
 #define SELECT_CHANNEL_MASK (0b11000000)
 #define ACCESS_MODE_POS 4
@@ -70,7 +68,9 @@ static void writeCommand(Channel channel, AccessMode accessMode, OperatingMode o
 static uint16_t readChannel(Channel channel);
 static void writeChannel(Channel channel, uint16_t value);
 
-static void handler(ExceptionInfo info, void *data);
+static void handler(void *data);
+
+static uint8_t pitInterruptVector;
 
 void pit_init(){
    memset(channels, 0, sizeof(channels));
@@ -81,15 +81,18 @@ void pit_init(){
 
    while(readChannel(Channel0) <= 1);
 
-   interrupt_setHandler(handler, 0, PIT_VECTOR);
+   pitInterruptVector = interrupt_setHandler(handler, 0);
+   loggDebug("Pit got interrupt vector %d", pitInterruptVector);
+   if(pitInterruptVector == 0){
+      return;
+   }
 
    LocalApicData localApic;
    assert(acpi_getLocalApicData(&localApic));
    loggDebug("Local apic has id %d", localApic.apicId);
 
-   IRQConfig irqConfig = ioapic_getDefaultIRQConfig(localApic.apicId, PIT_VECTOR);
+   IRQConfig irqConfig = ioapic_getDefaultIRQConfig(localApic.apicId, pitInterruptVector);
    ioapic_configureIrq(2, irqConfig); //Why 2?
-
 }
 
 void pit_setTimer(void (*handler)(void *, uint16_t), void *data, uint32_t pitCycles){
@@ -110,7 +113,7 @@ void pit_setDirectTimer(void (*handler)(void), uint32_t pitCycles){
       return;
    }
 
-   interrupt_setHardwareHandler(handler, PIT_VECTOR, Ring3);
+   interrupt_setHardwareHandler(handler, pitInterruptVector, Ring3);
    writeChannel(Channel0, pitCycles);
    writeCommand(Channel0, LowThenHighByte, InterruptOnTerminalCount, false);
 }
@@ -161,7 +164,7 @@ static void writeCommand(Channel channel, AccessMode accessMode, OperatingMode o
          channel << SELECT_CHANNEL_POS | accessMode << ACCESS_MODE_POS | operatingMode << OPERATING_MODE_POS | useBcd << BCD_BINARY_MODE_POS);
 }
 
-static void handler(ExceptionInfo info, void *data){
+static void handler(void *data){
    uint32_t eoiData = 0;
    paging_writePhysicalOfSize(APIC_EOI_ADDRESS, &eoiData, 4, AccessSize32);
 

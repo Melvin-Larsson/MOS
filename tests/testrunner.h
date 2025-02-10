@@ -4,22 +4,26 @@
 #include "stdio.h"
 #include "stdint.h"
 
-#define TESTS void runTests(){                        \
-   printf("Running %s...\n", __FILE__);               \
+// #define TESTS void runTests(){                        \
+//    printf("Running %s...\n", __FILE__);               \
 
-#define TEST(Group, Name)\
-            incTestId();                              \
-            setTestName(#Name);                       \
-            setTestLine(__LINE__);                    \
-            testSetup_##Group();                      \
-            for(int i = 0; i < 1;                     \
-               i++ ? testTeardown_##Group() : testTeardown_##Group())\
+#define TESTS ;
 
-#define IGNORE_TEST(Group, Name)\
-         incIgnoredTests(); \
-         if(0) \
+#define TEST(Group, Name) void test_##Name()
 
-#define END_TESTS }
+/* #define TEST(Group, Name)\ */
+/*             incTestId();                              \ */
+/*             setTestName(#Name);                       \ */
+/*             setTestLine(__LINE__);                    \ */
+/*             testSetup_##Group();                      \ */
+/*             for(int i = 0; i < 1;                     \ */
+/*                i++ ? testTeardown_##Group() : testTeardown_##Group())\ */
+
+#define IGNORE_TEST(Group, Name) void test_##Name()
+//          incIgnoredTests(); \
+//         if(0) \
+
+#define END_TESTS ;
 
 #define TEST_GROUP_SETUP(Group) void testSetup_##Group()
 
@@ -49,7 +53,8 @@ int assertIntNotEqualsL(int actual, int notExpected, int line);
 #define assertString(actual, expected) assertStringL(actual, expected, __LINE__)
 int assertStringL(char* actual, char* expected, int line);
 
-int assertArrayL(char* actual, uint32_t actualSize, char* expected, uint32_t expectedSize);
+#define assertArray(actual, actualSize, expected, expectedSize) assertArrayL(actual, actualSize, expected, expectedSize, 3)
+int assertArrayL(char* actual, uint32_t actualSize, char* expected, uint32_t expectedSize, int line);
 
 void setTestName(char * name);
 void setTestLine(int line);

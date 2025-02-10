@@ -1,7 +1,7 @@
 #include "stdint.h"
+#include "kernel/memory.h"
 #include "stdlib.h"
 #include "mass-storage-device-mock.h"
-#include "stdio.h"
 
 static uint32_t  _dataSize;
 static void *_data;

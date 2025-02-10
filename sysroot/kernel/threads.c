@@ -4,6 +4,8 @@
 #include "kernel/memory.h"
 #include "stdbool.h"
 
+#define THREAD_SWITCH_DELAY_MILLIS 10
+
 typedef volatile struct{
    uint32_t edi;
    uint32_t esi;
@@ -20,16 +22,18 @@ typedef volatile struct{
 
 typedef enum{
    Running,
-   Waiting
+   Waiting,
+   Sleeping
 }ThreadStatus;
 
 typedef volatile struct{
    uint32_t esp;
    ThreadStatus status;
+   unsigned int sleepTimeMillis;
 }Thread;
 
-typedef volatile struct ThreadList{
-   struct ThreadList *next;
+typedef volatile struct ThreadListNode{
+   volatile struct ThreadListNode *next;
    Thread *thread;
 }ThreadListNode;
 
@@ -46,15 +50,18 @@ static void aquireLock();
 static void releaseLock();
 
 static void scheduleThread(Thread *thread);
+static void updateSleepingThreads(unsigned int timePassedMillis);
+static ThreadListNode* addThread(Thread *thread, ThreadListNode *list);
 
 extern void task_switch_handler(void);
 
 static ThreadListNode *runningThreads;
 static ThreadListNode *activeThread;
+static ThreadListNode *sleepingThreads;
 static CriticalTimer *timer;
 
 ThreadsStatus threads_init(){
-   CriticalTimerConfig cconfig = criticalTimer_createDefaultConfig(task_switch_handler, 10000000);
+   CriticalTimerConfig cconfig = criticalTimer_createDefaultConfig(task_switch_handler, THREAD_SWITCH_DELAY_MILLIS * 1000 * 1000);
    cconfig.repeat = true;
    timer = criticalTimer_new(cconfig);
    if(!timer){
@@ -63,6 +70,7 @@ ThreadsStatus threads_init(){
 
    runningThreads = 0;
    activeThread = 0;
+   sleepingThreads = 0;
 
    Thread *thread = kcalloc(sizeof(Thread));
    thread->status = Running;
@@ -89,7 +97,7 @@ void thread_start(ThreadConfig config){
    };
    uint32_t *ptr = (uint32_t *)&stackFrame.eflags;
    uint32_t *stack = (uint32_t *)config.esp;
-   for(int i = 0; i < sizeof(StackFrame)/sizeof(uint32_t); i++){
+   for(unsigned int i = 0; i < sizeof(StackFrame)/sizeof(uint32_t); i++){
       stack =  push(stack, *ptr--);
    }
    thread->esp = (uint32_t)stack;
@@ -98,6 +106,19 @@ void thread_start(ThreadConfig config){
 
    scheduleThread(thread);
    releaseLock();
+}
+
+void thread_sleep(unsigned int millis){
+   if(millis == 0){
+      return;
+   }
+
+   Thread *thread = activeThread->thread;
+   thread->status = Sleeping;
+   thread->sleepTimeMillis = millis;
+   sleepingThreads = addThread(thread, sleepingThreads);
+   while(thread->status == Sleeping); //FIXME: Should be able to switch thread imidiatelly
+                                      //Also, the time passed here is not counted towards the sleep time
 }
 
 Semaphore *semaphore_new(unsigned int count){
@@ -202,7 +223,7 @@ static ThreadListNode *append(ThreadListNode *root, Thread *thread){
 
 static ThreadListNode *removeFirst(ThreadListNode *root){
    ThreadListNode *next = root->next;
-   kfree(root);
+   kfree((void*)root);
    return next;
 }
 
@@ -221,7 +242,7 @@ static ThreadListNode *remove(ThreadListNode *root, ThreadListNode *node){
    }
 
    curr->next = curr->next->next;
-   kfree(node);
+   kfree((void*)node);
    return root;
 }
 
@@ -245,7 +266,43 @@ uint32_t thread_getNewEsp(uint32_t esp){
       activeThread = runningThreads;
    }
 
+   updateSleepingThreads(THREAD_SWITCH_DELAY_MILLIS);
    criticalTimer_checkoutInterrupt(timer);
 
    return newEsp;
+}
+
+static void updateSleepingThreads(unsigned int timePassedMillis){
+   ThreadListNode dummy = {
+      .next = sleepingThreads
+   };
+
+   ThreadListNode *prev = &dummy;
+   ThreadListNode *node = sleepingThreads;
+   while(node){
+      Thread *thread = node->thread;
+      if(thread->sleepTimeMillis < timePassedMillis){
+         thread->sleepTimeMillis = 0;
+         thread->status = Running;
+         scheduleThread(thread);
+         prev->next = node->next;       
+         kfree((void*)node);
+         node = prev->next;
+      }
+      else{
+         thread->sleepTimeMillis -= timePassedMillis;
+         node = node->next;
+      }
+   }
+
+   sleepingThreads = dummy.next;
+}
+
+static ThreadListNode* addThread(Thread *thread, ThreadListNode *list){
+   ThreadListNode *node = kmalloc(sizeof(ThreadListNode));
+   *node = (ThreadListNode){
+      .next = list,
+      .thread = thread
+   };
+   return node;
 }

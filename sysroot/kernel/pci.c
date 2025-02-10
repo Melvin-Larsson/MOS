@@ -444,7 +444,7 @@ int pci_getMsiCapabilities(PciDescriptor pci, MsiCapabilities *result){
    return 1;
 }
 
-void handler(ExceptionInfo _, void *data){
+void handler(void *data){
    InterruptData *interruptData = (InterruptData *)data;
 
    interruptData->handler(interruptData->data);
@@ -453,9 +453,24 @@ void handler(ExceptionInfo _, void *data){
    paging_writePhysicalOfSize(APIC_EOI_ADDRESS, &eoiData, 4, AccessSize32);
 }
 
-//FIXME: Should not provide startVector
-int pci_initMsi(PciDescriptor pci, MsiDescriptor *result, MsiInitData data, uint8_t startVector){
-   assert(startVector % data.vectorCount == 0);
+int pci_initMsi(PciDescriptor pci, MsiDescriptor *result, MsiInitData data){
+   InterruptHandler handlers[256];
+   for(int i = 0; i < (int)data.vectorCount; i++){
+      InterruptData *interruptData = kmalloc(sizeof(InterruptData));
+      *interruptData = (InterruptData){
+         .data = data.data[i],
+         .handler = data.handlers[i]
+      };
+      handlers[i] = (InterruptHandler){
+         .data = interruptData,
+         .handle = handler,
+      };
+   }
+   uint8_t startVector = interrupt_setContinuousHandlers(handlers, data.vectorCount, true);;
+   if(startVector == 0){
+      return 0;
+   }
+
    PciCapability pciCapability;
    int status = pci_searchCapabilityList(&pci, MSI_CAPABILITY_ID, &pciCapability);
    if(!status){
@@ -511,14 +526,6 @@ int pci_initMsi(PciDescriptor pci, MsiDescriptor *result, MsiInitData data, uint
       writeCapabilityRegister(pci, pciCapability, maskBitOffset, 0);
    }
 
-   for(int i = 0; i < (int)data.vectorCount; i++){
-      InterruptData *interruptData = kmalloc(sizeof(InterruptData));
-      *interruptData = (InterruptData){
-         .data = data.data[i],
-         .handler = data.handlers[i]
-      };
-      interrupt_setHandler(handler, interruptData, startVector + i);
-   }
 
    *result = (MsiDescriptor){
       .msiCapabilities = msiCapabilities,
@@ -561,7 +568,18 @@ int pci_unmaskVector(MsiDescriptor descriptor, uint32_t vectorNumber){
 
 
 //FIXME: Should not be allowed to specify interruptVectorNr
-int pci_setMsiXVector(const MsiXDescriptor msix, int msiVectorNr, int interruptVectorNr, MsiXVectorData vectorData){
+int pci_setMsiXVector(const MsiXDescriptor msix, int msiVectorNr, MsiXVectorData vectorData){
+   //FIXME:!!Can not just create and forget here
+   InterruptData *data = kmalloc(sizeof(InterruptData));
+   *data = (InterruptData){
+      .data = vectorData.data,
+      .handler = vectorData.handler
+   };
+   uint8_t interruptVectorNr = interrupt_setHandler(handler, data);
+   if(interruptVectorNr == 0){
+      return 0;
+   }
+
    uintptr_t address = msix.messageTable + msiVectorNr * 2 * 8;
    uint64_t msgAddr = formatMsgAddr(
          vectorData.targetProcessor,
@@ -575,14 +593,6 @@ int pci_setMsiXVector(const MsiXDescriptor msix, int msiVectorNr, int interruptV
 
    paging_writePhysicalOfSize(address, &msgAddr, sizeof(msgAddr), AccessSize64);
    paging_writePhysicalOfSize(address + 8, &msgData, sizeof(msgAddr), AccessSize64);
-
-   //FIXME:!!Can not just create and forget here
-   InterruptData *data = kmalloc(sizeof(InterruptData));
-   *data = (InterruptData){
-      .data = vectorData.data,
-      .handler = vectorData.handler
-   };
-   interrupt_setHandler(handler, data, interruptVectorNr);
 
    return 1;
 }
