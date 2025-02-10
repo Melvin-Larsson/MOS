@@ -67,29 +67,34 @@ static void initXhci(PciDescriptor pci){
         return;
     }
     while(1){
-        UsbDevice device; loggDebug("Wait for attach");
+        UsbDevice device;
+        loggDebug("Wait for attach");
         while(usb_getNewlyAttachedDevices(&usb, &device, 1) == 0);
         loggInfo("Device attached");
-//         UsbMassStorageDevice res;
-//         UsbMassStorageStatus status = usbMassStorage_init(&device, &res);
-//         if(status == UsbMassStorageSuccess){
-//             printf("Found deice!\n");
-//             uint32_t buffer[64];
-//             usbMassStorage_read(&res, 0, buffer, sizeof(buffer));
-//             printf("buffer: ");
-//             for(int i = 0; i < sizeof(buffer); i++){
-//                 printf("%X ", buffer[i]);
-//             }
-//             printf("\n");
-//             while(1);
-//         }else{
-//             printf("Failed to init: %X\n", status);
-//             while(1);
-//         }
-        KeyboardStatus status = keyboard_init(&device);
-        char buffer[100];
-        keyboard_getStatusCode(status, buffer);
-        loggInfo("Keyboard status code: %s", buffer);
+        UsbMassStorageDevice res;
+        UsbMassStorageStatus status = usbMassStorage_init(&device, &res);
+        if(status == UsbMassStorageSuccess){
+            loggInfo("Found deice!\n");
+            uint8_t buffer[512];
+            usbMassStorage_read(&res, 0, buffer, sizeof(buffer));
+            char str[1024];
+            str[0] = 0;
+            char strBuff[64];
+            loggInfo("buffer: ");
+            for(int i = 0; i < sizeof(buffer); i++){
+                sprintf(strBuff, "%c", buffer[i]);
+                strAppend(str, strBuff);
+            }
+            loggInfo("%s", str);
+            while(1);
+        }else{
+            printf("Failed to init: %X\n", status);
+            while(1);
+        }
+//         KeyboardStatus status = keyboard_init(&device);
+//         char buffer[100];
+//         keyboard_getStatusCode(status, buffer);
+//         loggInfo("Keyboard status code: %s", buffer);
     }
 }
 static int overlaps(uint8_t *p1, int s1, uint8_t *p2, int s2){

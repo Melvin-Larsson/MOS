@@ -96,17 +96,34 @@ UsbMassStorageStatus usbMassStorage_init(UsbDevice *usbDevice, UsbMassStorageDev
       .bulkInEndpoint = *bulkInEndpoint
    };
 
+   loggInfo("1");
    UsbMassStorageStatus s1 = bulkOnlyMassStorageReset(result);
-   if(s1 != UsbMassStorageSuccess) {return s1;}
+   if(s1 != UsbMassStorageSuccess) {
+      loggInfo("r1");
+      return s1;
+   }
 
+   loggInfo("2");
    UsbMassStorageStatus s2 = readInquiryData(result);
-   if(s2 != UsbMassStorageSuccess) {return s2;}
+   if(s2 != UsbMassStorageSuccess) {
+      loggInfo("r2");
+      return s2;
+   }
 
+   loggInfo("3");
    UsbMassStorageStatus s3 = testUnitReady(result);
-   if(s3 != UsbMassStorageSuccess) {return s3;}
+   if(s3 != UsbMassStorageSuccess) {
+      loggInfo("r3");
+      return s3;
+   }
 
+   loggInfo("4");
    UsbMassStorageStatus s4 = readCapacity(result);
-   if(s4 != UsbMassStorageSuccess) {return s4;}
+   if(s4 != UsbMassStorageSuccess) {
+      loggInfo("r4");
+      return s4;
+   }
+   loggInfo("Device has capacity %d", result->capacity);
 
    return UsbMassStorageSuccess;
 }
@@ -120,7 +137,7 @@ UsbMassStorageStatus usbMassStorage_read(const UsbMassStorageDevice *device,
       return UsbMassStorageSuccess;
    }
 
-   uint32_t blockCount = bufferSize / device->capacity + 1;
+   uint32_t blockCount = (bufferSize + device->capacity - 1)/device->capacity;
 
    if(logicalBlockAddress + blockCount > device->maxLogicalBlockAddress + 1){
       return UsbMassStorageInvalidAddress;
@@ -130,9 +147,11 @@ UsbMassStorageStatus usbMassStorage_read(const UsbMassStorageDevice *device,
    CBW readCBW = newCBW(readCdb.bytes, readCdb.size);
    readCBW.dataTransferLength = bufferSize;
    readCBW.direction = directionIn;
+
    usb_writeData(device->usbDevice, device->bulkOutEndpoint, &readCBW, sizeof(CBW));
 
    usb_readData(device->usbDevice, device->bulkInEndpoint, resultBuffer, bufferSize);
+
    return readStatus(device);
 }
 UsbMassStorageStatus usbMassStorage_write(const UsbMassStorageDevice *device,
@@ -163,25 +182,33 @@ UsbMassStorageStatus usbMassStorage_write(const UsbMassStorageDevice *device,
 
 
 static UsbMassStorageStatus readInquiryData(UsbMassStorageDevice *device){
-   ScsiCDB inquiryCdb = Scsi_CDB_INQUIRY(0, 6);
+   ScsiCDB inquiryCdb = Scsi_CDB_INQUIRY(0, sizeof(device->inquiryData));
    CBW inquiryCBW = newCBW(inquiryCdb.bytes, inquiryCdb.size);
    inquiryCBW.dataTransferLength = sizeof(device->inquiryData);
    inquiryCBW.direction = directionIn;
    usb_writeData(device->usbDevice, device->bulkOutEndpoint, &inquiryCBW, sizeof(CBW));
 
    usb_readData(device->usbDevice, device->bulkInEndpoint, &device->inquiryData, sizeof(device->inquiryData));
+
+   char str[sizeof(device->inquiryData) + 1];
+   str[sizeof(device->inquiryData)] = 0;
+   memcpy(&str, (char*)&device->inquiryData + 8, sizeof(device->inquiryData));
+   loggInfo("%s", str);
+
    return readStatus(device);
 }
 static UsbMassStorageStatus testUnitReady(const UsbMassStorageDevice *device){
-   uint8_t result[8]; //FIXME: How big?
-   ScsiCDB testUnitReadyCdb = Scsi_CDB_TestUnitReady();
-   CBW testUnitReadyCBW = newCBW(testUnitReadyCdb.bytes, testUnitReadyCdb.size);
-   testUnitReadyCBW.dataTransferLength = sizeof(result);
-   testUnitReadyCBW.direction = directionIn;
-
-   usb_writeData(device->usbDevice, device->bulkOutEndpoint, &testUnitReadyCBW, sizeof(CBW));
-   usb_readData(device->usbDevice, device->bulkInEndpoint, result, sizeof(result));
-   return readStatus(device);
+   UsbMassStorageStatus status;
+   for(int i = 0; i < 3; i++){
+      ScsiCDB testUnitReadyCdb = Scsi_CDB_TestUnitReady();
+      CBW testUnitReadyCBW = newCBW(testUnitReadyCdb.bytes, testUnitReadyCdb.size);
+      usb_writeData(device->usbDevice, device->bulkOutEndpoint, &testUnitReadyCBW, sizeof(CBW));
+      status = readStatus(device);
+      if(status == UsbMassStorageSuccess){
+         break;
+      }
+   }
+   return status;
 }
 static UsbMassStorageStatus readCapacity(UsbMassStorageDevice *device){
    uint8_t capacityBuffer[8];

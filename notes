@@ -173,12 +173,19 @@ ____SERIAL____
 Make sure to only use 8bit reads/writes
 
 
-Connecting to vbox:
+## Virtual box
+### Connecting to vbox:
 Config with 
     connect to existing pipe = false
     path/address = /tmp/vbox    (for example)
 
 then run minicom -D unix#/tmp/vbox -b [baudrate]
+
+### Connecting USB to virtual box:
+Seems like I need Chipset ICH9 to get MSI or MSI-X to work currently. (No idea why)
+Also need enable I/O APIC 
+Need to run "sudo adduser $USER vboxusers" and reboot before selcting USB device in USB Device Filters
+
 
 __PAGING__
 I Want the active page table to always be located in linear memory
