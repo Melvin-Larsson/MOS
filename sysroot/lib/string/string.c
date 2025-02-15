@@ -1,4 +1,5 @@
 #include "string.h"
+#include <stdint.h>
 
 int equals(char *s1, char *s2){
    while(*s1 && *s2){
@@ -56,6 +57,7 @@ int strlen(const char* str){
     }
     return length;
 }
+//FIXME: should return destination as is from the beginning
 char* strcpy(char* destination, const char* source){
     while(*source){
         *destination++ = *source++;
@@ -63,6 +65,15 @@ char* strcpy(char* destination, const char* source){
     *destination = 0;
     return destination;
 }
+char *strncpy(char *destination, const char *source, size_t num){
+    while(*source && num > 0){
+        *destination++ = *source++;
+        num--;
+    }
+    *destination = 0;
+    return destination;
+}
+
 void strReadInt(int x, char * output){
     if(x == 0){
         output[0] = '0';
@@ -121,14 +132,37 @@ char* strAppendFrom(char *destination, const char* source, int start){
     }
     return strcpy(destination, source);
 }
-char* sprintf(char *str, const char *format, ...){
+int sprintf(char *str, const char *format, ...){
     va_list args;
     va_start(args, format);
-    char *res = vsprintf(str, format, args);
+    int res = vsprintf(str, format, args);
     va_end(args);
     return res;
 }
-char* vsprintf(char *str, const char *format, va_list args){
+int vsprintf(char *str, const char *format, va_list args){
+    return vsnprintf(str, SIZE_MAX, format, args);
+}
+
+int snprintf(char *str, size_t size, const char *format, ...){
+    va_list args;
+    va_start(args, format);
+    int res = vsnprintf(str, size, format, args);
+    va_end(args);
+    return res;
+}
+
+static int getCopyLength(char *str, size_t used, size_t total){
+    if(used >= total){
+        return 0;
+    }
+    int len = strlen(str);
+    if(used + len <= total){
+        return len;
+    }
+    return total - used;
+}
+int vsnprintf(char *str, size_t size, const char *format, va_list args){
+    size_t used = 0;
     while(*format){
         if(*format == '%'){
             format++;
@@ -136,39 +170,52 @@ char* vsprintf(char *str, const char *format, va_list args){
                 format++;
                 char buff[10];
                 strReadInt(va_arg(args, int), buff);
-                str = strcpy(str, buff);
+                str = strncpy(str, buff, getCopyLength(buff, used, size));
+                used += strlen(buff);
             }
             else if(*format == 's'){
                 format++;
-                str = strcpy(str, va_arg(args, char *));
+                char *s = va_arg(args, char *);
+                str = strncpy(str, s, getCopyLength(s, used, size));
+                used += strlen(s);
             }
             else if(*format == 'b'){
                 format++;
                 if(va_arg(args, int)){
                     char val[6] = "true";
-                    str = strcpy(str, val);
+                    str = strncpy(str, val, getCopyLength(val, used, size));
+                    used += strlen(val);
                 }
                 else{
                     char val[6] = "false";
-                    str = strcpy(str, val);
+                    str = strncpy(str, val, getCopyLength(val, used, size));
+                    used += strlen(val);
                 }
             }
             else if(*format == 'X'){
                 format++;
                 char buff[32];
                 strReadIntHex(va_arg(args, int), buff);
-                str = strcpy(str, buff);
+                str = strncpy(str, buff, getCopyLength(buff, used, size));
+                used += strlen(buff);
             }
             else if(*format == 'c'){
                 format++;
                 char c = va_arg(args, int);
-                *str++ = c;
+                used += 1;
+                if(used <= size){
+                    *str++ = c;
+                }
             }
         }
         else{
-            *str++ = *format++;
+            used++;
+            char c = *format++;
+            if(used <= size){
+                *str++ = c;
+            }
         }
     }
     *str = 0;
-    return str;
+    return used;
 }
