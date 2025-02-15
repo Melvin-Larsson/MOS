@@ -200,9 +200,7 @@ void console_writer(LoggContext context, LoggLevel level, const char *format, va
             break;
     }
     kio_setColor(newColor);
-    char *buffer = kmalloc(4096); //FIXME: Could lead to array out of bounds
-    vsprintf(buffer, format, args);
-    kprintf(buffer);
+    vkprintf(format, args);
     kprintf("\n");
     kio_setColor(prevColor);
 }
