@@ -11,15 +11,16 @@ typedef struct AllocatorList{
 
 Allocator* allocator_init(uintptr_t address, unsigned int size){
    Allocator *allocator = kcalloc(sizeof(Allocator));
-   if(size == 0){
-      return allocator;
+
+   AllocatorList *entry = 0;
+   if(size != 0){
+      entry = kmalloc(sizeof(AllocatorList));
+      *entry = (AllocatorList){
+         .next = 0,
+         .address = address,
+         .size = size
+      };
    }
-   AllocatorList *entry = kmalloc(sizeof(AllocatorList));
-   *entry = (AllocatorList){
-      .next = 0,
-      .address = address,
-      .size = size
-   };
 
    AllocatorList *dummyEntry = kmalloc(sizeof(AllocatorList));
    *dummyEntry = (AllocatorList){
@@ -28,6 +29,7 @@ Allocator* allocator_init(uintptr_t address, unsigned int size){
       .size = 0,
    };
    allocator->data = dummyEntry;
+
    return allocator;
 }
 
@@ -123,6 +125,7 @@ void allocator_release(Allocator *allocator, uintptr_t address, int size){
    while(list->next && address > list->next->address){
       list = list->next;
    }
+
    AllocatorList *newEntry = kmalloc(sizeof(AllocatorList));
    *newEntry = (AllocatorList){
       .next = list->next,
@@ -131,7 +134,6 @@ void allocator_release(Allocator *allocator, uintptr_t address, int size){
    };
    list->next = newEntry;
    merge(allocator);
-   return; 
 }
 
 static int overlaps(uintptr_t address1, int size1, uintptr_t address2, int size2){
