@@ -213,3 +213,20 @@ Approach 2:
     Cons: Complicated, a page table might need to have a reference to itself
 
 Using Approach 1, to keep things simple
+
+__Linker__
+When doing
+int x = 0;
+void kernel_main(){
+...
+kprintf("%d", x);
+}
+This data might still be put in the bss area.
+This area is not kepts when doing objcopy -O binary ...
+Hence, this will print an undefined value.
+
+If x = 1, then it is put in the data area and
+1 is printed. 
+
+- We could manually manually zero bss
+- move it to data: __attribute__((section(".data"))) = ...
