@@ -90,7 +90,7 @@ void logging_endLoggContext(LoggContext *localContext);
 #endif
 
 #if LOG_LEVEL <= LOG_LEVEL_ERROR
-static LoggContext loggContext = {
+static LoggContext loggContext __attribute__((section(".data")))= {
    .name = 0,
    .values = 0,
    .nestedContext = 0,

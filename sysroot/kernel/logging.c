@@ -162,7 +162,6 @@ void logging_vlog(LoggContext context, LoggLevel loggLevel, char *data, va_list 
    kfree(message);
    kfree(header);
 
-
    for(uint32_t i = 0; i < config.writerCount; i++){  
       if(loggLevel >= config.writers[i].loggLevel){
          if(config.writers[i].writerType == DefaultWriter){
