@@ -50,14 +50,15 @@ typedef enum{
 typedef struct{
    void (*handle)(void *);
    void *data;
+   char *name;
 }InterruptHandler;
 
 
 //__attribute__((packed)) 
 
 void interruptDescriptorTableInit();
-uint8_t interrupt_setHandler(void (*handler)(void *), void *data);
-uint8_t interrupt_setContinuousHandlers(InterruptHandler *handler, uint8_t handlerCount, bool aligned);
+uint8_t interrupt_setHandler(void (*handler)(void *), void *data, char *name);
+uint8_t interrupt_setContinuousHandlers(InterruptHandler *handler, uint8_t handlerCount, bool aligned, char *name);
 
 InterruptStatus interrupt_setExceptionHandler(
         void (*handler)(ExceptionInfo, void *),

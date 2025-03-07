@@ -38,7 +38,9 @@ static int interruptNr = 0;
 void exception_handler(unsigned char interruptVector, ExceptionInfo *info){
    interruptNr++;
    ExceptionHandler handler = exceptionHandlers[interruptVector];
+
    if(handler.handle){
+      loggDebug("%d: Interrupt vector: %d, error code: %X instruction offset: %X code segment: %X\n", interruptNr, interruptVector, info->errorCode, info->instructionOffset, info->codeSegment);
       handler.handle(*info, handler.data);
    }else{
       loggError("%d: Interrupt vector: %d, error code: %X instruction offset: %X code segment: %X\n", interruptNr, interruptVector, info->errorCode, info->instructionOffset, info->codeSegment);
@@ -50,9 +52,10 @@ void interrupt_handler(unsigned char interruptVector){
    interruptNr++;
    InterruptHandler handler = interruptHandlers[interruptVector];
    if(handler.handle){
+      loggDebug("%d: Interrupt vector %d (%s)", interruptNr, interruptVector, handler.name);
       handler.handle(handler.data);
    }else{
-      loggError("%d: Interrupt vector %d\n", interruptNr, interruptVector);
+      loggError("%d: Interrupt vector %d", interruptNr, interruptVector);
       while(1);
    }
 }
@@ -128,13 +131,10 @@ void interruptDescriptorTableInit(){
    }
    setInterruptDescriptor(0x80, interrupt_addr_table[0x80], 0xEE);
 
-
    dissablePIC();
 
    __asm__ volatile ("lidt %0" : : "m"(interruptTableDescriptor));
-   loggDebug("Initialized interrupt table");
    __asm__ volatile ("sti");
-   loggInfo("Interrupts activated");
 }
 
 InterruptStatus interrupt_setExceptionHandler(void (*handler)(ExceptionInfo, void *), void *data, uint8_t vector){
@@ -156,7 +156,7 @@ InterruptStatus interrupt_setExceptionHandler(void (*handler)(ExceptionInfo, voi
    return InterruptStatusSuccess;
 }
 
-uint8_t interrupt_setHandler(void (*handler)(void *), void *data){
+uint8_t interrupt_setHandler(void (*handler)(void *), void *data, char *name){
    uint8_t vector = getFreeInterruptVector(1, false);
    if(vector == 0){
       return 0;
@@ -164,13 +164,14 @@ uint8_t interrupt_setHandler(void (*handler)(void *), void *data){
 
    interruptHandlers[vector] = (InterruptHandler){
       .data = data,
-      .handle = handler
+      .handle = handler,
+      .name = name
    };
 
    return vector;
 }
 
-uint8_t interrupt_setContinuousHandlers(InterruptHandler *handler, uint8_t handlerCount, bool aligned){
+uint8_t interrupt_setContinuousHandlers(InterruptHandler *handler, uint8_t handlerCount, bool aligned, char *name){
    uint8_t firstVector = getFreeInterruptVector(handlerCount, aligned);
    if(firstVector == 0){
       return 0;
@@ -180,6 +181,7 @@ uint8_t interrupt_setContinuousHandlers(InterruptHandler *handler, uint8_t handl
       interruptHandlers[firstVector + i] = (InterruptHandler){
          .handle = handler[i].handle,
          .data = handler[i].data,
+         .name = name,
       };
    }
 

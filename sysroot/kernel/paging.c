@@ -165,23 +165,30 @@ void paging_init(){
 }
 
 PagingContext *paging_create32BitContext(PagingConfig32Bit config){
+    kprintf("a");
     PagingContext *result = kmalloc(sizeof(PagingContext));
     PagingData *data = kmalloc(sizeof(PagingData));
 
+    kprintf("b");
     data->physicalToLogicalPage = map_newBinaryMap(intmap_comparitor);
     data->pageAllocator = allocator_init(0, 1048576);
     data->pagingMode = PagingMode32Bit;
 
+    kprintf("c");
     AllocatedArea pageTableArea = allocator_get(pageTableAllocator, SIZE_4KB);
     assert(pageTableArea.size == SIZE_4KB);
+    assert(pageTableArea.address % SIZE_4KB == 0); //The code is wrong if this fails
 
+    kprintf("d");
     data->pageDirectory = (volatile uint32_t *)(pageTableArea.address);
-    loggDebug("Creating context using page directory at address %X", data->pageDirectory);
+//     loggDebug("Creating context using page directory at address %X", data->pageDirectory);
     memset((void*)data->pageDirectory, 0, SIZE_4KB);
 
+    kprintf("e");
     result->data = data;
 
-    PagingTableEntry pageTablePageEntry = {
+    
+    PagingTableEntry pageTablePageEntry __attribute__((aligned(16)))= {
         .physicalAddress = pageTablePageAddress,
         .readWrite = 1,
         .userSupervisor = 0,
@@ -191,6 +198,8 @@ PagingContext *paging_create32BitContext(PagingConfig32Bit config){
         .isGlobal = 0,
         .pageAttributeTable = 0,
     };
+
+
     add32BitPagingEntry(data, pageTablePageEntry, pageTablePageAddress);
 
     config = clearUnsuported32BitFeatures(config);
@@ -221,7 +230,7 @@ void paging_start(){
    uint32_t cr0 = readCr0();
    cr0 |= (1 << CR0_PG_POS);
    writeCr0(cr0);
-   loggDebug("Paging started");
+   loggDebug("Paging startedxx");
 }
 void paging_stop(){
    uint32_t cr0 = readCr0();
@@ -419,7 +428,7 @@ static PagingStatus add32BitPagingEntry(PagingData *context, PagingTableEntry ne
                 }
                 highAddress = (newEntry.physicalAddress >> 32) & lowerBitsMask(M - 32);
             }
-            PageDirectoryEntry32Bit4MB newEntry4MBreference = {
+            PageDirectoryEntry32Bit4MB newEntry4MBreference __attribute__ ((aligned(16)))= {
                .present = 1,
                .readWrite = (newEntry.readWrite != 0),
                .userSupervisor = (newEntry.userSupervisor != 0),
@@ -435,11 +444,12 @@ static PagingStatus add32BitPagingEntry(PagingData *context, PagingTableEntry ne
             };
 //            paging_writePhysical((uintptr_t)&context->pageDirectory[index], &newEntry4MBreference, sizeof(PageDirectoryEntry32Bit4MB));
             context->pageDirectory[index] = *((uint32_t *)&newEntry4MBreference);
-            allocator_markAsReserved(context->pageAllocator, address / (4 * 1024), 1024);
+            allocator_markAsReserved(context->pageAllocator, address / (4 * 1024), 1024); //FIXME: should this be (... , index, 1); ?
+
             return PagingOk;
        }else{
            loggDebug("New dir");
-           AllocatedArea tableArea = allocator_get(pageTableAllocator, 1);
+           AllocatedArea tableArea = allocator_get(pageTableAllocator, 1); //FIXME: Should probably not be 1
            assert(tableArea.size == 1);
            uintptr_t tablePage = tableArea.address / SIZE_4KB;
 
@@ -667,19 +677,19 @@ static PagingMode getPagingMode(){
 
 static void cpuid(uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx){
    __asm__ volatile("cpuid"
-         : "+eax"(*eax), "=ebx"(*ebx), "=ecx"(*ecx), "=edx"(*edx)
-         : "eax"(*eax)
+         : "=a"(*eax), "=b"(*ebx), "=c"(*ecx), "=d"(*edx)
+         : "a"(*eax)
          );
 }
-static uint32_t cpuid01eax(){
-   uint32_t eax, ebx, ecx, edx;
-   __asm__ volatile("cpuid"
-         : "+eax"(eax), "=ebx"(ebx), "=ecx"(ecx), "=edx"(edx)
-         : "eax"(0x01)
-         :
-         );
-   return edx;
-}
+// static uint32_t cpuid01eax(){
+//    uint32_t eax, ebx, ecx, edx;
+//    __asm__ volatile("cpuid"
+//          : "+eax"(eax), "=ebx"(ebx), "=ecx"(ecx), "=edx"(edx)
+//          : "eax"(0x01)
+//          :
+//          );
+//    return edx;
+// }
 
 static int IA32EferPresent(){
    uint32_t eax, ebx, ecx, edx;

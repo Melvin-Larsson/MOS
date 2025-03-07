@@ -81,7 +81,7 @@ void pit_init(){
 
    while(readChannel(Channel0) <= 1);
 
-   pitInterruptVector = interrupt_setHandler(handler, 0);
+   pitInterruptVector = interrupt_setHandler(handler, 0, "pit");
    loggDebug("Pit got interrupt vector %d", pitInterruptVector);
    if(pitInterruptVector == 0){
       return;

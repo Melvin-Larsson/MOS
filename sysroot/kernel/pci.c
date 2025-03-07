@@ -466,7 +466,7 @@ int pci_initMsi(PciDescriptor pci, MsiDescriptor *result, MsiInitData data){
          .handle = handler,
       };
    }
-   uint8_t startVector = interrupt_setContinuousHandlers(handlers, data.vectorCount, true);;
+   uint8_t startVector = interrupt_setContinuousHandlers(handlers, data.vectorCount, true, "Msi");
    if(startVector == 0){
       return 0;
    }
@@ -575,7 +575,7 @@ int pci_setMsiXVector(const MsiXDescriptor msix, int msiVectorNr, MsiXVectorData
       .data = vectorData.data,
       .handler = vectorData.handler
    };
-   uint8_t interruptVectorNr = interrupt_setHandler(handler, data);
+   uint8_t interruptVectorNr = interrupt_setHandler(handler, data, "msiX");
    if(interruptVectorNr == 0){
       return 0;
    }
