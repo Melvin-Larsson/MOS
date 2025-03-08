@@ -1,18 +1,10 @@
 [BITS 16]
-    %include "A20.asm"
     %include "s2loader.inc"
     %include "print.inc"
 start:
     push dx
 
     mov si, startStr
-    call print_str
-
-    call enable_a20
-    cmp al, 1
-    jne a20_fail
-
-    mov si, a20
     call print_str
 
     pop dx
@@ -22,12 +14,6 @@ start:
     call print_str
 
     jmp s2 
-
-a20_fail:
-    mov si, failedA20
-    call print_str
-s1_halt:
-    jmp s1_halt
 
 gdt:
     dd 0,0
@@ -44,12 +30,10 @@ gdtinfo:
     dw gdt_end - gdt - 1
     dd gdt
 
-a20: db 'a20',0
 ls2: db 's2', 0
 startStr: db 'St', 0
-failedA20 : db 'Fa20',0
 
-times 510-($-$$) db 0
+times 510-96-($-$$) db 0
     dw 0xAA55
 
 

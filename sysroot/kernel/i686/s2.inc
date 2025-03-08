@@ -2,9 +2,17 @@
 extern kernel_main
 s2:
     jmp main
+    %include "A20.asm"
     %include "protected.inc"
     %include "memmap.inc"
 main: 
+    call enable_a20
+    cmp al, 1
+    jne a20_fail
+
+    mov si, a20
+    call print_str
+
     mov si, drive_index
     mov dl, [ds:si]
     mov si, dap2
@@ -13,6 +21,12 @@ main:
 
     call map_memory
     call enter_protected
+
+a20_fail:
+    mov si, failedA20
+    call print_str
+s1_halt:
+    jmp s1_halt
 
 [BITS 32]
 %include "printp.inc"
@@ -35,6 +49,8 @@ pmode_main:
     call kernel_main
 
 str: db 'Successfully entered protected mode!',0
+a20: db 'a20',0
+failedA20 : db 'Fa20',0
 dap2: 
     db 0x10
     db 0

@@ -6,24 +6,34 @@ LIBS=${SYSROOT}/lib
 KERNEL=${SYSROOT}/kernel
 BUILD=${PREFIX}/build
 
+SHELL := /bin/bash
+
 LINK_FLAGS?= -nostdlib -lgcc -ffreestanding -O2
 
 OBJS= ${KERNEL}/build/kernel.out \
        ${LIBS}/build/lib.out
 
+IMAGE = ${BUILD}/fat32.img
+
 .PHONY: all
-all : ${BUILD}/os.img
+all : ${IMAGE}
 	echo ${PREFIX}
 	$(MAKE) kernel
 	$(MAKE) lib
 	${COMPILER} -T ${PREFIX}/linker.ld ${OBJS} ${LINK_FLAGS}  -o ${BUILD}/os.elf
 	objcopy -O binary ${BUILD}/os.elf ${BUILD}/os.bin
+	dd if=${BUILD}/os.bin of=${IMAGE} bs=1 seek=96 conv=notrunc
+	printf '\x5e' | dd if=/dev/fd/0 of=${IMAGE} bs=1 seek=1 conv=notrunc
 
-${BUILD}/os.img : ${BUILD}
-	dd if=/dev/zero of=${BUILD}/os.img bs=512 count=2048
+
 
 ${BUILD} :
 	mkdir ${BUILD}
+
+${IMAGE}:
+	dd if=/dev/zero of=${IMAGE} bs=512 count=2048
+	mkfs.fat -F 32 ${IMAGE}
+
 
 .PHONY: kernel
 kernel :

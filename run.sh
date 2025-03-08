@@ -1,6 +1,5 @@
 make &&
-dd if=build/os.bin of=build/os.img conv=notrunc &&
-qemu-system-x86_64 -hda build/os.img \
+qemu-system-x86_64 -hda build/fat32.img \
 -device qemu-xhci,id=xhci \
 -drive if=none,id=stick,format=raw,file=stick.img \
 -device usb-storage,bus=xhci.0,drive=stick \
@@ -10,4 +9,4 @@ qemu-system-x86_64 -hda build/os.img \
 --trace events=trace.event \
 -d int,guest_errors -no-reboot
 
--device usb-kbd,bus=xhci.0 \
+# -device usb-kbd,bus=xhci.0 \
