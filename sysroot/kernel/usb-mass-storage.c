@@ -2,6 +2,7 @@
 #include "kernel/usb.h"
 #include "kernel/scsi.h"
 #include "kernel/logging.h"
+#include "string.h"
 #include "stdlib.h"
 
 #define CLASS_MASS_STORAGE 0x08
@@ -235,9 +236,19 @@ static UsbMassStorageStatus readCapacity(UsbMassStorageDevice *device){
 
 static UsbMassStorageStatus readStatus(const UsbMassStorageDevice *device){
    CSW status;
+
    usb_readData(device->usbDevice, device->bulkInEndpoint, &status, sizeof(CSW));
 
    if(status.signature != SIGNATURE_CSW){
+      uint8_t *bytes = (uint8_t *)&status;
+      char buffer[sizeof(CSW) * (sizeof("0xFF, ") - 1) + 1];
+      memset(buffer, 0, sizeof(buffer));
+      char *buffer_pointer = buffer;
+      for(size_t i = 0; i < sizeof(CSW); i++){
+         buffer_pointer += sprintf(buffer_pointer, "%X, ", bytes[i]);
+      }
+      loggDebug("%s", buffer);
+
       return UsbMassStorageUnexpectedMessage;
    }
 
@@ -278,6 +289,7 @@ static UsbInterface *getInterface(UsbConfiguration *configuration){
    for(int i = 0; i < configuration->descriptor.bNumInterfaces; i++){
       UsbInterface *interface = &configuration->interfaces[i];
       UsbInterfaceDescriptor descriptor = interface->descriptor;
+      loggDebug("Interface %d, subclass %d, protocal %d", descriptor.bInterfaceClass, descriptor.bInterfaceSubClass, descriptor.bInterfaceProtocol);
       if(descriptor.bInterfaceClass != CLASS_MASS_STORAGE){
          continue;
       }

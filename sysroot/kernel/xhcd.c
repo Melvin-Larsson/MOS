@@ -148,6 +148,7 @@ static void handler(void *data){
          //This whole buffer thing is a temporary solution
          assert(xhcd->eventBufferDequeueIndex == xhcd->eventBufferDequeueIndex); 
 
+         loggDebug("event from %X", events[i].trbPointerLow);
          xhcd->eventBuffer[xhcd->eventBufferEnqueueIndex] = events[i];
          xhcd->eventBufferEnqueueIndex = (xhcd->eventBufferEnqueueIndex + 1) % xhcd->eventBufferSize;
          semaphore_release(xhcd->eventSemaphore);
@@ -423,6 +424,9 @@ XhcStatus xhcd_readData(const XhcDevice *device, UsbEndpointDescriptor endpoint,
    XhcEventTRB event;
    while(!dequeEventTrb(xhcd, &event));
 
+   //FIXME: Need to handle errors
+   loggDebug("Event ring trb type %d, status %d", event.trbType, event.completionCode);
+
    return XhcOk;
 }
 XhcStatus xhcd_writeData(const XhcDevice *device,
@@ -548,6 +552,11 @@ static XhcStatus initBulkEndpoint(Xhcd *xhcd, int slotId, UsbEndpointDescriptor 
    uint32_t hostInitiateDisable = 0;
    uint32_t linearStreamArray = 0;
 
+   XhcdRing transferRing = xhcd_newRing(DEFAULT_TRANSFER_RING_TRB_COUNT);
+   loggDebug("Creating bulk for index %d at %X", endpointIndex, transferRing.dequeue);
+   xhcd->transferRing[slotId][endpointIndex - 1] = transferRing;
+   dequePointer = (uintptr_t)transferRing.dequeue | transferRing.pcs;
+
    if(endpoint->superSpeedDescriptor){
       maxBurstSize = endpoint->superSpeedDescriptor->bMaxBurst;
 
@@ -557,11 +566,7 @@ static XhcStatus initBulkEndpoint(Xhcd *xhcd, int slotId, UsbEndpointDescriptor 
 
       }
       else{
-         XhcdRing transferRing = xhcd_newRing(DEFAULT_TRANSFER_RING_TRB_COUNT);
-         xhcd->transferRing[slotId][endpointIndex - 1] = transferRing;
-
          maxPrimaryStreams = 0;
-         dequePointer = (uintptr_t)transferRing.dequeue | transferRing.pcs;
       }
    }
    else{

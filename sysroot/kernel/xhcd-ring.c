@@ -64,6 +64,7 @@ void xhcd_putTD(TD td, XhcdRing *ring){
 }
 void xhcd_putTRB(TRB trb, XhcdRing *ring){
    trb.cycleBit = ring->pcs;
+   loggDebug("Queuing trb at %X\n", ring->dequeue);
    *ring->dequeue = trb; 
    ring->dequeue++;
    if(ring->dequeue->type == TRB_TYPE_LINK){
