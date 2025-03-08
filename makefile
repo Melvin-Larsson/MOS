@@ -10,6 +10,8 @@ SHELL := /bin/bash
 
 LINK_FLAGS?= -nostdlib -lgcc -ffreestanding -O2
 
+STAGE_1=${KERNEL}/build/boot-stage-1.o
+
 OBJS= ${KERNEL}/build/kernel.out \
        ${LIBS}/build/lib.out
 
@@ -22,8 +24,9 @@ all : ${IMAGE}
 	$(MAKE) lib
 	${COMPILER} -T ${PREFIX}/linker.ld ${OBJS} ${LINK_FLAGS}  -o ${BUILD}/os.elf
 	objcopy -O binary ${BUILD}/os.elf ${BUILD}/os.bin
-	dd if=${BUILD}/os.bin of=${IMAGE} bs=1 seek=96 conv=notrunc
+	dd if=${STAGE_1} of=${IMAGE} bs=1 seek=96 conv=notrunc
 	printf '\x5e' | dd if=/dev/fd/0 of=${IMAGE} bs=1 seek=1 conv=notrunc
+	dd if=${BUILD}/os.bin of=${IMAGE} bs=512 seek=65 conv=notrunc
 
 
 
@@ -33,6 +36,8 @@ ${BUILD} :
 ${IMAGE} : ${BUILD}
 	dd if=/dev/zero of=${IMAGE} bs=512 count=2048
 	mkfs.fat -F 32 ${IMAGE}
+	dd if=/dev/zero of=${BUILD}/placeholder.bin bs=512 count=512
+	mcopy -o -i ${IMAGE} ${BUILD}/placeholder.bin ::os.bin
 
 
 .PHONY: kernel

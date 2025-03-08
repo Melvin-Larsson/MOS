@@ -6,7 +6,10 @@ BUILD=${PREFIX}/sysroot/kernel/build
 
 LINK_FLAGS?= -nostdlib -lgcc -ffreestanding -O2 -r
 
-OBJS= ${BUILD}/boot.o \
+BOOT_LOADER=${PREFIX}/sysroot/kernel/i686
+
+
+OBJS=  ${BUILD}/boot-stage-2.o \
        ${BUILD}/kernel1.o \
 	   ${BUILD}/interrupt.o \
 	   ${BUILD}/registers.o \
@@ -40,6 +43,9 @@ OBJS= ${BUILD}/boot.o \
 	   ${BUILD}/threads.o \
 	   ${BUILD}/timer.o \
 	   ${BUILD}/memory.o \
+
+.PHONY: all
+all: ${BUILD}/kernel.o ${BUILD}/boot-stage-1.o
 
 ${BUILD}/kernel.o : ${BUILD} ${OBJS} ${PREFIX}/utils/include/utils/assert.h
 	${COMPILER} -T linker.ld ${LINK_FLAGS} ${OBJS} -o ${BUILD}/kernel.out
@@ -154,11 +160,11 @@ include/kernel/xhcd-event-ring.h: include/kernel/xhcd-registers.h
 include/kernel/usb.h : include/kernel/usb-descriptors.h include/kernel/xhcd.h include/kernel/usb-messages.h
 include/kernel/usb-mass-storage.h: include/kernel/usb.h
 
-${BUILD}/boot.o : ${PREFIX}/sysroot/kernel/i686
-	cd ${PREFIX}/sysroot/kernel/i686 && \
-	nasm -f elf program.s -o boot.o && \
-	mv boot.o ${BUILD}/boot.o && \
-	cd -
+${BUILD}/boot-stage-1.o : ${BOOT_LOADER}/stage1
+	nasm -i ${BOOT_LOADER} -i ${BOOT_LOADER}/stage1 ${BOOT_LOADER}/stage1/program.s -o ${BUILD}/boot-stage-1.o
+
+${BUILD}/boot-stage-2.o : ${BOOT_LOADER}/stage2
+	nasm -f elf -i ${BOOT_LOADER}/stage2 -i ${BOOT_LOADER} ${BOOT_LOADER}/stage2/program.s -o ${BUILD}/boot-stage-2.o
 
 clean :
 	rm -f ${BUILD}/*

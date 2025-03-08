@@ -6,7 +6,7 @@ dap:
     dw 127 ;nr of sectors
     dw 0
     dw 0x07E0
-    dd 1
+    dd 65
     dd 0 
 loads2:
     mov ah, 0x41
