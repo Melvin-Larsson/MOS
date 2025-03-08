@@ -30,7 +30,7 @@ all : ${IMAGE}
 ${BUILD} :
 	mkdir ${BUILD}
 
-${IMAGE}:
+${IMAGE} : ${BUILD}
 	dd if=/dev/zero of=${IMAGE} bs=512 count=2048
 	mkfs.fat -F 32 ${IMAGE}
 
