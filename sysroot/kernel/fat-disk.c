@@ -156,7 +156,8 @@ uint32_t fatDisk_writeFile(FatDisk *disk, FatFile *file, uint32_t offset, uint32
       data += dataToCluster;
    }
    if(!file->isRoot){
-      file->directoryEntry.fileSize = offset + totalData;
+      file->directoryEntry.fileSize = offset;
+      loggDebug("Updating file size %d (sz %d, td %d of %d)", file->directoryEntry.fileSize, size, totalData, offset);
 
       //FIXME: A bit of a hack
       BufferedStorageBuffer *buffer = bufferedStorage_newBuffer(BLOCK_BUFFER_SIZE, disk->device->blockSize);
@@ -175,6 +176,8 @@ FatFile* fatDisk_newFile(FatDisk *disk, FatFile *parent, char filename[11], uint
    uint32_t cluster;
    findFreeClusters(disk, &cluster, 1);
    writeFatEntry(disk, cluster, 0xFFFFFFFF);
+
+   loggDebug("Add file to cluster %d", cluster);
 
    FatDirectoryEntry entry = (FatDirectoryEntry){
       .firstClusterLow = cluster & 0xFFFF,
@@ -331,7 +334,6 @@ static uint32_t getFatOffset(FatDisk *disk, uint32_t clusterNumber){
 }
 static uint32_t getFatType(FatDisk *disk){
    uint32_t countOfClusters = getCountOfClusters(disk);
-   loggDebug("Cluster count %d\n", countOfClusters);
    if(countOfClusters < 4085){
       return Fat12;
    }

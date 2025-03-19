@@ -108,12 +108,13 @@ static File* createGenericFile(FileSystem *fileSystem, char *path, uint8_t attri
       }
       fatDisk_closeFile(disk, root);
    }
+   loggDebug("Create file (%s) %s", parentPath, fileName);
    if(directoryContains(disk, parent, fileName)){
+      loggError("File exists already");
       fatDisk_closeFile(disk, parent);
       kfree(parentPath);
       kfree(fileName);
       return 0;
-
    }
    FatFile *file = fatDisk_newFile(disk, parent, fatFileName, attributes);
 

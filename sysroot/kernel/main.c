@@ -87,9 +87,23 @@ static void initXhci(PciDescriptor pci){
             }
             loggDebug("Init fat\n");
 
+            char buff[20];
+            for(int i = 0; i < 5; i++){
+                loggDebug("Create %d", i);
+                sprintf(buff, "/f_%d.txt", i);
+                File *f = fs.createFile(&fs, buff);
+                if(!f){
+                    f = fs.openFile(&fs, buff);
+                }
+                fs.writeFile(f, buff, strlen(buff));
+                loggDebug("Closing file...");
+                fs.closeFile(f);
+            }
+            while(1);
 
             Directory *dir= fs.openDirectory(&fs, "/");
             loggDebug("Open dir %X\n", dir);
+
             while(true){
                 DirectoryEntry *entry = fs.readDirectory(dir);
                 if(!entry){
@@ -286,7 +300,7 @@ void initLogging(){
     serial_initPort(COM1, serialConfig);
     LoggWriter serialWriter = logging_getDefaultWriter(serial_writer);
     serialWriter.loggLevel = LoggLevelDebug;
-//     logging_addWriter(serialWriter);
+    logging_addWriter(serialWriter);
 
     LoggWriter consoleWriter = logging_getCustomWriter(console_writer);
     consoleWriter.loggLevel = LoggLevelDebug,
