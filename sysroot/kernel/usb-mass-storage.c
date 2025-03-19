@@ -4,7 +4,6 @@
 #include "kernel/logging.h"
 #include "string.h"
 #include "stdlib.h"
-
 #define CLASS_MASS_STORAGE 0x08
 #define SUBCLASS_SCSI 0x06
 #define PROTOCOL_BULK_ONLY 0x50
@@ -164,7 +163,7 @@ UsbMassStorageStatus usbMassStorage_write(const UsbMassStorageDevice *device,
       return UsbMassStorageSuccess;
    }
 
-   uint32_t blockCount = dataSize / device->capacity + 1;
+   uint32_t blockCount = (dataSize + device->capacity - 1)/device->capacity;
 
    if(logicalBlockAddress + blockCount > device->maxLogicalBlockAddress + 1){
       return UsbMassStorageInvalidAddress;

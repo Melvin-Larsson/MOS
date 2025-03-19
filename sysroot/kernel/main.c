@@ -17,6 +17,8 @@
 #include "kernel/threads.h"
 #include "kernel/timer.h"
 #include "kernel/memory.h"
+#include "kernel/mass-storage.h"
+#include "kernel/fat.h"
 
 #include "kernel/task.h"
 
@@ -74,7 +76,35 @@ static void initXhci(PciDescriptor pci){
         UsbMassStorageDevice res;
         UsbMassStorageStatus status = usbMassStorage_init(&device, &res);
         if(status == UsbMassStorageSuccess){
-            loggInfo("Found deice!\n");
+            loggInfo("Found device!\n");
+            MassStorageDevice ms;
+            massStorageDevice_initUsb(&res, &ms);
+
+            FileSystem fs;
+            if(fat_init(&ms, &fs) == FatStatusFailure){
+                loggError("Failed to init fat");
+                while(1);
+            }
+            loggDebug("Init fat\n");
+
+
+            Directory *dir= fs.openDirectory(&fs, "/");
+            loggDebug("Open dir %X\n", dir);
+            while(true){
+                DirectoryEntry *entry = fs.readDirectory(dir);
+                if(!entry){
+                    break;
+                }
+                loggInfo("Read %s", entry->filename);
+            }
+
+            loggInfo("Read all files");
+            while(1);
+            fs.closeDirectory(dir);
+            loggInfo("Directory closed");
+            fs.closeFileSystem(&fs);
+            loggInfo("Fs closed");
+
             uint8_t buffer[512];
             usbMassStorage_read(&res, 0, buffer, sizeof(buffer));
             char str[1024];
@@ -82,14 +112,13 @@ static void initXhci(PciDescriptor pci){
             char strBuff[64];
             loggInfo("buffer: ");
             for(int i = 0; i < sizeof(buffer); i++){
-                sprintf(strBuff, "%c", buffer[i]);
+                sprintf(strBuff, "%X", buffer[i]);
                 strAppend(str, strBuff);
             }
             loggInfo("%s", str);
             while(1);
         }else{
             printf("Failed to init: %X\n", status);
-            while(1);
         }
 //         KeyboardStatus status = keyboard_init(&device);
 //         char buffer[100];
@@ -251,16 +280,18 @@ void t2(){
 }
 
 void initLogging(){
+    logging_init();
+
     SerialPortConfig serialConfig = serial_defaultConfig();
     serial_initPort(COM1, serialConfig);
-
-    LoggWriter consoleWriter = logging_getCustomWriter(console_writer);
     LoggWriter serialWriter = logging_getDefaultWriter(serial_writer);
     serialWriter.loggLevel = LoggLevelDebug;
-    consoleWriter.loggLevel = LoggLevelInfo,
-    logging_init();
+//     logging_addWriter(serialWriter);
+
+    LoggWriter consoleWriter = logging_getCustomWriter(console_writer);
+    consoleWriter.loggLevel = LoggLevelDebug,
+
     logging_addWriter(consoleWriter);
-    logging_addWriter(serialWriter);
 }
 
 static void enter_usermode(){
@@ -302,8 +333,8 @@ void kernel_main(){
     kio_init();
     memory_init();
 
-//     testMemory();
-//     testMemoryConstrained();
+    testMemory();
+    testMemoryConstrained();
     interruptDescriptorTableInit(); 
     kprintf("Kernel started\n");
     assert_little_endian();
@@ -399,8 +430,8 @@ void kernel_main(){
     s1 = semaphore_new(0);
     s2 = semaphore_new(0);
 
-    thread_start(thread1);
-    thread_start(thread2);
+//     thread_start(thread1);
+//     thread_start(thread2);
 
     PciDescriptor devices[20];
     int count = pci_getDevices(devices, 10);

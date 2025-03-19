@@ -1,6 +1,8 @@
 #include "kernel/fat-disk.h"
 #include "kernel/logging.h"
 #include "kernel/memory.h"
+#include "stdlib.h"
+#include "utils/assert.h"
 
 static uint32_t readClusterNumbers(FatDisk* disk, uint32_t dataCluster, uint32_t *result, uint32_t resultCount);
 static uint32_t findFreeClusters(FatDisk* disk, uint32_t result[], uint32_t clusterCount);
@@ -14,6 +16,7 @@ static FatFile* addDirectoryEntry(FatDisk *disk, FatFile *parent, FatDirectoryEn
 static uint32_t readRoot12_16(FatDisk *disk, BufferedStorageBuffer *buffer, uint32_t offset, uint32_t size, void *result);
 static uint32_t writeRoot12_16(FatDisk *disk, BufferedStorageBuffer *buffer, uint32_t offset, uint32_t size, void *data);
 
+static uint32_t getFat32RootSize(FatDisk *disk);
 static uint32_t getAddressFromOffset(FatDisk *disk, FatFile *file, uint32_t offset);
 static uint32_t getFatOffset(FatDisk *disk, uint32_t clusterNumber);
 static uint32_t getFatType(FatDisk *disk);
@@ -35,6 +38,7 @@ static FatStatus readFatEntry(FatDisk *disk, uint32_t cluster, uint32_t *result)
 
 #define MIN_DATA_CLUSTER_NUMBER 2
 #define BLOCK_BUFFER_SIZE 20
+#define IS_FAT32_CLUSTER_EOF(x) (x >= 0xFFFFFF8)
 
 FatStatus fatDisk_init(MassStorageDevice *device, FatDisk *result){
    *result = (FatDisk){
@@ -62,12 +66,14 @@ FatFile *fatDisk_openRoot(FatDisk *disk){
 
    if(disk->version == Fat12 || disk->version == Fat16){
       file->directoryEntry.fileSize = getRootDirSectorCount(disk) * bpb->bytesPerSector;
+      loggDebug("Open Fat12/Fat16 root");
    }
    else{
       uint32_t rootCluster = disk->diskInfo.extendedBootRecordFat32.rootCluster;
+      loggDebug("Open Fat32 root, root cluster at %X", rootCluster);
       file->directoryEntry.firstClusterLow = rootCluster & 0xFFFF;
       file->directoryEntry.firstClusterHigh = rootCluster >> 16;
-//       file->directoryEntry.fileSize = 0; FIXME
+      file->directoryEntry.fileSize = getFat32RootSize(disk);
    }
 
    return file;
@@ -301,6 +307,18 @@ static FatStatus writeFatEntry(FatDisk *disk, uint32_t cluster, uint32_t value){
    return FatStatusSuccess;
 }
 
+//FIXME: Should probably not count the empty entries in this size.
+static uint32_t getFat32RootSize(FatDisk *disk){
+   assert(disk->version == Fat32);
+   uint32_t rootCluster = disk->diskInfo.extendedBootRecordFat32.rootCluster;
+   uint32_t size = 0;
+   for(uint32_t cluster = rootCluster; !IS_FAT32_CLUSTER_EOF(cluster); readFatEntry(disk, cluster, &cluster)){
+      size += disk->diskInfo.parameterBlock.bytesPerSector
+         * disk->diskInfo.parameterBlock.sectorsPerCluster;
+   }
+   return size;
+}
+
 static uint32_t getFatOffset(FatDisk *disk, uint32_t clusterNumber){
    FatVersion fatVersion = getFatType(disk);
    if(fatVersion == Fat16){
@@ -313,6 +331,7 @@ static uint32_t getFatOffset(FatDisk *disk, uint32_t clusterNumber){
 }
 static uint32_t getFatType(FatDisk *disk){
    uint32_t countOfClusters = getCountOfClusters(disk);
+   loggDebug("Cluster count %d\n", countOfClusters);
    if(countOfClusters < 4085){
       return Fat12;
    }

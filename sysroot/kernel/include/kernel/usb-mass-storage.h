@@ -23,7 +23,6 @@ typedef struct{
    uint32_t capacity;
    uint32_t maxLogicalBlockAddress;
    uint8_t inquiryData[36];
-
 }UsbMassStorageDevice;
 
 UsbMassStorageStatus usbMassStorage_init(UsbDevice *usbDevice,

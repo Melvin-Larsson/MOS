@@ -445,6 +445,7 @@ XhcStatus xhcd_writeData(const XhcDevice *device,
 
    XhcEventTRB event;
    while(!dequeEventTrb(xhcd, &event));
+   loggDebug("Event ring trb type %d, status %d", event.trbType, event.completionCode);
    if(event.completionCode != Success){
       return XhcReadDataError;
    }

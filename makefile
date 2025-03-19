@@ -22,7 +22,7 @@ all : ${IMAGE}
 	echo ${PREFIX}
 	$(MAKE) kernel
 	$(MAKE) lib
-	${COMPILER} -T ${PREFIX}/linker.ld ${OBJS} ${LINK_FLAGS}  -o ${BUILD}/os.elf
+	${COMPILER} -T ${PREFIX}/linker.ld ${OBJS} ${LINK_FLAGS} -o ${BUILD}/os.elf
 	objcopy -O binary ${BUILD}/os.elf ${BUILD}/os.bin
 	dd if=${STAGE_1} of=${IMAGE} bs=1 seek=96 conv=notrunc
 	printf '\x5e' | dd if=/dev/fd/0 of=${IMAGE} bs=1 seek=1 conv=notrunc
@@ -34,7 +34,7 @@ ${BUILD} :
 	mkdir ${BUILD}
 
 ${IMAGE} : ${BUILD}
-	dd if=/dev/zero of=${IMAGE} bs=512 count=2048
+	dd if=/dev/zero of=${IMAGE} bs=512 count=70000
 	mkfs.fat -F 32 ${IMAGE}
 	dd if=/dev/zero of=${BUILD}/placeholder.bin bs=512 count=512
 	mcopy -o -i ${IMAGE} ${BUILD}/placeholder.bin ::os.bin
@@ -49,6 +49,5 @@ lib	:
 
 clean :
 	rm -f ${BUILD}/*
-	dd if=/dev/zero of=${BUILD}/os.img bs=512 count=2048
 	$(MAKE) -C ${KERNEL} clean
 	$(MAKE) -C ${LIBS} clean
