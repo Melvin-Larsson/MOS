@@ -31,6 +31,8 @@
 
 #include "kernel/usb-mass-storage.h"
 
+static FileSystem fs;
+
 extern uint32_t __bss_start;
 extern uint32_t __bss_end;
 
@@ -65,46 +67,44 @@ static PciDescriptor* getXhcdDevice(PciDescriptor* descriptors, int count){
     }
     return 0;
 }
-
 static void initXhci(PciDescriptor pci){
-    Usb usb;
-    if(usb_init(pci, &usb) != StatusSuccess){
+    Usb *usb = kmalloc(sizeof(Usb));
+    UsbDevice *device = kmalloc(sizeof(UsbDevice));
+    UsbMassStorageDevice *res = kmalloc(sizeof(UsbMassStorageDevice));
+    MassStorageDevice *ms = kmalloc(sizeof(MassStorageDevice));
+
+    if(usb_init(pci, usb) != StatusSuccess){
         loggError("Failed to initialize USB");
         return;
     }
-    return;
     while(1){
-        UsbDevice device;
         loggDebug("Wait for attach");
-        while(usb_getNewlyAttachedDevices(&usb, &device, 1) == 0);
+        while(usb_getNewlyAttachedDevices(usb, device, 1) == 0);
         loggInfo("Device attached");
-        UsbMassStorageDevice res;
-        UsbMassStorageStatus status = usbMassStorage_init(&device, &res);
+        UsbMassStorageStatus status = usbMassStorage_init(device, res);
         if(status == UsbMassStorageSuccess){
             loggInfo("Found device!\n");
-            MassStorageDevice ms;
-            massStorageDevice_initUsb(&res, &ms);
+            massStorageDevice_initUsb(res, ms);
 
-            FileSystem fs;
-            if(fat_init(&ms, &fs) == FatStatusFailure){
+            if(fat_init(ms, &fs) == FatStatusFailure){
                 loggError("Failed to init fat");
                 while(1);
             }
+            return;
             loggDebug("Init fat\n");
 
-            char buff[20];
-            for(int i = 0; i < 1; i++){
-                loggDebug("Create %d", i);
-                sprintf(buff, "/f_%d.txt", i);
-                File *f = fs.createFile(&fs, buff);
-                if(!f){
-                    f = fs.openFile(&fs, buff);
-                }
-                fs.writeFile(f, "Hello From Os!", 14);
-                loggDebug("Closing file...");
-                fs.closeFile(f);
-            }
-            while(1);
+//             char buff[20];
+//             for(int i = 0; i < 1; i++){
+//                 loggDebug("Create %d", i);
+//                 sprintf(buff, "/f_%d.txt", i);
+//                 File *f = fs.createFile(&fs, buff);
+//                 if(!f){
+//                     f = fs.openFile(&fs, buff);
+//                 }
+//                 fs.writeFile(f, "Hello From Os!", 14);
+//                 loggDebug("Closing file...");
+//                 fs.closeFile(f);
+//             }
 
             Directory *dir= fs.openDirectory(&fs, "/");
             loggDebug("Open dir %X\n", dir);
@@ -118,9 +118,9 @@ static void initXhci(PciDescriptor pci){
             }
 
             loggInfo("Read all files");
-            while(1);
             fs.closeDirectory(dir);
             loggInfo("Directory closed");
+            return;
             fs.closeFileSystem(&fs);
             loggInfo("Fs closed");
 
@@ -249,7 +249,7 @@ void console_writer(LoggContext context, LoggLevel level, const char *format, va
     }
     kio_setColor(newColor);
     vkprintf(format, args);
-    kprintf("|||");
+    kprintf("\n");
     kio_setColor(prevColor);
 }
 
@@ -305,7 +305,7 @@ void initLogging(){
     serial_initPort(COM1, serialConfig);
     LoggWriter serialWriter = logging_getDefaultWriter(serial_writer);
     serialWriter.loggLevel = LoggLevelDebug;
-//     logging_addWriter(serialWriter);
+    logging_addWriter(serialWriter);
 
     LoggWriter consoleWriter = logging_getCustomWriter(console_writer);
     consoleWriter.loggLevel = LoggLevelInfo,
@@ -383,10 +383,150 @@ char ps2_scancode_to_ascii(uint8_t scancode) {
     return scancode_set2[scancode] ? scancode_set2[scancode] : 0; // '?' for unknown codes
 }
 
+bool prefix(char *c1, char *c2){
+    while(*c1 && *c2){
+        if(*c1++ != *c2++){
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool cmp(char *c1, char *c2){
+    while(*c1 && *c2){
+        if(*c1++ != *c2++){
+            return false;
+        }
+    }
+    return *c1 == *c2;
+}
+
+static char buffer[128];
+static int characters = 0;
+static char currDir[128] = "/";
+static volatile char newChar = 0;
+
+static int get_path(char *result, char *str){
+    char *start = str;
+    char *end = start;
+    while(*end && *end != ' '){
+        end++;
+    }
+    char filename[32];
+    int length = end - start;
+    memcpy(filename, start, length);
+    filename[length] = 0;
+
+    sprintf(result, "%s%s", currDir, filename);
+
+    return length;
+}
+
+void file_system(){
+    kclear();
+    while(1){
+        while(newChar == 0);
+        char c = newChar;
+        newChar = 0;
+        if(c == '\n'){
+            if(cmp(buffer, "ls")){
+                Directory *dir = fs.openDirectory(&fs, "/");
+                kprintf("\n");
+                while(1){
+                    DirectoryEntry *dirEntry = fs.readDirectory(dir);
+                    if(!dirEntry){
+                        break;
+                    }
+                    kprintf("%s ", dirEntry->filename);
+                    kfree(dirEntry->filename);
+                    kfree(dirEntry->path);
+                    kfree(dirEntry);
+                }
+                fs.closeDirectory(dir);
+                
+            }
+            else if(prefix("touch ", buffer)){
+                char *start = buffer + strlen("touch ");
+                while(1){
+                    if(*start == 0){
+                        break;
+                    }
+
+                    char path[128];
+                    start += get_path(path, start);
+                    File *file = fs.createFile(&fs, path);
+                    if(file){
+                        fs.closeFile(file);
+                    }
+                }
+                characters = 0;
+                buffer[0] = 0;
+            }
+            else if(prefix("edit ", buffer)){
+                char *start = buffer + strlen("edit ");
+                char path[128];
+                start += get_path(path, start) + 1;
+                File *f = fs.openFile(&fs, path);
+                if(f){
+                    fs.writeFile(f, start, strlen(start));
+                    fs.closeFile(f);
+                }
+                characters = 0;
+                buffer[0] = 0;
+            }
+            else if(prefix("cat ", buffer)){
+                char *start = buffer + strlen("cat ");
+                char path[128];
+                start += get_path(path, start);
+                File *f = fs.openFile(&fs, path);
+                if(f){
+                    char res[512];
+                    int length = fs.readFile(f, res, sizeof(res));
+                    fs.closeFile(f);
+                    res[length] = 0;
+                    kprintf("\n%s\n", res);
+                }
+                characters = 0;
+                buffer[0] = 0;
+            }
+            else{
+                kprintf("\nUnknown command '%s'", buffer);
+            }
+            buffer[0] = 0;
+            characters = 0;
+            kprintf("\n");
+        }
+        else if (c == '\b'){
+            if(characters > 0){
+                kprintf("\b");
+                buffer[characters] = 0;
+                characters --;
+            }
+        }
+        else{
+            kprintf("%c", c);
+            buffer[characters++] = c;
+            buffer[characters] = 0;
+        }
+
+
+
+    }
+}
+
 void key_handler(uint8_t scancode){
-    char c = ps2_scancode_to_ascii(scancode);
-    if(c){
-        kprintf("%c", c);
+    static bool ignore_next = false;
+
+    if(scancode == 0xF0){
+        ignore_next = true;
+    }
+    else if(ignore_next){
+        ignore_next = false;
+    }
+    else{
+        char c = ps2_scancode_to_ascii_set_2(scancode);
+        newChar = c;
     }
 }
 
@@ -511,18 +651,17 @@ void kernel_main(){
 //     thread_start(thread1);
 //     thread_start(thread2);
 
-//     PciDescriptor devices[20];
-//     int count = pci_getDevices(devices, 10);
-//     loggInfo("here\n");
-//     printPciDevices(devices, count);
-//     PciDescriptor *xhcDevice = getXhcdDevice(devices, count);
-
-//     if(!xhcDevice){
-//         loggError("Error: Could not find xhc device!");
-//     }else{
-//         loggInfo("Found a xhc device!");
-//         initXhci(*xhcDevice);
-//     }
+    PciDescriptor devices[20];
+    int count = pci_getDevices(devices, 10);
+    loggInfo("here\n");
+    printPciDevices(devices, count);
+    PciDescriptor *xhcDevice = getXhcdDevice(devices, count);
+    if(!xhcDevice){
+        loggError("Error: Could not find xhc device!");
+    }else{
+        loggInfo("Found a xhc device!");
+        initXhci(*xhcDevice);
+    }
 
     Ps28042Status ps2Status = ps2_8042_init();
     if(ps2Status == Ps28042StatusSucess){
@@ -549,7 +688,7 @@ void kernel_main(){
     }
 
     loggDebug("3: %d", writeWithResend(port.portId, 0xF0));
-    loggDebug("4: %d", writeWithResend(port.portId, 1));
+    loggInfo("4: %d", writeWithResend(port.portId, 2));
 
     loggDebug("scan");
     loggDebug("2:%d", writeWithResend(port.portId, 0xF4));
@@ -557,5 +696,8 @@ void kernel_main(){
     ps2_8042_set_interrupt_handler(port.portId, key_handler);
 
     loggInfo("end");
+
+    file_system();
+
     while(1);
 }

@@ -444,6 +444,7 @@ XhcStatus xhcd_writeData(const XhcDevice *device,
    xhcd_ringDoorbell(xhcd, device->slotId, endpointIndex);
 
    XhcEventTRB event;
+   loggDebug("Waiting for event");
    while(!dequeEventTrb(xhcd, &event));
    loggDebug("Event ring trb type %d, status %d", event.trbType, event.completionCode);
    if(event.completionCode != Success){

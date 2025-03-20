@@ -148,10 +148,13 @@ UsbMassStorageStatus usbMassStorage_read(const UsbMassStorageDevice *device,
    readCBW.dataTransferLength = bufferSize;
    readCBW.direction = directionIn;
 
+   loggDebug("Write CBW");
    usb_writeData(device->usbDevice, device->bulkOutEndpoint, &readCBW, sizeof(CBW));
 
+   loggDebug("Read response");
    usb_readData(device->usbDevice, device->bulkInEndpoint, resultBuffer, bufferSize);
 
+   loggDebug("Read status");
    return readStatus(device);
 }
 UsbMassStorageStatus usbMassStorage_write(const UsbMassStorageDevice *device,
