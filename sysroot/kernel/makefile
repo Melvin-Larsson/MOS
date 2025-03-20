@@ -43,6 +43,7 @@ OBJS=  ${BUILD}/boot-stage-2.o \
 	   ${BUILD}/threads.o \
 	   ${BUILD}/timer.o \
 	   ${BUILD}/memory.o \
+	   ${BUILD}/ps2-8042.o \
 
 .PHONY: all
 all: ${BUILD}/kernel.o ${BUILD}/boot-stage-1.o
@@ -153,6 +154,9 @@ ${BUILD}/timer.o : timer.c include/kernel/timer.h
 
 ${BUILD}/memory.o : memory.c include/kernel/memory.h
 	${COMPILER} ${CFLAGS} -c memory.c -o ${BUILD}/memory.o
+
+${BUILD}/ps2-8042.o : ps2-8042.c include/kernel/ps2-8042.h include/kernel/ps2-8042-structures.h
+	${COMPILER} ${CFLAGS} -c ps2-8042.c -o ${BUILD}/ps2-8042.o
 
 include/kernel/xhcd.h: include/kernel/xhcd-registers.h include/kernel/usb-messages.h
 include/kernel/xhcd-ring.h: include/kernel/xhcd-registers.h

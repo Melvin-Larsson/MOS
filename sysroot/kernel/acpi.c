@@ -1,5 +1,6 @@
 #include "kernel/acpi.h"
 #include "kernel/logging.h"
+#include "kernel/paging.h"
 
 #define ASSERTS_ENABLED
 #include "utils/assert.h"
@@ -41,7 +42,7 @@ typedef struct{
 
 typedef struct{
    DescriptionTableHeader header;
-   uint32_t addresses[0];
+   uint32_t addresses[32]; //FIXME: What value?
 }RSDT;
 
 typedef struct{
@@ -71,81 +72,90 @@ typedef struct{
 }MADTHeader;
 
 
-InterruptControllerStructureHeader *getMadtStructure(uint8_t type);
-static MADTHeader *findMADT();
+uintptr_t getMadtStructure(uint8_t type);
+static uintptr_t findMADT();
 
-static void* findTable(char signature[4]);
+static uintptr_t findTable(char signature[4]);
 
 static void findRsdp();
-static bool isValidRsdp(RSDP *rsdp);
+static bool isValidRsdp(uintptr_t rsdp);
 
 static RSDP rsdp;
-static RSDT *rsdt;
+static uintptr_t rsdtAddress;
 
 void acpi_init(){
    findRsdp();
 
-   int tableEntries = (rsdt->header.length - sizeof(DescriptionTableHeader))/ 4;
+   RSDT rsdt;
+   paging_readPhysical(rsdtAddress, &rsdt, sizeof(RSDT));
+
+   int tableEntries = (rsdt.header.length - sizeof(DescriptionTableHeader))/ 4;
    loggDebug("Found %d ACPI tables", tableEntries);
 
    for(int i = 0; i < tableEntries; i++){
-      DescriptionTableHeader *header = (DescriptionTableHeader *)rsdt->addresses[i];
+      DescriptionTableHeader header;
+      paging_readPhysical(rsdt.addresses[i], &header, sizeof(DescriptionTableHeader));
       loggDebug("Found %c%c%c%c", 
-         header->signature[0], header->signature[1],
-         header->signature[2], header->signature[3]);
+         header.signature[0], header.signature[1],
+         header.signature[2], header.signature[3]);
    }
 }
 
 bool acpi_getIOApicData(IoAcpiData *result){
-   InterruptControllerStructureHeader *header = getMadtStructure(TYPE_IO_APIC_STRUCTURE);
-   if(header == 0){
+   uintptr_t headerAddress = getMadtStructure(TYPE_IO_APIC_STRUCTURE);
+   if(headerAddress == 0){
       return false;
    }
 
-   IoApic *ioApic = (IoApic *)header;
+   IoApic ioApic;
+   paging_readPhysical(headerAddress, &ioApic, sizeof(ioApic));
    *result = (IoAcpiData){
-      .id = ioApic->id,
-      .address = ioApic->address,
-      .globalSystemInterruptBase = ioApic->globalSystemInterruptBase
+      .id = ioApic.id,
+      .address = ioApic.address,
+      .globalSystemInterruptBase = ioApic.globalSystemInterruptBase
    };
 
    return true;
 }
 
 bool acpi_getLocalApicData(LocalApicData *result){
-   InterruptControllerStructureHeader *header = getMadtStructure(TYPE_LOCAL_APIC_STRUCTURE);
-   if(header == 0){
+   uintptr_t headerAddress = getMadtStructure(TYPE_LOCAL_APIC_STRUCTURE);
+   if(headerAddress == 0){
       return false;
    }
 
-   LocalApic *localAcpi = (LocalApic *)header;
+   LocalApic localAcpi;
+   paging_readPhysical(headerAddress, &localAcpi, sizeof(LocalApic));
    *result = (LocalApicData){
-      .acpiProcessorUid = localAcpi->acpiProcessorUid,
-      .apicId = localAcpi->apicId,
-      .flags = localAcpi->flags
+      .acpiProcessorUid = localAcpi.acpiProcessorUid,
+      .apicId = localAcpi.apicId,
+      .flags = localAcpi.flags
    };
 
    return true;
 }
 
-InterruptControllerStructureHeader *getMadtStructure(uint8_t type){
-   MADTHeader *madt = findMADT();
-   assert(madt != 0);
+uintptr_t getMadtStructure(uint8_t type){
+   uintptr_t madtAddress = findMADT();
+   assert(madtAddress != 0);
 
-   uintptr_t madtAddress = (uintptr_t)madt;
-   InterruptControllerStructureHeader *header = 
-      (InterruptControllerStructureHeader *)(madtAddress + sizeof(MADTHeader));
+   MADTHeader madt;
+   paging_readPhysical(madtAddress, &madt, sizeof(MADTHeader));
 
-   int structureListSize = (madt->header.length - sizeof(MADTHeader));
+   uintptr_t headerAddress = madtAddress + sizeof(MADTHeader);
+
+   int structureListSize = (madt.header.length - sizeof(MADTHeader));
 
    while(structureListSize > 0){
-      if(header->type == type){
-         return header;
+      InterruptControllerStructureHeader header;
+      paging_readPhysical(headerAddress, &header, sizeof(InterruptControllerStructureHeader));
+
+      if(header.type == type){
+         return headerAddress;
       }
 
-      structureListSize -= header->length;
-      uintptr_t headerAddress = (uintptr_t)header;
-      header = (InterruptControllerStructureHeader* )(headerAddress + header->length);
+      structureListSize -= header.length;
+      headerAddress = (headerAddress + header.length);
    }
 
    return 0;
@@ -153,20 +163,25 @@ InterruptControllerStructureHeader *getMadtStructure(uint8_t type){
 
 
 
-static MADTHeader *findMADT(){
+static uintptr_t findMADT(){
    return findTable("APIC");
 }
 
-static void* findTable(char signature[4]){
-   int tableEntries = (rsdt->header.length - sizeof(DescriptionTableHeader))/ 4;
+static uintptr_t findTable(char signature[4]){
+   RSDT rsdt;
+   paging_readPhysical(rsdtAddress, &rsdt, sizeof(RSDT));
+   int tableEntries = (rsdt.header.length - sizeof(DescriptionTableHeader))/ 4;
 
    for(int i = 0; i < tableEntries; i++){
-      DescriptionTableHeader *header = (DescriptionTableHeader *)rsdt->addresses[i];
-      for(int i = 0; i < 4; i++){
-         if(header->signature[i] != signature[i]){
+      DescriptionTableHeader header;
+      uintptr_t headerAddress = rsdt.addresses[i];
+      paging_readPhysical(headerAddress, &header, sizeof(DescriptionTableHeader));
+
+      for(int j = 0; j < 4; j++){
+         if(header.signature[j] != signature[j]){
             continue;
          }
-         return header;
+         return headerAddress;
       }
    }
    return 0;
@@ -174,9 +189,9 @@ static void* findTable(char signature[4]){
 
 static void findRsdp(){
    for(int i = 0xE0000; i < 0xFFFFF; i += 16){
-      if(isValidRsdp((RSDP *)i)){
-         rsdp = *((RSDP*)i);
-         rsdt = (RSDT *)rsdp.rsdtAddress;
+      if(isValidRsdp(i)){
+         paging_readPhysical(i, &rsdp, sizeof(RSDP));
+         rsdtAddress = rsdp.rsdtAddress;
          loggInfo("Found rsdp");
          return;
       }
@@ -188,17 +203,19 @@ static void findRsdp(){
    loggError("Dit not find rsdp");
 }
 
-static bool isValidRsdp(RSDP *rsdp){
+static bool isValidRsdp(uintptr_t rsdpAddress){
    char *expected = "RSD PTR ";
 
+   RSDP rsdp;
+   paging_readPhysical(rsdpAddress, &rsdp, sizeof(RSDP));
    for(int i = 0; i < 8; i++){
-      if(rsdp->signature[i] != expected[i]){
+      if(rsdp.signature[i] != expected[i]){
          return false;
       }
    }
 
    signed char sum = 0;
-   signed char *bytes = (signed char *)rsdp;
+   signed char *bytes = (signed char *)&rsdp;
    for(int i = 0; i < 20; i++){
       sum += bytes[i]; 
    }

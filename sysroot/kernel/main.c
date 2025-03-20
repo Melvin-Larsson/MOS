@@ -19,6 +19,7 @@
 #include "kernel/memory.h"
 #include "kernel/mass-storage.h"
 #include "kernel/fat.h"
+#include "kernel/ps2-8042.h"
 
 #include "kernel/task.h"
 
@@ -29,6 +30,9 @@
 #include "utils/assert.h"
 
 #include "kernel/usb-mass-storage.h"
+
+extern uint32_t __bss_start;
+extern uint32_t __bss_end;
 
 static void printPciDevices(PciDescriptor *descriptors, int count){
     return;
@@ -68,6 +72,7 @@ static void initXhci(PciDescriptor pci){
         loggError("Failed to initialize USB");
         return;
     }
+    return;
     while(1){
         UsbDevice device;
         loggDebug("Wait for attach");
@@ -88,14 +93,14 @@ static void initXhci(PciDescriptor pci){
             loggDebug("Init fat\n");
 
             char buff[20];
-            for(int i = 0; i < 5; i++){
+            for(int i = 0; i < 1; i++){
                 loggDebug("Create %d", i);
                 sprintf(buff, "/f_%d.txt", i);
                 File *f = fs.createFile(&fs, buff);
                 if(!f){
                     f = fs.openFile(&fs, buff);
                 }
-                fs.writeFile(f, buff, strlen(buff));
+                fs.writeFile(f, "Hello From Os!", 14);
                 loggDebug("Closing file...");
                 fs.closeFile(f);
             }
@@ -244,7 +249,7 @@ void console_writer(LoggContext context, LoggLevel level, const char *format, va
     }
     kio_setColor(newColor);
     vkprintf(format, args);
-    kprintf("\n");
+    kprintf("|||");
     kio_setColor(prevColor);
 }
 
@@ -300,10 +305,10 @@ void initLogging(){
     serial_initPort(COM1, serialConfig);
     LoggWriter serialWriter = logging_getDefaultWriter(serial_writer);
     serialWriter.loggLevel = LoggLevelDebug;
-    logging_addWriter(serialWriter);
+//     logging_addWriter(serialWriter);
 
     LoggWriter consoleWriter = logging_getCustomWriter(console_writer);
-    consoleWriter.loggLevel = LoggLevelDebug,
+    consoleWriter.loggLevel = LoggLevelInfo,
 
     logging_addWriter(consoleWriter);
 }
@@ -342,7 +347,66 @@ void timerHandler(void *data){
     kprintf("%d:%d:%d", minute, seconds, millis);
 }
 
+char ps2_scancode_to_ascii_set_2(uint8_t scancode){
+    char scancode_set2[256] = {
+        [0x1C] = 'a', [0x32] = 'b', [0x21] = 'c', [0x23] = 'd',
+        [0x24] = 'e', [0x2B] = 'f', [0x34] = 'g', [0x33] = 'h',
+        [0x43] = 'i', [0x3B] = 'j', [0x42] = 'k', [0x4B] = 'l',
+        [0x3A] = 'm', [0x31] = 'n', [0x44] = 'o', [0x4D] = 'p',
+        [0x15] = 'q', [0x2D] = 'r', [0x1B] = 's', [0x2C] = 't',
+        [0x3C] = 'u', [0x2A] = 'v', [0x1D] = 'w', [0x22] = 'x',
+        [0x35] = 'y', [0x1A] = 'z',
+        
+        [0x29] = ' ',
+        [0x66] = '\b',
+        [0x5A] = '\n'
+    };
+
+    return scancode_set2[scancode];
+}
+
+char ps2_scancode_to_ascii(uint8_t scancode) {
+    static const char scancode_set2[256] = {
+        [0x1E] = 'a', [0x30] = 'b', [0x2E] = 'c',
+        [0x20] = 'd', [0x12] = 'e', [0x21] = 'f',
+        [0x22] = 'g', [0x23] = 'h', [0x17] = 'i',
+        [0x24] = 'j', [0x25] = 'k', [0x26] = 'l',
+        [0x32] = 'm', [0x31] = 'n', [0x18] = 'o',
+        [0x19] = 'p', [0x10] = 'q', [0x13] = 'r',
+        [0x1F] = 's', [0x14] = 't', [0x16] = 'u',
+        [0x2F] = 'v', [0x11] = 'w', [0x2D] = 'x',
+        [0x15] = 'y', [0x2C] = 'z', [0x29] = ' ',
+        [0x1C] = '\n', // Enter
+        [0x0E] = '\b', // Backspace
+        [0x39] = ' ',
+    };
+    return scancode_set2[scancode] ? scancode_set2[scancode] : 0; // '?' for unknown codes
+}
+
+void key_handler(uint8_t scancode){
+    char c = ps2_scancode_to_ascii(scancode);
+    if(c){
+        kprintf("%c", c);
+    }
+}
+
+static bool writeWithResend(Ps28042PortId portId, uint8_t command1){
+    for(int i = 0; i < 3; i++){
+        loggDebug("write");
+        ps2_8042_writeToPort(portId, command1);
+        uint8_t res;
+        ps2_8042_readPortBlocking(portId, &res);
+        loggDebug("read %X", res);
+        if(res == 0xFA){
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void kernel_main(){
+    memset(&__bss_start, 0, &__bss_end - &__bss_start);
     timeMillis = 0;
     kio_init();
     memory_init();
@@ -447,18 +511,50 @@ void kernel_main(){
 //     thread_start(thread1);
 //     thread_start(thread2);
 
-    PciDescriptor devices[20];
-    int count = pci_getDevices(devices, 10);
-    loggInfo("here\n");
-    printPciDevices(devices, count);
-    PciDescriptor *xhcDevice = getXhcdDevice(devices, count);
+//     PciDescriptor devices[20];
+//     int count = pci_getDevices(devices, 10);
+//     loggInfo("here\n");
+//     printPciDevices(devices, count);
+//     PciDescriptor *xhcDevice = getXhcdDevice(devices, count);
 
-    if(!xhcDevice){
-        loggError("Error: Could not find xhc device!");
+//     if(!xhcDevice){
+//         loggError("Error: Could not find xhc device!");
+//     }else{
+//         loggInfo("Found a xhc device!");
+//         initXhci(*xhcDevice);
+//     }
+
+    Ps28042Status ps2Status = ps2_8042_init();
+    if(ps2Status == Ps28042StatusSucess){
+        loggDebug("Initialized ps2 8042");
     }else{
-        loggInfo("Found a xhc device!");
-        initXhci(*xhcDevice);
+        loggError("Failed to initialize ps2 8042, reason %d", ps2Status);
     }
+
+    Ps28042Port port = ps2_8042_getPortInfo(Port1);
+    if(port.deviceType != 0x83AB && port.deviceType != 0xC1AB){
+        loggDebug("No keyboard on port 1");
+        port = ps2_8042_getPortInfo(Port2);
+
+        if(port.deviceType != 0x83AB && port.deviceType != 0xC1AB){
+            loggDebug("No keyboard on port 2");
+            while(1);
+        }
+    }
+
+    uint8_t trash;
+    loggDebug("Clear buffer");
+    for(int i = 0; i < 100; i++){
+        ps2_8042_readPort(port.portId, &trash);
+    }
+
+    loggDebug("3: %d", writeWithResend(port.portId, 0xF0));
+    loggDebug("4: %d", writeWithResend(port.portId, 1));
+
+    loggDebug("scan");
+    loggDebug("2:%d", writeWithResend(port.portId, 0xF4));
+
+    ps2_8042_set_interrupt_handler(port.portId, key_handler);
 
     loggInfo("end");
     while(1);

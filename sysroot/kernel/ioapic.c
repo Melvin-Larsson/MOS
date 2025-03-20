@@ -1,5 +1,6 @@
 #include "kernel/ioapic.h"
 #include "kernel/acpi.h"
+#include "kernel/paging.h"
 
 #include "utils/assert.h"
 
@@ -19,8 +20,8 @@ typedef union{
    uint32_t words[2];
 }RedirectionTableEntry;
 
-static volatile uint32_t *ioRegSel;
-static volatile uint32_t *ioWin;
+static uintptr_t ioRegSel;
+static uintptr_t ioWin;
 
 
 void ioapic_init(){
@@ -28,8 +29,8 @@ void ioapic_init(){
    assert(acpi_getIOApicData(&ioAcpi));
 
    loggDebug("IoRegSel at %X", ioAcpi.address);
-   ioRegSel = (volatile uint32_t *)ioAcpi.address;
-   ioWin = (volatile uint32_t *)(ioAcpi.address + 0x10);
+   ioRegSel = ioAcpi.address;
+   ioWin = ioAcpi.address + 0x10;
 }
 
 IRQConfig ioapic_getDefaultIRQConfig(uint8_t destinationAPIC, uint8_t interruptVector){
@@ -49,7 +50,7 @@ void ioapic_configureIrq(uint8_t irqNumber, IRQConfig config){
       return;
    }
 
-   volatile RedirectionTableEntry entry = {
+   RedirectionTableEntry entry = {
       .interruptVector = config.interruptVector,
       .deliveryMode = config.deliveryMode,
       .destinationMode = config.logicalDestinationMode ? 1 : 0,
@@ -61,7 +62,8 @@ void ioapic_configureIrq(uint8_t irqNumber, IRQConfig config){
 
    uint32_t address = 0x10 + irqNumber * 2;
    for(int i = 0; i < 2; i++){
-      *ioRegSel = address + i;
-      *ioWin = entry.words[i];
+      uint32_t regsel = address + i;
+      paging_writePhysicalOfSize(ioRegSel, &regsel, sizeof(uint32_t), AccessSize32);
+      paging_writePhysicalOfSize(ioWin, &entry.words[i], sizeof(uint32_t), AccessSize32);
    }
 }
