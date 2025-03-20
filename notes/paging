@@ -1,0 +1,55 @@
+1. Enable paging by MOV 1 CR0.PG
+- CR3 Must contain physical address of first paging structure
+- protection must be enabled (CR0.PE = 1)
+- 32-bit: CR4.PAE = 0
+- PAE: CR4.PAE = 1 and IA32_EFTER.LME = 0
+- 4-level: CR4.PAE = 1, IA32_EFTER.LME = 1, CR4.LA57 = 0
+- 5-level: CR4.PAE = 1, IA32_EFTER.LME = 1, CR4.LA57 = 1
+
+-CR4.PAE see above
+    - requires CPUID.01H:EDX.PAE [bit 6] = 1 
+- IA32_EFTER.LME = 
+    - 0: Legacy protected mode
+    - 1: IA-32e mode
+
+- CR0.WP = 
+    - 0: supervisor-mode can write to read-only linear addresses
+    - 1: they can not
+
+- CR4.PSE = 
+    - 0: Only 4KB pages in 32 bit paging
+    - 1: both 4KB and 4MB (CPUID.01H:EDX.PSE(bit 3) = 1)
+
+- CR4.PGE - sharing translations?
+    - CPUID.01H:EDX.PGE [bit 13] = 1, 
+- CR4.PCIDE ? (4/5 - level)
+- CR4.SMEP = 
+    - 0: supervisor can fetch instruction
+    - 1: can not
+
+- CR4.SMAP = 
+    - 0: supervisor can fetch data
+    - 1: can not (unless overiden EFLAGS.AC)
+
+- CR4.PKE, CR4.PKS access rights 4/5 - level
+- CR4.CET =
+    - 0: ?
+    - 1: Something with shadow accesses
+
+- IA32_EFTER.NXE access rights- 4/5 - level
+
+- HLAT someting - 4/5 - level
+
+
+## Hierachy
+- Paging structure is 4096 bytes
+    - 4 byte entries in 32-bit paging
+    - 8 byte entries in other modes
+
+- Procuedure:
+    The upermost bits select an entry in "root table"
+    If the entry references another table, we take the next uppermost bits to select an entry
+    If id doesn't we are done.
+
+    If more than 12 bits reamin: we look at PS, if PS = 1, we map a page
+    If 12 bits remain, we reference a page
