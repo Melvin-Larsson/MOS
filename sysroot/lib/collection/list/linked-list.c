@@ -346,4 +346,6 @@ static bool iterator_advance(const Iterator *iterator){
 
     listIterator->last = listIterator->node;
     listIterator->node = listIterator->node->next;
+
+    return true;
 }

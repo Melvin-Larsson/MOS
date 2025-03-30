@@ -9,8 +9,6 @@
 #include "stdlib.h"
 #include "collection/intmap.h"
 
-
-#define ASSERTS_ENABLED
 #include "utils/assert.h"
 
 //Assuming 32 bits
@@ -165,26 +163,21 @@ void paging_init(){
 }
 
 PagingContext *paging_create32BitContext(PagingConfig32Bit config){
-    kprintf("a");
     PagingContext *result = kmalloc(sizeof(PagingContext));
     PagingData *data = kmalloc(sizeof(PagingData));
 
-    kprintf("b");
     data->physicalToLogicalPage = map_newBinaryMap(intmap_comparitor);
     data->pageAllocator = allocator_init(0, 1048576);
     data->pagingMode = PagingMode32Bit;
 
-    kprintf("c");
     AllocatedArea pageTableArea = allocator_get(pageTableAllocator, SIZE_4KB);
     assert(pageTableArea.size == SIZE_4KB);
     assert(pageTableArea.address % SIZE_4KB == 0); //The code is wrong if this fails
 
-    kprintf("d");
     data->pageDirectory = (volatile uint32_t *)(pageTableArea.address);
 //     loggDebug("Creating context using page directory at address %X", data->pageDirectory);
     memset((void*)data->pageDirectory, 0, SIZE_4KB);
 
-    kprintf("e");
     result->data = data;
 
     
@@ -266,7 +259,7 @@ uintptr_t paging_getPhysicalAddress(uintptr_t logical){
     if(entry & PAGE_ENTRY_PAGE_SIZE){
         PageDirectoryEntry32Bit4MB entry4MB = {.bits = entry}; 
         uint32_t offset = logical & 0x3FFFFF;
-        return entry4MB.physicalAddressHigh << 32 | entry4MB.physicalAddress22To32 << 22 | offset;
+        return (uint64_t)entry4MB.physicalAddressHigh << 32 | entry4MB.physicalAddress22To32 << 22 | offset;
     }
 
     PageDirectoryEntryTableReference reference = { .bits = entry };
@@ -542,6 +535,7 @@ static PagingConfig32Bit clearUnsuported32BitFeatures(PagingConfig32Bit config){
 }
 
 static void handlePageFault(ExceptionInfo info, void *data){
+    (void)data;
     uint32_t errorCode = info.errorCode;
     assert((errorCode & 1) == 0); //TODO: don't assume this (caused by non-present page)
     assert(getPagingMode() == PagingMode32Bit); //TODO: implement other paging modes also
@@ -692,10 +686,10 @@ static void cpuid(uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx){
 // }
 
 static int IA32EferPresent(){
-   uint32_t eax, ebx, ecx, edx;
+   uint32_t eax = 0x80000001, ebx, ecx, edx;
    __asm__ volatile("cpuid"
          : "+eax"(eax), "=ebx"(ebx), "=ecx"(ecx), "=edx"(edx)
-         : "eax"(0x80000001)
+         : "eax"(eax)
          :
          );
    return edx & (1 << 20) || edx & (1 << 29);
@@ -713,7 +707,7 @@ static uint32_t readIA32Efer(){
    return eax;
 }
 
-static void writeIa32Efer(uint32_t value){
+__attribute__((unused)) static void writeIa32Efer(uint32_t value){
    __asm__ volatile("wrmsr"
          : 
          :"ecx"(0xC0000080), "eax"(value), "edx"(0)
@@ -731,12 +725,12 @@ static void writeCr0(uint32_t cr0){
    __asm__ volatile ("mov %[cr0], %%cr0" : : [cr0]"r"(cr0));
 }
 
-static uint32_t readCr1(){
+__attribute__((unused)) static uint32_t readCr1(){
    uint32_t result;
    __asm__ volatile ("mov %%cr1, %[result]": [result]"=r"(result));
    return result;
 }
-static void writeCr1(uint32_t cr1){
+__attribute__((unused)) static void writeCr1(uint32_t cr1){
    __asm__ volatile ("mov %[cr1], %%cr1" : : [cr1]"r"(cr1));
 }
 
@@ -745,7 +739,7 @@ static uint32_t readCr2(){
    __asm__ volatile ("mov %%cr2, %[result]": [result]"=r"(result));
    return result;
 }
-static void writeCr2(uint32_t cr2){
+__attribute__((unused))static void writeCr2(uint32_t cr2){
    __asm__ volatile ("mov %[cr2], %%cr2" : : [cr2]"r"(cr2));
 }
 

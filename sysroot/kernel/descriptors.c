@@ -28,7 +28,7 @@ static SegmentDescriptor gdt[GDT_ENTRIES];
 void gdt_init(){
    loggError("You are not allowed to realocate gdt rigt now\n");
    while(1);
-   memset(gdt, 0, sizeof(gdt));
+   memset((void*)gdt, 0, sizeof(gdt));
    gdt[1] = (SegmentDescriptor){
       .segmentLimitLow = 0xFFFF,
       .segmentType = getSegmentType(1, 0, 1, 0),
@@ -98,8 +98,6 @@ int gdt_addTss32Descriptor(GdtTssDescriptor descriptor){
       .granularity = descriptor.use4KBGranularity,
       .baseAddressHigh = (descriptor.address >> 24) & 0xFF
    };
-   uint32_t *ptr = &segmentDescriptor;
-   loggDebug("12 %X %X\n", ptr[0], ptr[1]);
    return addSegmentDescriptor(segmentDescriptor);
 }
 

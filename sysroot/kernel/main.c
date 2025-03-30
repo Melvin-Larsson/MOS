@@ -71,7 +71,7 @@ static void initXhci(PciDescriptor pci){
     Usb *usb = kmalloc(sizeof(Usb));
     UsbDevice *device = kmalloc(sizeof(UsbDevice));
     UsbMassStorageDevice *res = kmalloc(sizeof(UsbMassStorageDevice));
-    MassStorageDevice *ms = kmalloc(sizeof(MassStorageDevice));
+//     MassStorageDevice *ms = kmalloc(sizeof(MassStorageDevice));
 
     if(usb_init(pci, usb) != StatusSuccess){
         loggError("Failed to initialize USB");
@@ -205,7 +205,7 @@ static void testMemoryConstrained(){
         while(1);
     }
     uint8_t *m3 = kmallocco(0x1000, 1, 0x1000);
-    if(!m3 || (uintptr_t)m3 / 0x1000 != ((uint64_t)m3 + 0x1000-1) / 0x1000){
+    if(!m3 || (uintptr_t)m3 / 0x1000 != ((uintptr_t)m3 + 0x1000-1) / 0x1000){
         kprintf("Constrained memory check failed, failed to avoid boundary %X\n", m3);
         while(1);
     }
@@ -238,6 +238,8 @@ void serial_writer(const char *str){
     serial_write(COM1, "\n\r");
 }
 void console_writer(LoggContext context, LoggLevel level, const char *format, va_list args){
+    (void)context;
+
     KIOColor prevColor = kio_getColor();
     KIOColor newColor;
     switch(level){
@@ -323,6 +325,7 @@ void initLogging(){
     logging_addWriter(consoleWriter);
 }
 
+/*
 static void enter_usermode(){
     loggInfo("Enter user");
     __asm__ volatile("\
@@ -343,12 +346,15 @@ static void enter_usermode(){
         :
         : "eax");
 }
+*/
 
 PagingContext *userspaceContext;
 PagingContext *kernelContext;
 
 static uint64_t timeMillis = 0;
 void timerHandler(void *data){
+    (void)data;
+
     timeMillis += 10;
     uint32_t minute = timeMillis / (60 * 1000);
     uint32_t seconds = ((timeMillis - minute * 60 * 1000) / 1000);
@@ -639,23 +645,23 @@ void kernel_main(){
             : [reg]"=r"(eflags));
 
     threads_init();
-    ThreadConfig thread1 = {
-        .start = (void (*)(void*))t1,
-        .data = 0,
-        .cs = (1 << 3) | 0,
-        .ss = (2 << 3) | 0,
-        .esp = 0xB00000,
-        .eflags = eflags
-    };
-    ThreadConfig thread2 = {
-        .start = (void (*)(void*))t2,
-        .data = 0,
-        .cs = (1 << 3) | 0,
-        .ss = (2 << 3) | 0,
-        .esp = 0xA00000,
-        .eflags = eflags
-    };
-    s1 = semaphore_new(0);
+//     ThreadConfig thread1 = {
+//         .start = (void (*)(void*))t1,
+//         .data = 0,
+//         .cs = (1 << 3) | 0,
+//         .ss = (2 << 3) | 0,
+//         .esp = 0xB00000,
+//         .eflags = eflags
+//     };
+//     ThreadConfig thread2 = {
+//         .start = (void (*)(void*))t2,
+//         .data = 0,
+//         .cs = (1 << 3) | 0,
+//         .ss = (2 << 3) | 0,
+//         .esp = 0xA00000,
+//         .eflags = eflags
+//     };
+//     s1 = semaphore_new(0);
     s2 = semaphore_new(0);
 
 //     thread_start(thread1);

@@ -154,6 +154,7 @@ static List *removeFinishedTimers(uint64_t passedTime){
 }
 
 static void pitHandler(void *data, uint16_t pitCycles){
+   (void)data;
    uint64_t passedTime = pit_cyclesToNanos(pitCycles);
 
    List *finishedTimers = removeFinishedTimers(passedTime);

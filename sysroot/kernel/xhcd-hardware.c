@@ -1,7 +1,6 @@
 #include "kernel/xhcd-hardware.h"
 #include "kernel/paging.h"
 
-#define ASSERTS_ENABLED
 #include "utils/assert.h"
 
 XhcHardware xhcd_initRegisters(PciGeneralDeviceHeader pciHeader){

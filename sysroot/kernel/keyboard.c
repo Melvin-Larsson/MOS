@@ -27,8 +27,8 @@ static UsbConfiguration *getConfiguration(UsbDevice *device);
 static UsbInterface *getInterface(UsbConfiguration *configuration);
 static UsbEndpointDescriptor *getEndpoint(UsbInterface *interface);
 static UsbStatus setProtocol(UsbDevice *device, int interface, int protocol);
-static UsbStatus setIdleRequest(UsbDevice *device, int interface, uint8_t duration);
-static UsbStatus getIdleRequest(UsbDevice *device, int interface, uint8_t *result);
+// static UsbStatus setIdleRequest(UsbDevice *device, int interface, uint8_t duration);
+// static UsbStatus getIdleRequest(UsbDevice *device, int interface, uint8_t *result);
 static UsbStatus getReportRequest(UsbDevice *device, int interface, uint8_t *result);
 
 KeyboardStatus keyboard_init(UsbDevice *usbDevice){
@@ -170,25 +170,25 @@ static UsbStatus setProtocol(UsbDevice *device, int interface, int protocol){
    request.wLength = 0;
    return usb_configureDevice(device, request);
 }
-static UsbStatus setIdleRequest(UsbDevice *device, int interface, uint8_t duration){
-   UsbRequestMessage request;
-   request.bmRequestType = 0x21;
-   request.bRequest = REQUEST_SET_IDLE;
-   request.wValue = duration << 8;
-   request.wIndex = interface;
-   request.wLength = 0;
-   return usb_configureDevice(device, request);
-}
-static UsbStatus getIdleRequest(UsbDevice *device, int interface, uint8_t *result){
-   UsbRequestMessage request;
-   request.bmRequestType = 0xA1;
-   request.bRequest = REQUEST_GET_IDLE;
-   request.wValue = 0;
-   request.wIndex = interface;
-   request.wLength = 1;
-   request.dataBuffer = result;
-   return usb_configureDevice(device, request);
-}
+// static UsbStatus setIdleRequest(UsbDevice *device, int interface, uint8_t duration){
+//    UsbRequestMessage request;
+//    request.bmRequestType = 0x21;
+//    request.bRequest = REQUEST_SET_IDLE;
+//    request.wValue = duration << 8;
+//    request.wIndex = interface;
+//    request.wLength = 0;
+//    return usb_configureDevice(device, request);
+// }
+// static UsbStatus getIdleRequest(UsbDevice *device, int interface, uint8_t *result){
+//    UsbRequestMessage request;
+//    request.bmRequestType = 0xA1;
+//    request.bRequest = REQUEST_GET_IDLE;
+//    request.wValue = 0;
+//    request.wIndex = interface;
+//    request.wLength = 1;
+//    request.dataBuffer = result;
+//    return usb_configureDevice(device, request);
+// }
 static UsbStatus getReportRequest(UsbDevice *device, int interface, uint8_t *result){
    UsbRequestMessage request;
    request.bmRequestType = 0xA1;

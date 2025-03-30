@@ -3,7 +3,7 @@
 
 #include "kernel/logging.h"
 
-static int assert_impl(int valid, char *file, int line, char *expression){
+static inline int assert_impl(int valid, char *file, int line, char *expression){
     if(!(valid)){
         loggError("Assertion failed in %s at line %d (%s)\n", file, line, expression);
         while(1);

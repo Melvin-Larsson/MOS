@@ -36,7 +36,6 @@
 
 #define DATA (1 << 5)
 
-#define ASSERTS_ENABLED
 #include "utils/assert.h"
 
 typedef enum{
@@ -172,7 +171,7 @@ static void doHandshake(SerialPortData port){
 }
 
 static void initInterrupts(SerialPortData port, InterruptTriggerLevel interruptTriggerLevel){
-   uint8_t interruptEnableValue = RECEIVE_DATA_AVAILABLE | INTERRUPT_ON_TRANSMISSION_BUFFER_EMPTY;
+//    uint8_t interruptEnableValue = RECEIVE_DATA_AVAILABLE | INTERRUPT_ON_TRANSMISSION_BUFFER_EMPTY;
    writeRegister(port, InterruptEnable, 0);
 
    uint8_t fifoControl = ENABLE_FIFO | CLEAR_RECEIVE_FIFO | CLEAR_TRANSMIT_FIFO | (interruptTriggerLevel << INTERRUPT_TRIGGER_LEVEL_POS);
@@ -185,7 +184,7 @@ static void configureLineControl(SerialPortData port, SerialPortConfig config){
       | (config.charLength << DATA_BITS_POS);
 
    writeRegister(port, LineControlRegister, lineControlValue);
-   uint8_t reg = readRegister(port, LineControlRegister);
+//    uint8_t reg = readRegister(port, LineControlRegister);
 }
 
 static void setDivisorValue(SerialPortData port, uint16_t value){

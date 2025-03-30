@@ -2,7 +2,6 @@
 #include "kernel/logging.h"
 #include "kernel/paging.h"
 
-#define ASSERTS_ENABLED
 #include "utils/assert.h"
 
 #include "stdint.h"

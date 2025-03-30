@@ -26,12 +26,6 @@ static void func(){
    while(1);
 }
 
-#define VIDEO_MEMORY ((uint16_t*)0xb8000)
-static void test(){
-    VIDEO_MEMORY[1] = 15 << 8 | 'x';
-    while(1);
-}
-
 void initKernelTask(uintptr_t stack){
    TaskStateSegment32 *tssSegment = kcallocco(sizeof(TaskStateSegment32), 4096, 0);
    tssSegment->ss0 = (2 << 3 | 0);

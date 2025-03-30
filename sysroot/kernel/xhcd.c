@@ -14,7 +14,6 @@
 //FIXME: remove
 #include "kernel/pci.h"
 
-#define ASSERTS_ENABLED
 #include "utils/assert.h"
 //DC = Device context
 //p.168. TRB rings shall not cross 64KB boundary
@@ -99,16 +98,15 @@ static int getEndpointIndex(UsbEndpointDescriptor *endpoint);
 
 static XhcStatus initDevice(Xhcd *xhcd, int portIndex, XhcDevice *result);
 static int getNewlyAttachedDevices(Xhcd *xhcd, uint32_t *result, int bufferSize);
-static int setMaxPacketSize(Xhcd *xhcd, int slotId);
+// static int setMaxPacketSize(Xhcd *xhcd, int slotId);
 
 static void ringCommandDoorbell(Xhcd *xhcd);
 
-static void test(Xhcd *xhcd);
 static int putConfigTD(Xhcd *xhcd, int slotId, TD td);
 static void xhcd_ringDoorbell(Xhcd *xhcd, uint8_t slotId, uint8_t target);
 static XhcOutputContext *getOutputContext(Xhcd *xhcd, int slotId);
 
-static PortStatusAndControll *getPortStatus(Xhcd *xhcd, int portNumber);
+// static PortStatusAndControll *getPortStatus(Xhcd *xhcd, int portNumber);
 static PortSpeed getPortSpeed(Xhcd *xhc, int portIndex);
 static PortUsbType getUsbType(Xhcd *xhcd, int portNumber);
 static PortUsbType getProtocolSlotType(Xhcd *xhcd, int portNumber);
@@ -268,11 +266,12 @@ XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
       loggInfo("Controller turned on");
       lreturn XhcOk;
 
-cleanup_xhcd_with_scratchpad:
-      ;
+// cleanup_xhcd_with_scratchpad:
+//       ;
       uint32_t scratchpadSize = getScratchpadSize(xhcd);
-      uint64_t *scratchpadPointerArray = (uint64_t *)xhcd->dcBaseAddressArray[0];
-      for(int i = 0; i < scratchpadSize; i++){
+      uintptr_t scratchpadPointerArrayAddress = (uintptr_t)xhcd->dcBaseAddressArray[0];
+      uintptr_t *scratchpadPointerArray = (uintptr_t *)scratchpadPointerArrayAddress;
+      for(size_t i = 0; i < scratchpadSize; i++){
          kfree((void*)scratchpadPointerArray[i]);
       }
       kfree(scratchpadPointerArray);
@@ -926,44 +925,44 @@ static int putConfigTD(Xhcd *xhcd, int slotId, TD td){
    return 1;
 }
 
-static int setMaxPacketSize(Xhcd *xhcd, int slotId){
-   uint8_t buffer[8];
-   XhcdRing *transferRing = xhcd->transferRing[slotId][0];
-   xhcdRing_putTD(transferRing, TD_GET_DESCRIPTOR(buffer, sizeof(buffer)));
-   xhcd_ringDoorbell(xhcd, slotId, 1);
+// static int setMaxPacketSize(Xhcd *xhcd, int slotId){
+//    uint8_t buffer[8];
+//    XhcdRing *transferRing = xhcd->transferRing[slotId][0];
+//    xhcdRing_putTD(transferRing, TD_GET_DESCRIPTOR(buffer, sizeof(buffer)));
+//    xhcd_ringDoorbell(xhcd, slotId, 1);
 
-   XhcEventTRB result;
-   while(!dequeEventTrb(xhcd, &result));
-   if(result.completionCode != Success){
-      loggError("Failed to get max packet size");
-      return 0;
-   }
-   uint8_t maxPacketSize = buffer[7];
+//    XhcEventTRB result;
+//    while(!dequeEventTrb(xhcd, &result));
+//    if(result.completionCode != Success){
+//       loggError("Failed to get max packet size");
+//       return 0;
+//    }
+//    uint8_t maxPacketSize = buffer[7];
 
-   uintptr_t address = xhcd->dcBaseAddressArray[slotId];
-   XhcOutputContext *output = (XhcOutputContext*)address;
-   uint8_t currMaxPacketSize = output->endpointContext[0].maxPacketSize;
+//    uintptr_t address = xhcd->dcBaseAddressArray[slotId];
+//    XhcOutputContext *output = (XhcOutputContext*)address;
+//    uint8_t currMaxPacketSize = output->endpointContext[0].maxPacketSize;
 
-   if(maxPacketSize != currMaxPacketSize){
-      XhcInputContext *input = &inputContext[slotId];
-      input->endpointContext[0] = output->endpointContext[0];
-      input->endpointContext[0].maxPacketSize = maxPacketSize;
-      memset((void*)&input->inputControlContext, 0, sizeof(XhcInputControlContext));
-      input->inputControlContext.addContextFlags = 1 << 1;
-      loggDebug("add context %X", input->inputControlContext.addContextFlags);
-      xhcdRing_putTRB(xhcd->commandRing, TRB_EVALUATE_CONTEXT((void*)input, slotId));
-      ringCommandDoorbell(xhcd);
-      XhcEventTRB result;
-      while(!dequeEventTrb(xhcd, &result));
-      if(result.completionCode != Success){
-         loggError("Failed to set max packet size");
-         return 0;
-      }
-   }
-   currMaxPacketSize = output->endpointContext[0].maxPacketSize;
-   loggInfo("Sucessfully set max packet size: %d", currMaxPacketSize);
-   return 1;
-}
+//    if(maxPacketSize != currMaxPacketSize){
+//       XhcInputContext *input = &inputContext[slotId];
+//       input->endpointContext[0] = output->endpointContext[0];
+//       input->endpointContext[0].maxPacketSize = maxPacketSize;
+//       memset((void*)&input->inputControlContext, 0, sizeof(XhcInputControlContext));
+//       input->inputControlContext.addContextFlags = 1 << 1;
+//       loggDebug("add context %X", input->inputControlContext.addContextFlags);
+//       xhcdRing_putTRB(xhcd->commandRing, TRB_EVALUATE_CONTEXT((void*)input, slotId));
+//       ringCommandDoorbell(xhcd);
+//       XhcEventTRB result;
+//       while(!dequeEventTrb(xhcd, &result));
+//       if(result.completionCode != Success){
+//          loggError("Failed to set max packet size");
+//          return 0;
+//       }
+//    }
+//    currMaxPacketSize = output->endpointContext[0].maxPacketSize;
+//    loggInfo("Sucessfully set max packet size: %d", currMaxPacketSize);
+//    return 1;
+// }
 
 static int isPortEnabled(Xhcd *xhcd, int portIndex){
    PortStatusAndControll status = { .bits = xhcd_readPortRegister(xhcd->hardware, portIndex, PORTStatusAndControl) };
@@ -1082,7 +1081,8 @@ static XhcStatus initScratchPad(Xhcd *xhcd){
       void* scratchpadStart = kmallocco(pageSize, 1, pageSize);
       if(!scratchpadStart){
          for(uint32_t j = 0; j < i; j++){
-            kfree((void*)scratchpadPointers[j]);
+            uintptr_t address = scratchpadPointers[j];
+            kfree((void *)address);
          }
          kfree((void*)scratchpadPointers);
          return XhcUnableToAllocateMemory;

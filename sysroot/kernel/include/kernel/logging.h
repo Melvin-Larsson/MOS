@@ -66,59 +66,63 @@ void logging_startLoggContext(char *name, LoggContext *localContext);
 void logging_endLoggContext(LoggContext *localContext);
 
 #if LOG_LEVEL <= LOG_LEVEL_ERROR
-#define logging_addValue(key, value) logging_addValueToContext(&loggContext, key, value)
+static inline LoggContext *getLogContext(){
+   static LoggContext loggContext __attribute__((section(".data")))= {
+      .name = 0,
+      .values = 0,
+      .nestedContext = 0,
+      .depth = 0,
+   };
+   return &loggContext;
+}
+#endif
+
+
+#if LOG_LEVEL <= LOG_LEVEL_ERROR
+#define logging_addValue(key, value) logging_addValueToContext(getLogContext(), key, value)
 #else
 #define logging_addValue(key, value);
 #endif
 
 #if LOG_LEVEL <= LOG_LEVEL_ERROR
 #define logging_startContext(name)                                \
-            logging_startLoggContext(name, &loggContext);         \
+            logging_startLoggContext(name, getLogContext());         \
             for(int logging_i = 0; logging_i < 1;                 \
-               logging_i++ ? logging_endLoggContext(&loggContext) \
-                  : logging_endLoggContext(&loggContext))         
+               logging_i++ ? logging_endLoggContext(getLogContext()) \
+                  : logging_endLoggContext(getLogContext()))         
 #else
 #define logging_startContext(name);
 #endif
 
 
 #if LOG_LEVEL <= LOG_LEVEL_ERROR
-#define lreturn logging_endLoggContext(&loggContext);\
+#define lreturn logging_endLoggContext(getLogContext());\
                 return                             
 #else
 #define lreturn return
 #endif
 
-#if LOG_LEVEL <= LOG_LEVEL_ERROR
-static LoggContext loggContext __attribute__((section(".data")))= {
-   .name = 0,
-   .values = 0,
-   .nestedContext = 0,
-   .depth = 0,
-};
-#endif
-
 #if LOG_LEVEL <= LOG_LEVEL_DEBUG
-#define loggDebug(...) logging_log(updateLoggContext(loggContext, __FILE__), LoggLevelDebug,  __VA_ARGS__)
+#define loggDebug(...) logging_log(updateLoggContext(*getLogContext(), __FILE__), LoggLevelDebug,  __VA_ARGS__)
 #else
 #define loggDebug(...) {}
 #endif
 
 #if LOG_LEVEL <= LOG_LEVEL_INFO
-#define loggInfo(...) logging_log(updateLoggContext(loggContext, __FILE__), LoggLevelInfo,  __VA_ARGS__)
+#define loggInfo(...) logging_log(updateLoggContext(*getLogContext(), __FILE__), LoggLevelInfo,  __VA_ARGS__)
 #else
 #define loggInfo(...) {}
 #endif
 
 
 #if LOG_LEVEL <= LOG_LEVEL_WARNING
-#define loggWarning(...) logging_log(updateLoggContext(loggContext, __FILE__), LoggLevelWarning,  __VA_ARGS__)
+#define loggWarning(...) logging_log(updateLoggContext(*getLogContext(), __FILE__), LoggLevelWarning,  __VA_ARGS__)
 #else
 #define loggWarning(...) {}
 #endif
 
 #if LOG_LEVEL <= LOG_LEVEL_ERROR
-#define loggError(...) logging_log(updateLoggContext(loggContext, __FILE__), LoggLevelError,  __VA_ARGS__)
+#define loggError(...) logging_log(updateLoggContext(*getLogContext(), __FILE__), LoggLevelError,  __VA_ARGS__)
 #else
 #define loggError(...) {}
 #endif

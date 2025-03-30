@@ -2,9 +2,7 @@
 #include "kernel/allocator.h"
 
 #include "stdint.h"
-#include "stdlib.h"
 
-#define ASSERTS_ENABLED
 #include "utils/assert.h"
 
 typedef enum{

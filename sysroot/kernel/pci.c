@@ -5,8 +5,8 @@
 #include "kernel/interrupt.h"
 #include "kernel/memory.h"
 #include "string.h"
+#include "stdlib.h"
 
-#define ASSERTS_ENABLED
 #include "utils/assert.h"
 
 #define CONFIG_ADDRESS 0xCF8
@@ -268,13 +268,14 @@ int pci_searchCapabilityList(const PciDescriptor *pci, uint8_t id, PciCapability
 int pci_readCapabilityData(const PciDescriptor *pci, PciCapability capability, void *result, int capabilitySize){
    assert(capabilitySize % 4 == 0); //Not necessarely true, leave here for now though
 
-   uint32_t *result32 = result;
+   uint8_t *result8 = result;
    uint8_t offset = capability.offset;
 
    while(capabilitySize > 0){
-      *result32 = pci_configReadRegister(pci->busNr, pci->deviceNr, 0, offset);
+      uint32_t result32 = pci_configReadRegister(pci->busNr, pci->deviceNr, 0, offset);
+      memcpy(result8, &result32, sizeof(uint32_t));
       offset += 4;
-      result32++;
+      result8 += 4;
       capabilitySize -= 4;
    }
 
@@ -333,7 +334,7 @@ int pci_initMsiX(const PciDescriptor *pci, MsiXDescriptor *result){
       loggError("MsiX not found");
       return 0;
    }
-   MsiXCapability msiCapability;
+   MsiXCapability msiCapability = {0};
    pci_readCapabilityData(pci, capability, &msiCapability, sizeof(MsiXCapability));
 
    uintptr_t messageTablePhysical = getMessageTableBaseAddress(pci, msiCapability);

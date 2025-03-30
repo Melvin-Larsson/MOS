@@ -165,6 +165,7 @@ static void writeCommand(Channel channel, AccessMode accessMode, OperatingMode o
 }
 
 static void handler(void *data){
+   (void)data;
    uint32_t eoiData = 0;
    paging_writePhysicalOfSize(APIC_EOI_ADDRESS, &eoiData, 4, AccessSize32);
 

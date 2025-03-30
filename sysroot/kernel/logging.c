@@ -3,7 +3,6 @@
 #include "stdarg.h"
 #include "string.h"
 
-#define ASSERTS_ENABLED
 #include "utils/assert.h"
 
 #define MAX_WRITERS_COUNT 5

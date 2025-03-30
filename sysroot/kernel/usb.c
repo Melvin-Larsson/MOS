@@ -105,7 +105,7 @@ UsbStatus usb_getStatus(
       Recipient recipient,
       StatusType statusType,
       uint16_t index,
-      uint8_t *result
+      uint8_t result[2]
 ){
 
    if(device->usb->type != UsbControllerXhci){
@@ -173,7 +173,7 @@ static UsbDevice initUsbDevice(Usb *usb, UsbControllerDevice device){
       int configCount = usbDevice.deviceDescriptor.bNumConfigurations;
       UsbConfiguration *configurations = kmalloc(sizeof(UsbConfiguration) * configCount);
       for(int j = 0; j < configCount; j++){
-         UsbConfiguration *config;
+         UsbConfiguration *config = 0;
          getConfiguration(&usbDevice, j, &config);
          configurations[j] = *config;
          kfree(config);
@@ -275,7 +275,7 @@ static UsbConfiguration *parseConfiguration(uint8_t *configBuffer){
    loggDebug("Parsed");
    return config;
 }
-static void freeConfiguration(UsbConfiguration *config){
+__attribute__((unused))static void freeConfiguration(UsbConfiguration *config){
    for(int i = 0; i < config->descriptor.bNumInterfaces; i++){
       freeInterface((void*)&config->interfaces[i]);
    }
