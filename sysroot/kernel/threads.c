@@ -137,6 +137,11 @@ Semaphore *semaphore_new(unsigned int count){
    return semaphore;
 }
 
+void semaphore_free(Semaphore *semaphore){
+   kfree(semaphore->data);
+   kfree(semaphore);
+}
+
 void semaphore_aquire(Semaphore *semaphore){
    SemaphoreData *data = semaphore->data;
 

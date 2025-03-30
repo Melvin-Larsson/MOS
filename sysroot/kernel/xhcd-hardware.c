@@ -5,6 +5,10 @@
 #include "utils/assert.h"
 
 XhcHardware xhcd_initRegisters(PciGeneralDeviceHeader pciHeader){
+   assert(pciHeader.pciHeader.progIf == 0x30);
+   assert(pciHeader.pciHeader.subclass == 0x3);
+   assert(pciHeader.pciHeader.classCode == 0xC);
+   assert(pciHeader.pciHeader.busMaster);
    assert(pciHeader.baseAddress[1] == 0);
    XhcHardware xhcd;
    xhcd.capabilityBase = pciHeader.baseAddress[0] & (~0xFF);

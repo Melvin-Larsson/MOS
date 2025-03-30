@@ -52,6 +52,15 @@
 #define CAPABILITY_ID_PROTOCOL 0x2
 #define CAPABILITY_ID_USB_LEGACY_SUPPORT 0x1
 
+#define RETRY_WITH_DELAY(condition, count, delay) ({ \
+    bool success = false; \
+    for (int i = 0; i < (count); i++) { \
+        if (condition) { success = true; break; } \
+        thread_sleep(delay); \
+    } \
+    success; \
+})
+
 typedef enum{
    PortSpeedLowSpeed = 2,
    PortSpeedFullSpeed = 1,
@@ -62,15 +71,16 @@ typedef enum{
 
 static int doBiosHandoff(Xhcd *xhcd);
 static void readPortInfo(Xhcd *xhcd);
-static void waitForControllerReady(Xhcd *xhcd);
-static void setMaxEnabledDeviceSlots(Xhcd *xhcd, int maxSlots);
+static XhcStatus waitForControllerReady(Xhcd *xhcd);
+static XhcStatus setMaxEnabledDeviceSlots(Xhcd *xhcd, uint8_t maxSlots);
 static int getMaxEnabledDeviceSlots(Xhcd *xhcd);
-static void resetXhc(Xhcd *xhcd);
+static XhcStatus resetXhc(Xhcd *xhcd);
 static void initCommandRing(Xhcd *xhcd);
 static void initEventRing(Xhcd *xhcd);
-static void initDCAddressArray(Xhcd *xhcd);
+static XhcStatus initDCAddressArray(Xhcd *xhcd);
 static void turnOnController(Xhcd *xhcd);
-static void initScratchPad(Xhcd *xhcd);
+static XhcStatus initScratchPad(Xhcd *xhcd);
+static uint32_t getScratchpadSize(Xhcd *xhcd);
 static int enablePort(Xhcd *xhcd, int portIndex);
 static int isPortEnabled(Xhcd *xhcd, int portIndex);
 static int checkoutPort(Xhcd *xhcd, int portIndex);
@@ -103,7 +113,9 @@ static PortSpeed getPortSpeed(Xhcd *xhc, int portIndex);
 static PortUsbType getUsbType(Xhcd *xhcd, int portNumber);
 static PortUsbType getProtocolSlotType(Xhcd *xhcd, int portNumber);
 //static int shouldEnablePort(Xhci *xhcd, int portNumber);
-//
+
+static bool assert_physical_continguous(uintptr_t start, size_t length);
+
 static int port = 0;
 
 __attribute__((aligned(64))) static XhcInputContext inputContext[MAX_DEVICE_SLOTS_ENABLED];
@@ -157,24 +169,41 @@ static void handler(void *data){
 }
 
 XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
+   XhcStatus status = XhcOk;
+
    logging_startContext("xhcd_init")
    {
-      loggDebug("init xhcd");
+      loggDebug("Init");
 
-      Xhcd *xhcd = kcalloc(sizeof(Xhcd));
+      Xhcd *xhcd = kmalloc(sizeof(Xhcd));
+      if(!xhcd){
+         return XhcUnableToAllocateMemory;
+      }
+      memset(xhcd, 0, sizeof(Xhcd));
       xhci->data = xhcd;
-      xhcd->eventBuffer = kmalloc(sizeof(XhcEventTRB) * 32);
       xhcd->eventBufferSize = 32;
       xhcd->eventBufferDequeueIndex = 0;
       xhcd->eventBufferEnqueueIndex = 1;
+      xhcd->eventBuffer = kmalloc(sizeof(XhcEventTRB) * xhcd->eventBufferSize);
+      if(!xhcd->eventBuffer){
+         kfree(xhcd);
+         return XhcUnableToAllocateMemory;
+      }
       xhcd->eventSemaphore = semaphore_new(0);
+      if(!xhcd->eventSemaphore){
+         kfree(xhcd);
+         kfree((void*)xhcd->eventBuffer);
+         return XhcUnableToAllocateMemory;
+      }
+
 
       PciGeneralDeviceHeader pciHeader;
       pci_getGeneralDevice(descriptor, &pciHeader);
       xhcd->hardware = xhcd_initRegisters(pciHeader);
 
-      doBiosHandoff(xhcd);
+      doBiosHandoff(xhcd); //TODO: verify
 
+      //TODO: verify
       if(pci_isMsiXPresent(descriptor)){
          loggInfo("Using msix");
          MsiXVectorData vectorData = pci_getDefaultMsiXVectorData(handler, xhcd);
@@ -192,20 +221,35 @@ XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
          while(1);
       }
 
-      waitForControllerReady(xhcd);
-      resetXhc(xhcd);
-      waitForControllerReady(xhcd);
+      if((status = waitForControllerReady(xhcd)) != XhcOk
+      || (status = resetXhc(xhcd)) != XhcOk
+      || (status = waitForControllerReady(xhcd)) != XhcOk){
+         goto cleanup_xhcd;
+      }
 
       loggDebug("Controller ready");
 
       uint32_t devices = getMaxEnabledDeviceSlots(xhcd);
-      setMaxEnabledDeviceSlots(xhcd, devices);
-      xhcd->handlers = kcalloc(devices * 32 * sizeof(XhcInterruptHandler));
+      if((status = setMaxEnabledDeviceSlots(xhcd, devices)) != XhcOk){
+         goto cleanup_xhcd;
+      }
+      xhcd->handlers = kmalloc(devices * 32 * sizeof(XhcInterruptHandler));
+      if(!xhcd->handlers){
+         status = XhcUnableToAllocateMemory;
+         goto cleanup_xhcd;
+      }
+      memset(xhcd->handlers, 0, devices * 32 * sizeof(XhcInterruptHandler));
 
-      initDCAddressArray(xhcd);
-      initScratchPad(xhcd);
+      status = initDCAddressArray(xhcd);
+      if(status != XhcOk){
+         goto cleanup_xhcd_with_dc_array;
+      }
+      status = initScratchPad(xhcd);
+      if(status != XhcOk){
+         goto cleanup_xhcd_with_handlers;
+      }
 
-      readPortInfo(xhcd); //Maybe?
+      readPortInfo(xhcd); //Maybe? TODO: Check
       initCommandRing(xhcd);
       initEventRing(xhcd);
 
@@ -222,9 +266,27 @@ XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
       while(xhcd_readEvent(&xhcd->eventRing, result, 16));
 
       loggInfo("Controller turned on");
+      lreturn XhcOk;
+
+cleanup_xhcd_with_scratchpad:
+      ;
+      uint32_t scratchpadSize = getScratchpadSize(xhcd);
+      uint64_t *scratchpadPointerArray = (uint64_t *)xhcd->dcBaseAddressArray[0];
+      for(int i = 0; i < scratchpadSize; i++){
+         kfree((void*)scratchpadPointerArray[i]);
+      }
+      kfree(scratchpadPointerArray);
+cleanup_xhcd_with_dc_array:
+      kfree((void*)xhcd->dcBaseAddressArray);
+cleanup_xhcd_with_handlers:
+      kfree(xhcd->handlers);
+cleanup_xhcd:
+      kfree((void*)xhcd->eventBuffer);
+      semaphore_free(xhcd->eventSemaphore);
+      kfree(xhcd);
    }
 
-   return XhcOk;
+   return status;
 }
 
 int xhcd_getDevices(Xhci *xhci, XhcDevice *resultBuffer, int bufferSize){
@@ -719,11 +781,19 @@ static int checkoutPort(Xhcd *xhcd, int portIndex){
    }
    return 0;
 }
-static void resetXhc(Xhcd *xhcd){
+static XhcStatus resetXhc(Xhcd *xhcd){
+   loggDebug("Reset xhc");
+
    xhcd_andRegister(xhcd->hardware, USBCommand, ~1);
-   while(!(xhcd_readRegister(xhcd->hardware, USBStatus) & 1));
+   if(!RETRY_WITH_DELAY((xhcd_readRegister(xhcd->hardware, USBStatus) & 1), 10, 100)){
+      return XhcControllerTimedOut;
+   }
    xhcd_orRegister(xhcd->hardware, USBCommand, 1 << 1);
-   while(xhcd_readRegister(xhcd->hardware, USBCommand) & (1 << 1));
+   if(!RETRY_WITH_DELAY(((xhcd_readRegister(xhcd->hardware, USBCommand) & (1 << 1)) == 0), 10, 100)){
+      return XhcControllerTimedOut;
+   }
+
+   return XhcOk;
 }
 static void initCommandRing(Xhcd *xhcd){
    xhcd->commandRing = xhcd_newRing(DEFAULT_COMMAND_RING_SIZE);
@@ -965,14 +1035,15 @@ static int doBiosHandoff(Xhcd *xhcd){
 
    return 0;
 }
-static void waitForControllerReady(Xhcd *xhcd){
-   while(xhcd_readRegister(xhcd->hardware, USBStatus) & CNR_FLAG);
+static XhcStatus waitForControllerReady(Xhcd *xhcd){
+   loggDebug("Wait for controller ready");
+   return RETRY_WITH_DELAY(((xhcd_readRegister(xhcd->hardware, USBStatus) & CNR_FLAG) == 0), 10, 100) ? XhcOk : XhcControllerTimedOut;
 }
 static int getMaxEnabledDeviceSlots(Xhcd *xhcd){
    StructParams1 structParams1 = {.bits = xhcd_readCapability(xhcd->hardware, HCSPARAMS1) };
    return structParams1.maxPorts;
 }
-static void setMaxEnabledDeviceSlots(Xhcd *xhcd, int maxSlots){
+static XhcStatus setMaxEnabledDeviceSlots(Xhcd *xhcd, uint8_t maxSlots){
    assert((xhcd_readRegister(xhcd->hardware, USBCommand) & USBCMD_RUN_STOP_BIT) == 0);
 
    xhcd->enabledPorts = maxSlots;
@@ -981,39 +1052,89 @@ static void setMaxEnabledDeviceSlots(Xhcd *xhcd, int maxSlots){
    xhcd_orRegister(xhcd->hardware, CONFIG, maxSlots);
 
    loggInfo("MaxSlotsEn: %X", maxSlots);
+
+   return XhcOk;
 }
 static uint32_t getPageSize(Xhcd *xhcd){
    return xhcd_readRegister(xhcd->hardware, PAGESIZE) << 12;
 }
-static void initDCAddressArray(Xhcd *xhcd){
+static XhcStatus initDCAddressArray(Xhcd *xhcd){
+   assert((xhcd_readRegister(xhcd->hardware, USBCommand) & USBCMD_RUN_STOP_BIT) == 0);
 
    XhcConfigRegister config = { .bits = xhcd_readRegister(xhcd->hardware, CONFIG) };
    uint8_t maxSlots = config.enabledDeviceSlots;
    uint32_t pageSize = getPageSize(xhcd);
-   uint32_t arraySize = (maxSlots + 1) * 64;
-   xhcd->dcBaseAddressArray = kcallocco(arraySize, 64, pageSize);
-
+   uint32_t arraySize = (maxSlots + 1) * sizeof(uint64_t);
+   xhcd->dcBaseAddressArray = kmallocco(arraySize, 64, pageSize);
+   if(!xhcd->dcBaseAddressArray){
+      return XhcUnableToAllocateMemory;
+   }
+   memset((void *)xhcd->dcBaseAddressArray, 0, arraySize);
    uintptr_t dcAddressArrayPointer = paging_getPhysicalAddress((uintptr_t)xhcd->dcBaseAddressArray);
    xhcd_writeRegister(xhcd->hardware, DCBAAP, dcAddressArrayPointer);
+
+   assert_physical_continguous(dcAddressArrayPointer, arraySize);
+   return XhcOk;
 }
 
-static void initScratchPad(Xhcd *xhcd){
+static XhcStatus initScratchPad(Xhcd *xhcd){
+   loggDebug("Init scrachpad");
+   assert((xhcd_readRegister(xhcd->hardware, USBCommand) & USBCMD_RUN_STOP_BIT) == 0);
+
+   uint32_t scratchpadSize = getScratchpadSize(xhcd);
+   loggDebug("Required scratchpad size %d", scratchpadSize);
+
+   uint32_t pageSize = getPageSize(xhcd);
+   loggDebug("Page size: %d", pageSize);
+   volatile uint64_t *scratchpadPointers = kmallocco(scratchpadSize * sizeof(uint64_t), 64, pageSize);
+   if(!scratchpadPointers){
+      return XhcUnableToAllocateMemory;
+   }
+   assert_physical_continguous((uintptr_t)scratchpadPointers, scratchpadSize * sizeof(uint64_t));
+
+   for(uint32_t i = 0; i < scratchpadSize; i++){
+      void* scratchpadStart = kmallocco(pageSize, 1, pageSize);
+      if(!scratchpadStart){
+         for(uint32_t j = 0; j < i; j++){
+            kfree((void*)scratchpadPointers[j]);
+         }
+         kfree((void*)scratchpadPointers);
+         return XhcUnableToAllocateMemory;
+      }
+      memset(scratchpadStart, 0, pageSize);
+      scratchpadPointers[i] = (uintptr_t)paging_getPhysicalAddress((uintptr_t)scratchpadStart);
+
+      assert_physical_continguous((uintptr_t)scratchpadStart, pageSize);
+   }
+   xhcd->dcBaseAddressArray[0] = (uint64_t)paging_getPhysicalAddress((uintptr_t)scratchpadPointers);
+
+   loggInfo("Initialized scratchpad (%X)", scratchpadPointers);
+
+   return XhcOk;
+}
+
+static uint32_t getScratchpadSize(Xhcd *xhcd){
    StructParams2 structParams2 = { .bits = xhcd_readCapability(xhcd->hardware, HCSPARAMS2) };
    uint32_t scratchpadSize = structParams2.maxScratchpadBuffersHigh << 5;
    scratchpadSize |= structParams2.maxScratchpadBuffersLow;
-   loggDebug("Required scratchpadSize %d", scratchpadSize);
-
-   uint32_t pageSize = getPageSize(xhcd);
-   loggDebug("PageSize: %d %d", pageSize, xhcd_readRegister(xhcd->hardware, PAGESIZE));
-   volatile uint64_t *scratchpadPointers = kmallocco(scratchpadSize * sizeof(uint64_t), 64, pageSize);
-
-   for(uint32_t i = 0; i < scratchpadSize; i++){
-      void* scratchpadStart = kcallocco(pageSize, 1, pageSize);
-      scratchpadPointers[i] = (uintptr_t)paging_getPhysicalAddress((uintptr_t)scratchpadStart);
-   }
-   xhcd->dcBaseAddressArray[0] = (uint64_t)paging_getPhysicalAddress((uintptr_t)scratchpadPointers);
-   loggInfo("Initialized scratchpad (%X)", scratchpadPointers);
+   return scratchpadSize;
 }
+
 static void turnOnController(Xhcd *xhcd){
    xhcd_orRegister(xhcd->hardware, USBCommand, USBCMD_RUN_STOP_BIT);
+}
+
+static bool assert_physical_continguous(uintptr_t start, size_t length){
+   #ifdef ASSERTS_ENABLED
+      uintptr_t lastAddress = paging_getPhysicalAddress((uintptr_t)start);
+      for(size_t i = sizeof(uint32_t); i < length; i += sizeof(uint32_t)){
+         uintptr_t currAddress = paging_getPhysicalAddress((uintptr_t)start + i);
+         if(!assert(lastAddress + sizeof(uint32_t) == currAddress)){
+            return false;
+         }
+         lastAddress = currAddress;
+      } 
+
+   #endif
+   return true;
 }

@@ -51,6 +51,9 @@ typedef enum{
    XhcConfigEndpointError,
    XhcReadDataError,
    XhcSendRequestError,
+   XhcControllerTimedOut,
+   XhcControllerUnexpectedState,
+   XhcUnableToAllocateMemory,
 
    XhcNotYetImplemented,
 }XhcStatus;

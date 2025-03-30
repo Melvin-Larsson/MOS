@@ -75,74 +75,84 @@ static void initXhci(PciDescriptor pci){
 
     if(usb_init(pci, usb) != StatusSuccess){
         loggError("Failed to initialize USB");
+        while(1);
         return;
     }
     while(1){
         loggDebug("Wait for attach");
         while(usb_getNewlyAttachedDevices(usb, device, 1) == 0);
         loggInfo("Device attached");
-        UsbMassStorageStatus status = usbMassStorage_init(device, res);
-        if(status == UsbMassStorageSuccess){
-            loggInfo("Found device!\n");
-            massStorageDevice_initUsb(res, ms);
+         UsbMassStorageStatus status = usbMassStorage_init(device, res);
+         if(status == UsbMassStorageSuccess){
+             uint8_t buffer[1024];
+             usbMassStorage_read(res, 0, buffer, sizeof(buffer));
+             for(size_t i = 0; i < sizeof(buffer); i++){
+                 printf("%c", buffer[i]);
+             }
+             while(1);
+         }else{
+             loggWarning("Failed\n");
+         }
+//             loggInfo("Found device!\n");
+//             massStorageDevice_initUsb(res, ms);
 
-            if(fat_init(ms, &fs) == FatStatusFailure){
-                loggError("Failed to init fat");
-                while(1);
-            }
-            return;
-            loggDebug("Init fat\n");
+//             if(fat_init(ms, &fs) == FatStatusFailure){
+//                 loggError("Failed to init fat");
+//                 while(1);
+//             }
+//             return;
+//             loggDebug("Init fat\n");
 
-//             char buff[20];
-//             for(int i = 0; i < 1; i++){
-//                 loggDebug("Create %d", i);
-//                 sprintf(buff, "/f_%d.txt", i);
-//                 File *f = fs.createFile(&fs, buff);
-//                 if(!f){
-//                     f = fs.openFile(&fs, buff);
+// //             char buff[20];
+// //             for(int i = 0; i < 1; i++){
+// //                 loggDebug("Create %d", i);
+// //                 sprintf(buff, "/f_%d.txt", i);
+// //                 File *f = fs.createFile(&fs, buff);
+// //                 if(!f){
+// //                     f = fs.openFile(&fs, buff);
+// //                 }
+// //                 fs.writeFile(f, "Hello From Os!", 14);
+// //                 loggDebug("Closing file...");
+// //                 fs.closeFile(f);
+// //             }
+
+//             Directory *dir= fs.openDirectory(&fs, "/");
+//             loggDebug("Open dir %X\n", dir);
+
+//             while(true){
+//                 DirectoryEntry *entry = fs.readDirectory(dir);
+//                 if(!entry){
+//                     break;
 //                 }
-//                 fs.writeFile(f, "Hello From Os!", 14);
-//                 loggDebug("Closing file...");
-//                 fs.closeFile(f);
+//                 loggInfo("Read %s", entry->filename);
 //             }
 
-            Directory *dir= fs.openDirectory(&fs, "/");
-            loggDebug("Open dir %X\n", dir);
+//             loggInfo("Read all files");
+//             fs.closeDirectory(dir);
+//             loggInfo("Directory closed");
+//             return;
+//             fs.closeFileSystem(&fs);
+//             loggInfo("Fs closed");
 
-            while(true){
-                DirectoryEntry *entry = fs.readDirectory(dir);
-                if(!entry){
-                    break;
-                }
-                loggInfo("Read %s", entry->filename);
-            }
-
-            loggInfo("Read all files");
-            fs.closeDirectory(dir);
-            loggInfo("Directory closed");
-            return;
-            fs.closeFileSystem(&fs);
-            loggInfo("Fs closed");
-
-            uint8_t buffer[512];
-            usbMassStorage_read(&res, 0, buffer, sizeof(buffer));
-            char str[1024];
-            str[0] = 0;
-            char strBuff[64];
-            loggInfo("buffer: ");
-            for(int i = 0; i < sizeof(buffer); i++){
-                sprintf(strBuff, "%X", buffer[i]);
-                strAppend(str, strBuff);
-            }
-            loggInfo("%s", str);
-            while(1);
-        }else{
-            printf("Failed to init: %X\n", status);
-        }
-//         KeyboardStatus status = keyboard_init(&device);
-//         char buffer[100];
-//         keyboard_getStatusCode(status, buffer);
-//         loggInfo("Keyboard status code: %s", buffer);
+//             uint8_t buffer[512];
+//             usbMassStorage_read(&res, 0, buffer, sizeof(buffer));
+//             char str[1024];
+//             str[0] = 0;
+//             char strBuff[64];
+//             loggInfo("buffer: ");
+//             for(int i = 0; i < sizeof(buffer); i++){
+//                 sprintf(strBuff, "%X", buffer[i]);
+//                 strAppend(str, strBuff);
+//             }
+//             loggInfo("%s", str);
+//             while(1);
+//         }else{
+//             printf("Failed to init: %X\n", status);
+//         }
+/*        KeyboardStatus status = keyboard_init(&device);
+        char buffer[100];
+        keyboard_getStatusCode(status, buffer);
+        loggInfo("Keyboard status code: %s", buffer);*/
     }
 }
 static int overlaps(uint8_t *p1, int s1, uint8_t *p2, int s2){

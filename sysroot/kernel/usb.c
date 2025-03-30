@@ -37,7 +37,9 @@ UsbStatus usb_init(PciDescriptor pci, Usb *result){
       if(pci.pciHeader.progIf == PCI_PROG_IF_XHCI){
          logging_addValue("controller", "xhc");
          Xhci *xhci = kmalloc(sizeof(Xhci));
-         if(xhcd_init(pci, xhci) != XhcOk){
+         XhcStatus status = xhcd_init(pci, xhci);
+         if(status != XhcOk){
+            loggError("Unable to init xhcd %d\n", status);
             kfree(xhci);
             lreturn StatusError;
          }
