@@ -40,29 +40,39 @@
 
 static void initSegment(Segment segment, Segment nextSegment, int isLast);
 
-XhcdRing xhcd_newRing(int trbCount){
-   void* ringAddress = kcallocco(trbCount * sizeof(TRB), 64, 64000);
+XhcdRing *xhcdRing_new(int trbCount){
+   void* ringAddress = kmallocco(trbCount * sizeof(TRB), 64, 64000);
+   memset(ringAddress, 0, trbCount * sizeof(TRB));
+
    loggDebug("Ring Address %X", ringAddress);
    Segment segment = {(uintptr_t)ringAddress, trbCount};
-   initSegment(segment, segment, 1); //FIXME: isLast = 1
+   initSegment(segment, segment, 1);
 
-   XhcdRing ring;
-   ring.pcs = DEFAULT_PCS;
-   ring.dequeue = (TRB *)ringAddress;
+   XhcdRing *ring = kmalloc(sizeof(XhcdRing));
+   ring->pcs = DEFAULT_PCS;
+   ring->dequeue = (TRB *)ringAddress;
    return ring;
 }
+
+void xhcdRing_free(XhcdRing *ring){
+   kfree(ring->dequeue);
+   kfree(ring);
+}
+
 int xhcd_attachCommandRing(XhcHardware xhcHardware, XhcdRing *ring){
    uintptr_t address = paging_getPhysicalAddress((uintptr_t)ring->dequeue);
    loggDebug("physical address %X", address);
    xhcd_writeRegister(xhcHardware, CRCR, address | ring->pcs);
    return 1;
 }
-void xhcd_putTD(TD td, XhcdRing *ring){
+
+void xhcdRing_putTD(XhcdRing *ring, TD td){
    for(int i = 0; i < td.trbCount; i++){
-      xhcd_putTRB(td.trbs[i], ring);
+      xhcdRing_putTRB(ring, td.trbs[i]);
    }
 }
-void xhcd_putTRB(TRB trb, XhcdRing *ring){
+
+void xhcdRing_putTRB(XhcdRing *ring, TRB trb){
    trb.cycleBit = ring->pcs;
    loggDebug("Queuing trb at %X\n", ring->dequeue);
    *ring->dequeue = trb; 

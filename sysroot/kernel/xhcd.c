@@ -87,7 +87,7 @@ static int checkoutPort(Xhcd *xhcd, int portIndex);
 
 static int getSlotId(Xhcd *xhcd, uint8_t portNumber);
 static int addressDevice(Xhcd *xhcd, int slotId, int portIndex);
-static void initDefaultInputContext(XhcInputContext *inputContext, int portIndex, XhcdRing transferRing, PortSpeed speed);
+static void initDefaultInputContext(XhcInputContext *inputContext, int portIndex, XhcdRing *transferRing, PortSpeed speed);
 
 static XhcStatus configureEndpoint(Xhcd *xhcd, int slotId, UsbEndpointDescriptor *endpoint, XhcInputContext *inputContext);
 static XhcStatus runConfigureEndpointCommand(Xhcd *xhcd, int slotId, XhcInputContext *inputContext);
@@ -479,8 +479,8 @@ XhcStatus xhcd_readData(const XhcDevice *device, UsbEndpointDescriptor endpoint,
    Xhcd *xhcd = device->data;
 
    TRB trb = TRB_NORMAL(dataBuffer, bufferSize);
-   XhcdRing *transferRing = &xhcd->transferRing[device->slotId][endpointIndex - 1];
-   xhcd_putTRB(trb, transferRing);
+   XhcdRing *transferRing = xhcd->transferRing[device->slotId][endpointIndex - 1];
+   xhcdRing_putTRB(transferRing, trb);
    xhcd_ringDoorbell(xhcd, device->slotId, endpointIndex);
 
    XhcEventTRB event;
@@ -501,8 +501,8 @@ XhcStatus xhcd_writeData(const XhcDevice *device,
    int endpointIndex = getEndpointIndex(&endpoint);
    Xhcd *xhcd = device->data;
    TRB trb = TRB_NORMAL(dataBuffer, bufferSize);
-   XhcdRing *transferRing = &xhcd->transferRing[device->slotId][endpointIndex - 1];
-   xhcd_putTRB(trb, transferRing);
+   XhcdRing *transferRing = xhcd->transferRing[device->slotId][endpointIndex - 1];
+   xhcdRing_putTRB(transferRing, trb);
    xhcd_ringDoorbell(xhcd, device->slotId, endpointIndex);
 
    XhcEventTRB event;
@@ -579,7 +579,7 @@ static XhcStatus initInterruptEndpoint(Xhcd *xhcd, int slotId, UsbEndpointDescri
    loggDebug("Addr: %X", endpoint->bEndpointAddress);
    int endpointIndex = getEndpointIndex(endpoint);
 
-   XhcdRing transferRing = xhcd_newRing(DEFAULT_TRANSFER_RING_TRB_COUNT);
+   XhcdRing *transferRing = xhcdRing_new(DEFAULT_TRANSFER_RING_TRB_COUNT);
    xhcd->transferRing[slotId][endpointIndex - 1] = transferRing;
 
    uint32_t maxPacketSize = endpoint->wMaxPacketSize & 0x7FF;
@@ -596,7 +596,7 @@ static XhcStatus initInterruptEndpoint(Xhcd *xhcd, int slotId, UsbEndpointDescri
          .maxPacketSize = maxPacketSize,
          .maxBurstSize = maxBurstSize,
          .errorCount = 3,
-         .dequeuePointer = (uintptr_t)transferRing.dequeue | transferRing.pcs, //X
+         .dequeuePointer = (uintptr_t)transferRing->dequeue | transferRing->pcs, //X
          .maxESITPayloadLow = (uint16_t)maxESITPayload,
          .maxESITPayloadHigh = (uint16_t)(maxESITPayload >> 16),
          .interval = 6, //FIXME
@@ -616,10 +616,10 @@ static XhcStatus initBulkEndpoint(Xhcd *xhcd, int slotId, UsbEndpointDescriptor 
    uint32_t hostInitiateDisable = 0;
    uint32_t linearStreamArray = 0;
 
-   XhcdRing transferRing = xhcd_newRing(DEFAULT_TRANSFER_RING_TRB_COUNT);
-   loggDebug("Creating bulk for index %d at %X", endpointIndex, transferRing.dequeue);
+   XhcdRing *transferRing = xhcdRing_new(DEFAULT_TRANSFER_RING_TRB_COUNT);
+   loggDebug("Creating bulk for index %d at %X", endpointIndex, transferRing->dequeue);
    xhcd->transferRing[slotId][endpointIndex - 1] = transferRing;
-   dequePointer = (uintptr_t)transferRing.dequeue | transferRing.pcs;
+   dequePointer = (uintptr_t)transferRing->dequeue | transferRing->pcs;
 
    if(endpoint->superSpeedDescriptor){
       maxBurstSize = endpoint->superSpeedDescriptor->bMaxBurst;
@@ -656,7 +656,7 @@ static int getSlotId(Xhcd *xhcd, uint8_t portNumber){
    loggDebug("Getting slot id");
    XhcEventTRB trb;
 
-   xhcd_putTRB(TRB_ENABLE_SLOT(getProtocolSlotType(xhcd, portNumber)), &xhcd->commandRing);
+   xhcdRing_putTRB(xhcd->commandRing, TRB_ENABLE_SLOT(getProtocolSlotType(xhcd, portNumber)));
    ringCommandDoorbell(xhcd);
    //FIXME: hack
    loggDebug("waiting!");
@@ -686,7 +686,7 @@ static PortUsbType getUsbType(Xhcd *xhcd, int portNumber){
 static PortUsbType getProtocolSlotType(Xhcd *xhcd, int portNumber){
    return xhcd->portInfo[portNumber].protocolSlotType;
 }
-static void initDefaultInputContext(XhcInputContext *inputContext, int portIndex, XhcdRing transferRing, PortSpeed speed){
+static void initDefaultInputContext(XhcInputContext *inputContext, int portIndex, XhcdRing* transferRing, PortSpeed speed){
    memset((void*)inputContext, 0, sizeof(XhcInputContext));
    inputContext->inputControlContext.addContextFlags |= INPUT_CONTEXT_A0A1_MASK;
 
@@ -717,7 +717,7 @@ static void initDefaultInputContext(XhcInputContext *inputContext, int portIndex
    XhcEndpointContext *controlEndpoint = &inputContext->endpointContext[0];
    controlEndpoint->endpointType = ENDPOINT_TYPE_CONTROL;
    controlEndpoint->maxPacketSize = maxPacketSize;
-   controlEndpoint->dequeuePointer = (uintptr_t)transferRing.dequeue | transferRing.pcs;
+   controlEndpoint->dequeuePointer = (uintptr_t)transferRing->dequeue | transferRing->pcs;
    controlEndpoint->errorCount = 3;
    controlEndpoint->avarageTrbLength = 8;
 }
@@ -729,14 +729,14 @@ static int addressDevice(Xhcd *xhcd, int slotId, int portIndex){
    XhcOutputContext *outputContext = kcallocco(sizeof(XhcOutputContext), 64, 0);
    xhcd->dcBaseAddressArray[slotId] = paging_getPhysicalAddress((uintptr_t)outputContext);
 
-   XhcdRing transferRing = xhcd_newRing(DEFAULT_TRANSFER_RING_TRB_COUNT);
+   XhcdRing *transferRing = xhcdRing_new(DEFAULT_TRANSFER_RING_TRB_COUNT);
    xhcd->transferRing[slotId][0] = transferRing;
    loggDebug("New ring");
 
    PortSpeed speed = getPortSpeed(xhcd, portIndex);
    initDefaultInputContext(&inputContext, portIndex, transferRing, speed);
    uintptr_t inputContextPhysical = paging_getPhysicalAddress((uintptr_t)&inputContext);
-   xhcd_putTRB(TRB_ADDRESS_DEVICE(inputContextPhysical, slotId, 0), &xhcd->commandRing);
+   xhcdRing_putTRB(xhcd->commandRing, TRB_ADDRESS_DEVICE(inputContextPhysical, slotId, 0));
    ringCommandDoorbell(xhcd);
 
    loggDebug("init context (waiting)");
@@ -796,8 +796,8 @@ static XhcStatus resetXhc(Xhcd *xhcd){
    return XhcOk;
 }
 static void initCommandRing(Xhcd *xhcd){
-   xhcd->commandRing = xhcd_newRing(DEFAULT_COMMAND_RING_SIZE);
-   xhcd_attachCommandRing(xhcd->hardware, &xhcd->commandRing);
+   xhcd->commandRing = xhcdRing_new(DEFAULT_COMMAND_RING_SIZE);
+   xhcd_attachCommandRing(xhcd->hardware, xhcd->commandRing);
 }
 //FIXME: interrupter register
 static void initEventRing(Xhcd *xhcd){
@@ -862,7 +862,7 @@ static int enablePort(Xhcd *xhcd, int portIndex){
    return 1;
 }
 static int runCommand(Xhcd *xhcd, TRB trb){
-   xhcd_putTRB(trb, &xhcd->commandRing);
+   xhcdRing_putTRB(xhcd->commandRing, trb);
    ringCommandDoorbell(xhcd);
 
    XhcEventTRB result;
@@ -915,8 +915,8 @@ static int putConfigTD(Xhcd *xhcd, int slotId, TD td){
    XhcEventTRB event;
    //    while(dequeEventTrb(xhcd, &event)); //FIXME: Hack
 
-   XhcdRing *transferRing = &xhcd->transferRing[slotId][0];
-   xhcd_putTD(td, transferRing);
+   XhcdRing *transferRing = xhcd->transferRing[slotId][0];
+   xhcdRing_putTD(transferRing, td);
    xhcd_ringDoorbell(xhcd, slotId, 1);
 
    while(!dequeEventTrb(xhcd, &event));
@@ -928,8 +928,8 @@ static int putConfigTD(Xhcd *xhcd, int slotId, TD td){
 
 static int setMaxPacketSize(Xhcd *xhcd, int slotId){
    uint8_t buffer[8];
-   XhcdRing *transferRing = &xhcd->transferRing[slotId][0];
-   xhcd_putTD(TD_GET_DESCRIPTOR(buffer, sizeof(buffer)), transferRing);
+   XhcdRing *transferRing = xhcd->transferRing[slotId][0];
+   xhcdRing_putTD(transferRing, TD_GET_DESCRIPTOR(buffer, sizeof(buffer)));
    xhcd_ringDoorbell(xhcd, slotId, 1);
 
    XhcEventTRB result;
@@ -951,7 +951,7 @@ static int setMaxPacketSize(Xhcd *xhcd, int slotId){
       memset((void*)&input->inputControlContext, 0, sizeof(XhcInputControlContext));
       input->inputControlContext.addContextFlags = 1 << 1;
       loggDebug("add context %X", input->inputControlContext.addContextFlags);
-      xhcd_putTRB(TRB_EVALUATE_CONTEXT((void*)input, slotId), &xhcd->commandRing);
+      xhcdRing_putTRB(xhcd->commandRing, TRB_EVALUATE_CONTEXT((void*)input, slotId));
       ringCommandDoorbell(xhcd);
       XhcEventTRB result;
       while(!dequeEventTrb(xhcd, &result));
@@ -965,20 +965,6 @@ static int setMaxPacketSize(Xhcd *xhcd, int slotId){
    return 1;
 }
 
-static void test(Xhcd *xhcd){
-   //    xhcd_putTRB(TRB_NOOP(), &xhci->commandRing);
-   //    ringCommandDoorbell(xhci);
-   //    for(int i = 0; i < 2; i++){
-   //       uint32_t status = xhci->operation->USBStatus;
-   //       printf("Error? %d\n", status & (1 << 12));
-   //    }
-
-   //    XhcEventTRB result;
-   //    printf("Waiting for interruptor\n");
-   //    while(!dequeEventTrb(xhci, &result));
-   //    printf("event posted %X %X %X %X\n", result);
-   //    printf("completion code: %d (success: %b)\n", result.completionCode, result.completionCode == Success);
-}
 static int isPortEnabled(Xhcd *xhcd, int portIndex){
    PortStatusAndControll status = { .bits = xhcd_readPortRegister(xhcd->hardware, portIndex, PORTStatusAndControl) };
    if(status.portEnabledDisabled == 1

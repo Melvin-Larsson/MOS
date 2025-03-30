@@ -161,10 +161,11 @@ typedef struct{
    TRB *dequeue;
 }XhcdRing;
 
-XhcdRing xhcd_newRing(int trbCount);
+XhcdRing *xhcdRing_new(int trbCount);
+void xhcdRing_free(XhcdRing *ring);
 int xhcd_attachCommandRing(XhcHardware xhcHardware, XhcdRing *ring);
-void xhcd_putTD(TD td, XhcdRing *ring);
-void xhcd_putTRB(TRB trb, XhcdRing *ring);
+void xhcdRing_putTD(XhcdRing *ring, TD td);
+void xhcdRing_putTRB(XhcdRing *ring, TRB trb);
 
 
 TRB TRB_NOOP();

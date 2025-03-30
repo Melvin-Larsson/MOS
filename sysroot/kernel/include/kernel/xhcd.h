@@ -23,9 +23,9 @@ typedef struct{
    uint8_t enabledPorts;
 
    volatile uint64_t *dcBaseAddressArray;
-   XhcdRing transferRing[16 + 1][31]; //indexed from 1 //FIXME
+   XhcdRing *transferRing[16 + 1][31]; //indexed from 1 //FIXME
    XhcEventRing eventRing;
-   XhcdRing commandRing;
+   XhcdRing *commandRing;
 
    XhcInterruptHandler *handlers;
 
