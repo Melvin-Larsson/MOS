@@ -74,7 +74,7 @@ static XhcStatus waitForControllerReady(Xhcd *xhcd);
 static XhcStatus setMaxEnabledDeviceSlots(Xhcd *xhcd, uint8_t maxSlots);
 static int getMaxEnabledDeviceSlots(Xhcd *xhcd);
 static XhcStatus resetXhc(Xhcd *xhcd);
-static void initCommandRing(Xhcd *xhcd);
+static XhcStatus initCommandRing(Xhcd *xhcd);
 static void initEventRing(Xhcd *xhcd);
 static XhcStatus initDCAddressArray(Xhcd *xhcd);
 static void turnOnController(Xhcd *xhcd);
@@ -240,15 +240,17 @@ XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
 
       status = initDCAddressArray(xhcd);
       if(status != XhcOk){
-         goto cleanup_xhcd_with_dc_array;
+         goto cleanup_xhcd;
       }
       status = initScratchPad(xhcd);
       if(status != XhcOk){
-         goto cleanup_xhcd_with_handlers;
+         goto cleanup_xhcd;
       }
 
       readPortInfo(xhcd); //Maybe? TODO: Check
-      initCommandRing(xhcd);
+      if((status = initCommandRing(xhcd)) != XhcOk){
+         goto cleanup_xhcd;
+      }
       initEventRing(xhcd);
 
       // enable interrupts
@@ -274,18 +276,72 @@ XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
       for(size_t i = 0; i < scratchpadSize; i++){
          kfree((void*)scratchpadPointerArray[i]);
       }
-      kfree(scratchpadPointerArray);
-cleanup_xhcd_with_dc_array:
-      kfree((void*)xhcd->dcBaseAddressArray);
-cleanup_xhcd_with_handlers:
-      kfree(xhcd->handlers);
+
 cleanup_xhcd:
-      kfree((void*)xhcd->eventBuffer);
-      semaphore_free(xhcd->eventSemaphore);
+      xhcd_free(xhci);
       kfree(xhcd);
    }
 
    return status;
+}
+
+void xhcd_free(Xhci *xhci){
+   Xhcd *xhcd = xhci->data;
+   if(xhcd->portInfo){
+      kfree(xhcd->portInfo);
+   }
+
+   if(xhcd->dcBaseAddressArray){
+      uint64_t *array = xhcd->dcBaseAddressArray;
+
+      size_t scratchpadSize = getScratchpadSize(xhcd);
+      uintptr_t address = (uintptr_t)array[0];
+      uint64_t *scrachpadPointerArray = (uint64_t *)address;
+      if(scrachpadPointerArray){
+         for(size_t i = 0; i < scratchpadSize; i++){
+            if(scrachpadPointerArray[i]){
+               uintptr_t scrachpadPointer = scrachpadPointerArray[i];
+               kfree((void*)scrachpadPointer);
+            }
+         }
+      }
+      kfree(scrachpadPointerArray);
+
+      for(size_t i = 1; i < xhcd->dcBaseAddressArraySize; i++){
+         loggWarning("Free device context %X not implemented", array[i]);
+      }
+
+      kfree(array);
+   }
+
+   XhcdRing **ringArray = (XhcdRing **)xhcd->transferRing;
+   for(size_t i = 0; i < sizeof(xhcd->transferRing) / sizeof(XhcdRing *); i++){
+      if(ringArray){
+         xhcdRing_free(ringArray[i]);
+      }
+   }
+
+   loggWarning("Unable to free event ring");
+
+   if(xhcd->commandRing){
+      xhcdRing_free(xhcd->commandRing);
+   }
+
+   if(xhcd->handlers){
+      kfree(xhcd->handlers);
+   }
+
+   if(xhcd->eventBuffer){
+      kfree((void*)xhcd->eventBuffer);
+   }
+
+   if(xhcd->eventSemaphore){
+      semaphore_free(xhcd->eventSemaphore);
+   }
+
+   kfree(xhcd);
+
+   loggInfo("Xhc free");
 }
 
 int xhcd_getDevices(Xhci *xhci, XhcDevice *resultBuffer, int bufferSize){
@@ -353,36 +409,6 @@ static void readPortInfo(Xhcd *xhcd){
       }
       xhcd_advanceExtendedCapabilityEnumerator(&enumerator);
    }
-   //    uint32_t xECP = (xhcd_readCapability(xhcd->hardware, HCCPARAMS1) >> 16) << 2;
-   //    uintptr_t address = (uintptr_t)xhcd->hardware.capabilityBase;
-
-   //    while(xECP){
-   //       address += xECP;
-   //       XhciExtendedCapabilities *cap = (XhciExtendedCapabilities *)(address);
-
-   //       if(cap->capabilityId == CAPABILITY_ID_PROTOCOL){
-   //          XhciXCapSupportedProtocol *sp = (XhciXCapSupportedProtocol*)cap;
-
-   //          if(sp->compatiblePortOffset + sp->compatiblePortCount - 1 > maxPorts){
-   //             printf("too many ports %d, expected %d\n",
-   //                   sp->compatiblePortOffset + sp->compatiblePortCount,
-   //                   maxPorts + 1);
-   //          }
-   //          else if(sp->revisionMajor != 0x3 && sp->revisionMajor != 0x2){
-   //             printf("Unknown protocol %X\n", sp->revisionMajor);
-   //          }
-   //          else{
-   //             for(int i = sp->compatiblePortOffset;
-   //                i < sp->compatiblePortOffset + sp->compatiblePortCount;
-   //                i++){
-   //                xhci->portInfo[i].usbType = sp->revisionMajor;
-   //                xhci->portInfo[i].protocolSlotType = sp->protocolSlotType;
-   //             }
-   //          }
-
-   //       }
-   //       xECP = cap->nextExtendedCapabilityPointer << 2;
-   //    }
 }
 static XhcStatus initDevice(Xhcd *xhcd, int portIndex, XhcDevice *result){
    if(!enablePort(xhcd, portIndex)){
@@ -794,9 +820,13 @@ static XhcStatus resetXhc(Xhcd *xhcd){
 
    return XhcOk;
 }
-static void initCommandRing(Xhcd *xhcd){
+static XhcStatus initCommandRing(Xhcd *xhcd){
    xhcd->commandRing = xhcdRing_new(DEFAULT_COMMAND_RING_SIZE);
+   if(!xhcd->commandRing){
+      return XhcUnableToAllocateMemory;
+   }
    xhcd_attachCommandRing(xhcd->hardware, xhcd->commandRing);
+   return XhcOk;
 }
 //FIXME: interrupter register
 static void initEventRing(Xhcd *xhcd){
@@ -1051,6 +1081,7 @@ static XhcStatus initDCAddressArray(Xhcd *xhcd){
    uint32_t pageSize = getPageSize(xhcd);
    uint32_t arraySize = (maxSlots + 1) * sizeof(uint64_t);
    xhcd->dcBaseAddressArray = kmallocco(arraySize, 64, pageSize);
+   xhcd->dcBaseAddressArraySize = maxSlots + 1;
    if(!xhcd->dcBaseAddressArray){
       return XhcUnableToAllocateMemory;
    }
@@ -1071,10 +1102,11 @@ static XhcStatus initScratchPad(Xhcd *xhcd){
 
    uint32_t pageSize = getPageSize(xhcd);
    loggDebug("Page size: %d", pageSize);
-   volatile uint64_t *scratchpadPointers = kmallocco(scratchpadSize * sizeof(uint64_t), 64, pageSize);
+   uint64_t *scratchpadPointers = kmallocco(scratchpadSize * sizeof(uint64_t), 64, pageSize);
    if(!scratchpadPointers){
       return XhcUnableToAllocateMemory;
    }
+   memset(scratchpadPointers, 0, scratchpadSize * sizeof(uint64_t));
    assert_physical_continguous((uintptr_t)scratchpadPointers, scratchpadSize * sizeof(uint64_t));
 
    for(uint32_t i = 0; i < scratchpadSize; i++){

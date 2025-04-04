@@ -42,9 +42,12 @@ static void initSegment(Segment segment, Segment nextSegment, int isLast);
 
 XhcdRing *xhcdRing_new(int trbCount){
    void* ringAddress = kmallocco(trbCount * sizeof(TRB), 64, 64000);
+   if(!ringAddress){
+      return 0;
+   }
    memset(ringAddress, 0, trbCount * sizeof(TRB));
 
-   loggDebug("Ring Address %X", ringAddress);
+   loggDebug("Init ring at %X", ringAddress);
    Segment segment = {(uintptr_t)ringAddress, trbCount};
    initSegment(segment, segment, 1);
 

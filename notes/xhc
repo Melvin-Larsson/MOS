@@ -1,0 +1,4 @@
+p.334: The content of the Scratchpad Buffers shall remain intact across system power
+events including D3.cold if SPR = ‘1’. Refer to the SPR definition in Table 5-11.
+
+

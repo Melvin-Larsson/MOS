@@ -1,7 +1,7 @@
 COMPILER?=${HOME}/opt/cross2/bin/i686-elf-gcc
 PREFIX?= ${HOME}/Programmering/OS
 INCLUDE=-I ${PREFIX}/sysroot/kernel/include -I ${PREFIX}/sysroot/lib/include -I ${PREFIX}/utils/include
-CFLAGS?= -O2 -std=gnu99 -ffreestanding -mno-red-zone -DLOG_LEVEL=0 -DASSERTS_ENABLED -Wall -Wextra ${INCLUDE}
+CFLAGS?= -O2 -std=gnu99 -ffreestanding -mno-red-zone -DLOG_LEVEL=0 -DASSERTS_ENABLED -Wall -Wextra -Werror --param=min-pagesize=0 ${INCLUDE}
 BUILD=${PREFIX}/sysroot/kernel/build
 
 LINK_FLAGS?= -nostdlib -lgcc -ffreestanding -O2 -r

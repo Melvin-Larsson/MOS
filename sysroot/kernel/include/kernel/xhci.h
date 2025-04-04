@@ -69,6 +69,8 @@ typedef enum{
   an error code will be returned.
  */
 XhcStatus xhcd_init(PciDescriptor pciHeader, Xhci *xhci);
+
+void xhcd_free(Xhci *xhci);
 /*
    Send an USB request message.
 

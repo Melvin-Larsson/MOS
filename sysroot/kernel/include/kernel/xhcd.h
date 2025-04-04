@@ -10,8 +10,6 @@
 
 
 typedef struct{
-   PciHeader *pciHeader;
-
    XhcHardware hardware;
 
 //    XhciCapabilities *capabilities;
@@ -22,7 +20,9 @@ typedef struct{
    UsbPortInfo *portInfo;
    uint8_t enabledPorts;
 
-   volatile uint64_t *dcBaseAddressArray;
+   uint64_t *dcBaseAddressArray;
+   uint32_t dcBaseAddressArraySize;
+
    XhcdRing *transferRing[16 + 1][31]; //indexed from 1 //FIXME
    XhcEventRing eventRing;
    XhcdRing *commandRing;

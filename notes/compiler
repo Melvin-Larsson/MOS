@@ -1,0 +1,2 @@
+If I am to access low address memory from c (Like )without getting a warning
+I need to provide the option  '--param=min-pagesize=0' to the compiler.
