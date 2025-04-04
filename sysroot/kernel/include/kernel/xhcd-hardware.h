@@ -4,6 +4,16 @@
 #include "stdint.h"
 #include "pci.h"
 
+#define USBSTS_HCH_BIT (1 << 0)
+#define USBSTS_HSE_BIT (1 << 2)
+#define USBSTS_EINT_BIT (1 << 3)
+#define USBSTS_PCD_BIT (1 << 4)
+#define USBSTS_SSS_BIT (1 << 8)
+#define USBSTS_RSS_BIT (1 << 9)
+#define USBSTS_SRE_BIT (1 << 10)
+#define USBSTS_CNR_BIT (1 << 11)
+#define USBSTS_HCE_BIT (1 << 12)
+
 typedef enum{
    USBCommand = 0x0,
    USBStatus = 0x4,

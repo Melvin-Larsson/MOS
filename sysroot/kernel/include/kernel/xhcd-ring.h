@@ -161,6 +161,7 @@ typedef struct{
    TRB *dequeue;
 }XhcdRing;
 
+uint32_t xhcdEventRing_getMaxTrbCount(XhcHardware xhc);
 XhcdRing *xhcdRing_new(int trbCount);
 void xhcdRing_free(XhcdRing *ring);
 int xhcd_attachCommandRing(XhcHardware xhcHardware, XhcdRing *ring);

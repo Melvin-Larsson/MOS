@@ -2,12 +2,14 @@
 #include "kernel/xhcd-ring.h"
 #include "kernel/logging.h"
 #include "kernel/memory.h"
- #include "stdlib.h"
+#include "stdlib.h"
 #include "stdint.h"
+#include "utils/assert.h"
 
 #define DEFAULT_PCS 1
 
 #define CRCR_OFFSET 0x18
+#define CRCR_CRR_BIT (1 << 3)
 
 #define TRB_TYPE_LINK 6
 #define TRB_TYPE_NOOP 23
@@ -63,8 +65,12 @@ void xhcdRing_free(XhcdRing *ring){
 }
 
 int xhcd_attachCommandRing(XhcHardware xhcHardware, XhcdRing *ring){
+   assert((xhcd_readRegister(xhcHardware, CRCR) & CRCR_CRR_BIT) == 0);
+
    uintptr_t address = paging_getPhysicalAddress((uintptr_t)ring->dequeue);
-   loggDebug("physical address %X", address);
+   assert((address & 0b111111) == 0); 
+   loggDebug("Attach command ring at %X", address);
+
    xhcd_writeRegister(xhcHardware, CRCR, address | ring->pcs);
    return 1;
 }

@@ -575,7 +575,7 @@ void kernel_main(){
     initLogging();
 
     physpage_init();
-    physpage_markPagesAsUsed4MB(0, 1);
+    physpage_markPagesAsUsed4MB(0, 4);
     physpage_markPagesAsUsed4KB(4194304, 4194304);
     paging_init();
 
@@ -587,16 +587,15 @@ void kernel_main(){
 
     timers_init();
 
-    initKernelTask(4 * 1024 * 1024);
+//     initKernelTask(4 * 1024 * 1024);
 
-    uintptr_t userspaceAddress = 0x800000;
-    uintptr_t func2Addr = (myUserspaceFunc2 - myUserspaceFunc) + userspaceAddress;
-    assert(func2Addr > userspaceAddress);
+//     uintptr_t userspaceAddress = 0x800000;
+//     uintptr_t func2Addr = (myUserspaceFunc2 - myUserspaceFunc) + userspaceAddress;
+//     assert(func2Addr > userspaceAddress);
 
-    physpage_markPagesAsUsed4MB(2, 1);
 
-    uintptr_t funcAddr = (uintptr_t)myUserspaceFunc;
-    memcpy((void*)userspaceAddress, (void*)funcAddr, 4096);
+//     uintptr_t funcAddr = (uintptr_t)myUserspaceFunc;
+//     memcpy((void*)userspaceAddress, (void*)funcAddr, 4096);
 
     PagingConfig32Bit config = {
         .use4MBytePages = 1,
@@ -608,7 +607,7 @@ void kernel_main(){
         .readWrite = 1,
         .pageWriteThrough = 1,
         .pageCahceDisable = 1,
-        .Use4MBPageSize = 1,
+        .Use4MBPageSize = 4,
     };
     PagingStatus status = paging_addEntryToContext(kernelContext, entry, 0);
     assert(status == PagingOk);
@@ -617,32 +616,33 @@ void kernel_main(){
     paging_setContext(kernelContext);
     paging_start();
 
-    userspaceContext = paging_create32BitContext(config);
-    PagingTableEntry userSpaceEntry = {
-        .physicalAddress = userspaceAddress,
-        .readWrite = 1,
-        .pageWriteThrough = 1,
-        .pageCahceDisable = 1,
-        .Use4MBPageSize = 1,
-        .userSupervisor = 1
-    };
-    uintptr_t newAddress = 0x800000;
-    uint32_t status1 = paging_addEntryToContext(userspaceContext, entry, 0);
-    uint32_t status2 = paging_addEntryToContext(userspaceContext, userSpaceEntry, newAddress);
+//     userspaceContext = paging_create32BitContext(config);
+//     PagingTableEntry userSpaceEntry = {
+//         .physicalAddress = userspaceAddress,
+//         .readWrite = 1,
+//         .pageWriteThrough = 1,
+//         .pageCahceDisable = 1,
+//         .Use4MBPageSize = 1,
+//         .userSupervisor = 1
+//     };
+//     uintptr_t newAddress = 0x800000;
+//     uint32_t status1 = paging_addEntryToContext(userspaceContext, entry, 0);
+//     uint32_t status2 = paging_addEntryToContext(userspaceContext, userSpaceEntry, newAddress);
 
-    loggDebug("status %X %X\n", status1, status2);
+//     loggDebug("status %X %X\n", status1, status2);
 
-    paging_stop();
-    paging_setContext(userspaceContext);
-    paging_start();
+//     paging_stop();
+//     paging_setContext(userspaceContext);
+//     paging_start();
 
-    kprintf("jump\n");
+//     kprintf("jump\n");
 
-    uint32_t eflags = 0;
-    __asm__ volatile("\
+//     uint32_t eflags = 0;
+/*    __asm__ volatile("\
             pushf;\
             pop %[reg]"
             : [reg]"=r"(eflags));
+*/
 
     threads_init();
 //     ThreadConfig thread1 = {
@@ -662,7 +662,7 @@ void kernel_main(){
 //         .eflags = eflags
 //     };
 //     s1 = semaphore_new(0);
-    s2 = semaphore_new(0);
+//     s2 = semaphore_new(0);
 
 //     thread_start(thread1);
 //     thread_start(thread2);

@@ -58,6 +58,7 @@ void *kmalloc(int size){
 }
 void *kmallocco(int size, int alignment, int boundary){
     if(!isValidConstraint(size, alignment, boundary)){
+        loggError("Invalid constraint %d %d %d", size, alignment, boundary);
         return 0;
     }
     MemoryDescriptor *last = 0;
@@ -80,8 +81,9 @@ void *kmallocco(int size, int alignment, int boundary){
         }
         last = desc;
     }
-    return 0;
 
+    loggWarning("Out of memory");
+    return 0;
 }
 void kfree(void *ptr){
     MemoryDescriptor *last = 0;

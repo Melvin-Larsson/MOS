@@ -3,7 +3,9 @@
 
 #include "stdint.h"
 #include "xhcd-registers.h"
+#include "stdint.h"
 #include "xhcd-hardware.h"
+#include "stddef.h"
 
 enum EventType{
    TransferEvent = 32,
@@ -87,14 +89,16 @@ typedef struct{
    uint16_t interrupterIndex;
 //    InterrupterRegisters *interruptor;
 
-   int segmentCount;
+   size_t segmentCount;
 }XhcEventRing;
 
 
-XhcEventRing xhcd_newEventRing(int trbCount);
-int xhcd_attachEventRing(XhcHardware xhcHardware, XhcEventRing *ring, int interruptorIndex);
+XhcEventRing *xhcdEventRing_new(size_t trbCount);
+void xhcdEventRing_free(XhcEventRing *);
 
-int xhcd_readEvent(XhcEventRing *ring, XhcEventTRB* result, int maxOutput);
+void xhcdEventRing_attach(XhcHardware xhcHardware, XhcEventRing *ring, int interruptorIndex);
+
+int xhcdEventRing_read(XhcEventRing *ring, XhcEventTRB* result, int maxOutput);
 
 int hasPendingEvent(XhcEventRing *eventRing);
 #endif

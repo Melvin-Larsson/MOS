@@ -9,6 +9,7 @@
 #include "kernel/logging.h"
 #include "kernel/memory.h"
 #include "stdlib.h"
+#include "utils/utils.h"
 
 
 //FIXME: remove
@@ -24,7 +25,7 @@
 
 #define MAX_DEVICE_SLOTS_ENABLED 16
 #define DEFAULT_COMMAND_RING_SIZE 32
-#define DEFAULT_EVENT_SEGEMNT_TRB_COUNT 32
+#define DEFAULT_EVENT_RING_TRB_COUNT 128
 #define DEFAULT_TRANSFER_RING_TRB_COUNT 16
 
 #define USBCMD_RUN_STOP_BIT 1
@@ -75,7 +76,7 @@ static XhcStatus setMaxEnabledDeviceSlots(Xhcd *xhcd, uint8_t maxSlots);
 static int getMaxEnabledDeviceSlots(Xhcd *xhcd);
 static XhcStatus resetXhc(Xhcd *xhcd);
 static XhcStatus initCommandRing(Xhcd *xhcd);
-static void initEventRing(Xhcd *xhcd);
+static XhcStatus initEventRing(Xhcd *xhcd);
 static XhcStatus initDCAddressArray(Xhcd *xhcd);
 static void turnOnController(Xhcd *xhcd);
 static XhcStatus initScratchPad(Xhcd *xhcd);
@@ -146,7 +147,7 @@ static void handler(void *data){
    Xhcd *xhcd = (Xhcd*)data;
    do{
       XhcEventTRB events[32];
-      int count = xhcd_readEvent(&xhcd->eventRing, events, 32);
+      int count = xhcdEventRing_read(xhcd->eventRing, events, 32);
       for(int i = 0; i < count; i++){
          uint32_t endpoint = events[i].endpointId;
          uint32_t slotId = events[i].slotId;
@@ -251,31 +252,25 @@ XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
       if((status = initCommandRing(xhcd)) != XhcOk){
          goto cleanup_xhcd;
       }
-      initEventRing(xhcd);
+      if((status = initEventRing(xhcd)) != XhcOk){
+         goto cleanup_xhcd;
+      }
 
       // enable interrupts
       xhcd_orRegister(xhcd->hardware, USBCommand, (1 << 2));
+
       turnOnController(xhcd);
 
+      //FIXME: Check
       xhcd_orRegister(xhcd->hardware, USBStatus, 1 << 3);
-
       while(xhcd_readRegister(xhcd->hardware, USBStatus) & (1<<3));
 
       //FIXME: a bit of hack, clearing event ring
       XhcEventTRB result[16];
-      while(xhcd_readEvent(&xhcd->eventRing, result, 16));
+      while(xhcdEventRing_read(xhcd->eventRing, result, 16));
 
       loggInfo("Controller turned on");
       lreturn XhcOk;
-
-// cleanup_xhcd_with_scratchpad:
-//       ;
-      uint32_t scratchpadSize = getScratchpadSize(xhcd);
-      uintptr_t scratchpadPointerArrayAddress = (uintptr_t)xhcd->dcBaseAddressArray[0];
-      uintptr_t *scratchpadPointerArray = (uintptr_t *)scratchpadPointerArrayAddress;
-      for(size_t i = 0; i < scratchpadSize; i++){
-         kfree((void*)scratchpadPointerArray[i]);
-      }
 
 cleanup_xhcd:
       xhcd_free(xhci);
@@ -308,7 +303,9 @@ void xhcd_free(Xhci *xhci){
       kfree(scrachpadPointerArray);
 
       for(size_t i = 1; i < xhcd->dcBaseAddressArraySize; i++){
-         loggWarning("Free device context %X not implemented", array[i]);
+         if(array[i]){
+            loggWarning("Free device context %X not implemented", array[i]);
+         }
       }
 
       kfree(array);
@@ -325,6 +322,10 @@ void xhcd_free(Xhci *xhci){
 
    if(xhcd->commandRing){
       xhcdRing_free(xhcd->commandRing);
+   }
+
+   if(xhcd->eventRing){
+      xhcdEventRing_free(xhcd->eventRing);
    }
 
    if(xhcd->handlers){
@@ -829,11 +830,21 @@ static XhcStatus initCommandRing(Xhcd *xhcd){
    return XhcOk;
 }
 //FIXME: interrupter register
-static void initEventRing(Xhcd *xhcd){
-   xhcd->eventRing = xhcd_newEventRing(DEFAULT_EVENT_SEGEMNT_TRB_COUNT);
+static XhcStatus initEventRing(Xhcd *xhcd){
+   size_t maxTrbCount = xhcdEventRing_getMaxTrbCount(xhcd->hardware);
+   size_t trbCount = min(DEFAULT_EVENT_RING_TRB_COUNT, maxTrbCount);
+   loggDebug("Creating event ring of size %d/%d", trbCount, maxTrbCount);
+   xhcd->eventRing = xhcdEventRing_new(trbCount);
+   if(!xhcd->eventRing){
+      return XhcUnableToAllocateMemory;
+   }
    //Enable interrupt for interruptor
+   // FIXME:check
    xhcd_orInterrupter(xhcd->hardware, 0, IMAN, 2);
-   xhcd_attachEventRing(xhcd->hardware, &xhcd->eventRing, 0);
+
+   xhcdEventRing_attach(xhcd->hardware, xhcd->eventRing, 0);
+
+   return XhcOk;
 }
 static int enablePort(Xhcd *xhcd, int portIndex){
    if(isPortEnabled(xhcd, portIndex)){

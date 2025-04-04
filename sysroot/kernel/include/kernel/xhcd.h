@@ -24,7 +24,7 @@ typedef struct{
    uint32_t dcBaseAddressArraySize;
 
    XhcdRing *transferRing[16 + 1][31]; //indexed from 1 //FIXME
-   XhcEventRing eventRing;
+   XhcEventRing *eventRing;
    XhcdRing *commandRing;
 
    XhcInterruptHandler *handlers;
