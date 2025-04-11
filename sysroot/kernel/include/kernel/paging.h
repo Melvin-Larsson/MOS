@@ -53,7 +53,7 @@ typedef struct{
 }PagingContext;
 
 
-void paging_init();
+PagingStatus paging_init();
 PagingContext *paging_create32BitContext(PagingConfig32Bit config);
 void paging_setContext(PagingContext *context);
 void paging_start();

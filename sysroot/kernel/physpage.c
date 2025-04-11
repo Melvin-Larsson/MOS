@@ -1,13 +1,11 @@
 #include "kernel/physpage.h"
 #include "kernel/allocator.h"
 
-#include "stdint.h"
-
 #include "utils/assert.h"
 
 typedef enum{
-   Memory = 1,
-   Reserved = 2,
+   AddressRangeTypeMemory = 1,
+   AddressRangeTypeReserved = 2,
 }AddressRangeType;
 
 typedef struct{
@@ -18,24 +16,31 @@ typedef struct{
 
 static Allocator *pageAllocator;
 
-
-void physpage_init(){
+bool physpage_init(Memory *memory){
    volatile uint32_t *base = ((volatile uint32_t *)0x500);
    uint32_t length = *base / sizeof(AddressRange);
 
    AddressRange *addressRangeTable = (AddressRange*)(base + 1);
 
-   pageAllocator = allocator_init(0, 0);
+   pageAllocator = allocator_initManaged(memory, scratchpad_size, 0, 0);
+   if(!pageAllocator){
+      return false;
+   }
 
    for(uint32_t i = 0; i < length; i++){
-      if(addressRangeTable[i].type != Memory){
+      if(addressRangeTable[i].type != AddressRangeTypeMemory){
          continue;
       }
-      allocator_release(
+      if(!allocator_release(
             pageAllocator,
             (addressRangeTable[i].address + 4 * 1024 - 1) / (4 * 1024),
-            addressRangeTable[i].length / (4 * 1024));
+            addressRangeTable[i].length / (4 * 1024))){
+
+         return false;
+      }
    }
+
+   return true;
 }
 
 uint64_t physpage_getPage4KB(){

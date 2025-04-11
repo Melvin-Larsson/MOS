@@ -8,4 +8,5 @@ SECTIONS
         *(.bss)
         PROVIDE(__bss_end = .); 
     }
+    PROVIDE(__kernel_end = .);
 }

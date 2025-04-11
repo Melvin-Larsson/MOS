@@ -86,6 +86,9 @@ void *kmallocco(int size, int alignment, int boundary){
     return 0;
 }
 void kfree(void *ptr){
+    if(!ptr){
+        return;
+    }
     MemoryDescriptor *last = 0;
     for(MemoryDescriptor *desc = memoryDescriptor; desc != 0; desc = desc->next){
         if((uint8_t*)desc + sizeof(MemoryDescriptor) == ptr){

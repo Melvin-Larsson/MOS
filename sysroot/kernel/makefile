@@ -44,6 +44,7 @@ OBJS=  ${BUILD}/boot-stage-2.o \
 	   ${BUILD}/timer.o \
 	   ${BUILD}/memory.o \
 	   ${BUILD}/ps2-8042.o \
+	   ${BUILD}/memory-allocator.o \
 
 .PHONY: all
 all: ${BUILD}/kernel.o ${BUILD}/boot-stage-1.o
@@ -157,6 +158,9 @@ ${BUILD}/memory.o : memory.c include/kernel/memory.h
 
 ${BUILD}/ps2-8042.o : ps2-8042.c include/kernel/ps2-8042.h include/kernel/ps2-8042-structures.h
 	${COMPILER} ${CFLAGS} -c ps2-8042.c -o ${BUILD}/ps2-8042.o
+
+${BUILD}/memory-allocator.o : memory-allocator.c include/kernel/memory-allocator.h 
+	${COMPILER} ${CFLAGS} -c memory-allocator.c -o ${BUILD}/memory-allocator.o
 
 include/kernel/xhcd.h: include/kernel/xhcd-registers.h include/kernel/usb-messages.h
 include/kernel/xhcd-ring.h: include/kernel/xhcd-registers.h

@@ -1,6 +1,7 @@
-#include "kernel/memory.h"
+#include "kernel/memory-allocator.h"
+#include "stdbool.h"
+#include "stddef.h"
 #include "stdlib.h"
-#include "stdint.h"
 
 #include "utils/assert.h"
 
@@ -16,8 +17,8 @@ typedef struct MemoryDescriptor{
 }MemoryDescriptor;
 
 typedef struct{
-   MemoryArea (*allocate)(void);
-   MemoryArea (*free)(MemoryArea);
+/*    MemoryArea (*allocate)(void); */
+/*    MemoryArea (*free)(MemoryArea); */
    MemoryDescriptor *memory;
    MemoryDescriptor rootMemoryDescriptor;
 }MemoryRoot;
@@ -60,12 +61,12 @@ Memory *memory_new(void *start, unsigned int length){
    return (Memory *)(root);
 }
 
-static void mergeWithNextLeft(MemoryDescriptor *descriptor){
-   MemoryDescriptor *next = descriptor->next;
-   if(descriptor + 1 == next){
-      *descriptor = *next;
-   }
-}
+/* static void mergeWithNextLeft(MemoryDescriptor *descriptor){ */
+/*    MemoryDescriptor *next = descriptor->next; */
+/*    if(descriptor + 1 == next){ */
+/*       *descriptor = *next; */
+/*    } */
+/* } */
 
 static MemoryDescriptor *mergeWithNextRight(MemoryDescriptor *descriptor){
    MemoryDescriptor *next = descriptor->next;
@@ -345,7 +346,7 @@ void memory_free(Memory *memory, void *ptr){
    mergeWithSurrounding(root, descriptor);
 }
 
-void memory_addAllocator(MemoryArea (*allocate)(void), void (*free)(MemoryArea));
+/* void memory_addAllocator(MemoryArea (*allocate)(void), void (*free)(MemoryArea)); */
 
 static void mergeWithSurrounding(MemoryRoot *root, MemoryDescriptor *descriptor){
    MemoryDescriptor *previous = getPreviousDescriptor(root, descriptor);
@@ -375,7 +376,7 @@ static void *allocateInDescriptorAt(MemoryDescriptor *descriptor, unsigned int s
 static void *allocateInDescriptor(MemoryDescriptor *descriptor, unsigned int size){
    unsigned int descriptorSize = getDescriptorSize(descriptor);
    assert(descriptorSize >= size);
-   assert(descriptor->used == false);
+   assert(descriptor->status == FreeToUse);
 
    if(descriptorSize > size + sizeof(MemoryDescriptor)){
       uintptr_t address = (uintptr_t)descriptor;

@@ -2,8 +2,11 @@
 #define PHYSPAGE_H_INCLUDED
 
 #include "stdint.h"
+#include "stdbool.h"
+#include "stddef.h"
+#include "memory-allocator.h"
 
-void physpage_init();
+bool physpage_init(Memory *memory);
 uint64_t physpage_getPage4KB();
 uint64_t physpage_getPage4MB();
 

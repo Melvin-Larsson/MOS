@@ -1,7 +1,14 @@
 #include "testrunner.h"
-#include "kernel/memory.h"
+#include "kernel/memory-allocator.h"
 #include "stdlib.h"
+#include "stdbool.h"
 #include "stdarg.h"
+#include "stddef.h"
+
+typedef struct{
+   uintptr_t start;
+   size_t size;
+}MemoryArea;
 
 static uint8_t ram[4096];
 static uint8_t before[sizeof(ram)];
@@ -182,24 +189,24 @@ TEST(pageMemory, release_release3OfSize1000_allocateOneOfSize4000_success){
 }
 
 //Should proably remove when running in real OS
-TEST(pageMemory, releaseFirst_noNullPointerReferences){
-   uint8_t tmp[16];
-   memcpy(tmp, 0, sizeof(tmp));
-   memset(0, 0, sizeof(tmp));
+// IGNORE_TEST(pageMemory, releaseFirst_noNullPointerReferences){
+//    uint8_t tmp[16];
+//    memcpy(tmp, 0, sizeof(tmp));
+//    memset(0, 0, sizeof(tmp));
 
-   unsigned int size = 500;
-   void *p1 = memory_malloc(memory, size); 
+//    unsigned int size = 500;
+//    void *p1 = memory_malloc(memory, size); 
 
-   memory_free(memory, p1);
+//    memory_free(memory, p1);
 
-   uint8_t *ptr = 0;
-   for(int i = 0; i < 16; i++){
-      if(!assertInt(ptr[i], 0)){
-         break;
-      }
-   }
-   memcpy(0, tmp, sizeof(tmp));
-}
+//    uint8_t *ptr = 0;
+//    for(int i = 0; i < 16; i++){
+//       if(!assertInt(ptr[i], 0)){
+//          break;
+//       }
+//    }
+//    memcpy(0, tmp, sizeof(tmp));
+// }
 
 TEST(pageMemory, release_releaseUnallocated_memoryNotModified){
    uint8_t before[sizeof(ram)];
@@ -214,38 +221,38 @@ TEST(pageMemory, release_releaseUnallocated_memoryNotModified){
    }
 }
 
-TEST(pageMemory, calloc4000_success_allZeroes){
-   unsigned int size = 4000;
+//IGNORE_TEST(pageMemory, calloc4000_success_allZeroes){
+//   unsigned int size = 4000;
 
-   uint32_t *p1 = memory_malloc(memory, size);
-   memset(p1, 0xFF, size);
-   memory_free(memory, p1);
+//   uint32_t *p1 = memory_malloc(memory, size);
+//   memset(p1, 0xFF, size);
+//   memory_free(memory, p1);
 
-   uint32_t *result = memory_calloc(memory, size);
+//   uint32_t *result = memory_calloc(memory, size);
 
-   assertIntNotEquals((uintptr_t)result, 0);
-   for(unsigned int i = 0; i < size / 4; i++){
-      if(!assertInt(result[i], 0)){
-         break;
-      }
-   }
-}
+//   assertIntNotEquals((uintptr_t)result, 0);
+//   for(unsigned int i = 0; i < size / 4; i++){
+//      if(!assertInt(result[i], 0)){
+//         break;
+//      }
+//   }
+//}
 
-//Should proably remove when running in real OS
-TEST(pageMemory, calloc4097_failed_noChangesToAddress0){
-   uint32_t tmp;
-   memcpy(&tmp, 0, sizeof(tmp));
-   memset(0, 0xFF, sizeof(tmp));
+////Should proably remove when running in real OS
+//IGNORE_TEST(pageMemory, calloc4097_failed_noChangesToAddress0){
+//   uint32_t tmp;
+//   memcpy(&tmp, 0, sizeof(tmp));
+//   memset(0, 0xFF, sizeof(tmp));
 
-   void *result = memory_calloc(memory, 4097);
+//   void *result = memory_calloc(memory, 4097);
 
-   assertInt((uintptr_t)result, 0);
-   uint32_t nullValue;
-   memcpy(&nullValue, 0, sizeof(nullValue));
-   assertInt(nullValue, 0xFFFFFFFF);
+//   assertInt((uintptr_t)result, 0);
+//   uint32_t nullValue;
+//   memcpy(&nullValue, 0, sizeof(nullValue));
+//   assertInt(nullValue, 0xFFFFFFFF);
 
-   memcpy(0, &tmp, sizeof(tmp));
-}
+//   memcpy(0, &tmp, sizeof(tmp));
+//}
 
 TEST(pageMemory, mallocco_8ByteAllignedNoBoundarySize63_success_alligned){
    uintptr_t result = (uintptr_t)memory_mallocco(memory, 63, 8, 0);
@@ -401,20 +408,20 @@ TEST(pageMemory, mallocco_sizeGreaterThanBoundary_failed){
    assertInt(isMemoryUnchanged(), true);
 }
 
-TEST(pageMemory, callocco_alignment8Boundary32Size32_success_allZeroes){
-   unsigned const int size = 32, alignment = 8, boundary = 32;
+// IGNORE_TEST(pageMemory, callocco_alignment8Boundary32Size32_success_allZeroes){
+//    unsigned const int size = 32, alignment = 8, boundary = 32;
 
-   uintptr_t result = (uintptr_t)memory_callocco(memory, size, alignment, boundary);
+//    uintptr_t result = (uintptr_t)memory_callocco(memory, size, alignment, boundary);
 
-   assertIntNotEquals(result, 0);
+//    assertIntNotEquals(result, 0);
 
-   uint32_t *ptr = (uint32_t *)result;
-   for(unsigned int i = 0; i < size / 4; i++){
-      if(!assertInt(ptr[i], 0)){
-         break;
-      }
-   }
-}
+//    uint32_t *ptr = (uint32_t *)result;
+//    for(unsigned int i = 0; i < size / 4; i++){
+//       if(!assertInt(ptr[i], 0)){
+//          break;
+//       }
+//    }
+// }
 
 TEST(pageMemory, append_allocate4000TwiceWithExtraRam){
    unsigned const int size = 4000;

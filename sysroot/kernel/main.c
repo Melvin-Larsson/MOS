@@ -574,9 +574,9 @@ void kernel_main(){
     assert_little_endian();
     initLogging();
 
-    physpage_init();
-    physpage_markPagesAsUsed4MB(0, 4);
-    physpage_markPagesAsUsed4KB(4194304, 4194304);
+//     physpage_init((void*)(3 * 4 * 1024 * 1024), 4 * 1024);
+//     physpage_markPagesAsUsed4MB(0, 4);
+//     physpage_markPagesAsUsed4KB(4194304, 4194304);
     paging_init();
 
     acpi_init();

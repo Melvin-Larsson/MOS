@@ -4,6 +4,7 @@
 #include "kernel/allocator.h"
 #include "kernel/memory.h"
 #include "kernel/logging.h"
+#include "kernel/memory-allocator.h"
 
 #include "stdint.h"
 #include "stdlib.h"
@@ -119,6 +120,12 @@ typedef struct{
     Allocator *pageAllocator;
 }PagingData;
 
+typedef struct{
+    uint32_t virtualPageIndex4KB;
+    uint32_t physicalPageIndex4KB;
+    uint32_t pageCount4KB;
+}KernelPage;
+
 static uint32_t readCr0();
 static uint32_t readCr1();
 static uint32_t readCr2();
@@ -152,48 +159,170 @@ static PagingStatus add32BitPagingEntry(PagingData *context, PagingTableEntry en
 static void handlePageFault(ExceptionInfo info, void *data);
 
 static PagingData *currentContext;
-static Allocator *pageTableAllocator;
-static uintptr_t pageTablePageAddress;
+static Allocator *virtualKernelMemoryAllocator;
+static Memory *memory;
 
-void paging_init(){
+static KernelPage kernelPages[1024];
+
+extern uint32_t __kernel_end;
+/*
+ * Start (4KB)                    Size (4KB)                         Usage
+ * --------------------------------------------------------------------------
+ * 0                              kernelPageCount4KB                 Kernel
+ * kernelPageCount4KB             2 * 1024                           General purpose memory
+ */
+
+/*
+ * The idea:
+ *
+ * We want (k)malloc to request pages to use from the paging system to provide more flexibility. 
+ *
+ * We have a fixed range of logical addresses reserved for the kernel.
+ * That way, there are always free logical addresses to use when the kernel needs more memory, 
+ * so we can use the same addresses in each paging context (thread). This makes context switching and syscalls faster and easier.
+ *
+ * Manage general purpose paging memory with memory allocator. When we run out of memory,
+ * we map a 4MB page and provide it to the memory manager. This should preferable never happen though.
+ * This way, we do not rely on kmalloc, risking some nasty circular dependencies.
+ *
+ */
+
+PagingStatus paging_init(){
+    uintptr_t kernelEndAddress = (uintptr_t)&__kernel_end;
+    size_t kernelPageCount4MB = (kernelEndAddress + SIZE_4MB - 1) / SIZE_4MB;
+
+    uintptr_t scratchpad = kernelPageCount4MB * SIZE_4MB;
+    memory = memory_new((void*)scratchpad, 2 * SIZE_4MB);
+    assert(memory != 0);
+
+    bool physpageStatus = physpage_init(memory);
+    assert(physpageStatus);
+
+    memset(kernelPages, 0, sizeof(kernelPages));
+    kernelPages[0] = (KernelPage){
+        .virtualPageIndex4KB = 0,
+        .physicalPageIndex4KB = 0,
+        .pageCount4KB = kernelPageCount4MB * 1024 + 2 * 1024
+    };
+    physpage_markPagesAsUsed4KB(kernelPages[0].physicalPageIndex4KB, kernelPages[0].pageCount4KB);
+
+    virtualKernelMemoryAllocator = allocator_initManaged(memory, 0, 16 * SIZE_4MB); //FIXME: What size of kernel memory
+
     interrupt_setExceptionHandler(handlePageFault, 0, 14);
 
-    pageTablePageAddress = physpage_getPage4MB() * SIZE_4MB;
-    pageTableAllocator = allocator_init(pageTablePageAddress, SIZE_4MB);
+    assert(virtualKernelMemoryAllocator != 0);
+
+    return PagingOk;
+}
+
+static uintptr_t mapKernelPage4MB(){
+    AllocatedArea virtualArea = allocator_get(virtualKernelMemoryAllocator, SIZE_4MB);
+    if(virtualArea.size != SIZE_4MB){
+        return 0;
+    }
+
+    uintptr_t physicalAddress = physpage_getPage4MB();
+    if(!physicalAddress){
+        return 0;
+    }
+
+    assert(virtualArea.address % SIZE_4MB == 0);
+    assert(physicalAddress % SIZE_4MB == 0);
+
+    size_t i = 0;
+    size_t count = sizeof(kernelPages) / sizeof(KernelPage);
+    for(; i < count; i++){
+        if(kernelPages[i].pageCount4KB == 0){
+            break;
+        }
+    }
+    if(i == count){
+        return 0;
+    }
+
+    kernelPages[i] = (KernelPage){
+        .pageCount4KB = 1024,
+        .virtualPageIndex4KB = virtualArea.address / SIZE_4KB,
+        .physicalPageIndex4KB = physicalAddress / SIZE_4KB
+    };
+
+    //FIXME: Do mapping
+
+    return virtualArea.address;
+}
+
+static void *allocateConstrainedMemory(size_t size, size_t alignment, size_t boundary){
+    assert(size <= SIZE_4MB);
+    assert(alignment <= SIZE_4MB);
+    assert(boundary <= SIZE_4MB);
+
+    void *result = memory_mallocco(memory, size, alignment, boundary);
+    if(!result){
+        uintptr_t address = mapKernelPage4MB();
+        if(!address){
+            return 0;
+        }
+        memory_append(memory, (void *)address, SIZE_4MB);
+        result = memory_mallocco(memory, size, alignment, boundary);
+
+        assert(result != 0);
+    }
+    return result;
+}
+
+static void *allocateMemory(size_t size){
+    return allocateConstrainedMemory(size, 1, 0);
 }
 
 PagingContext *paging_create32BitContext(PagingConfig32Bit config){
-    PagingContext *result = kmalloc(sizeof(PagingContext));
-    PagingData *data = kmalloc(sizeof(PagingData));
+    PagingContext *result = allocateMemory(sizeof(PagingContext));
+    PagingData *data = allocateMemory(sizeof(PagingData));
 
     data->physicalToLogicalPage = map_newBinaryMap(intmap_comparitor);
     data->pageAllocator = allocator_init(0, 1048576);
     data->pagingMode = PagingMode32Bit;
 
-    AllocatedArea pageTableArea = allocator_get(pageTableAllocator, SIZE_4KB);
-    assert(pageTableArea.size == SIZE_4KB);
-    assert(pageTableArea.address % SIZE_4KB == 0); //The code is wrong if this fails
+    data->pageDirectory = (volatile uint32_t *)allocateConstrainedMemory(SIZE_4KB, SIZE_4KB, 0);
+    assert(data->pageDirectory != 0);
 
-    data->pageDirectory = (volatile uint32_t *)(pageTableArea.address);
-//     loggDebug("Creating context using page directory at address %X", data->pageDirectory);
-    memset((void*)data->pageDirectory, 0, SIZE_4KB);
+    size_t count = sizeof(kernelPages) / sizeof(KernelPage);
+    for(size_t i = 0; i < count; i++){
+        if(kernelPages[i].pageCount4KB == 0){
+            continue;
+        }
+        if(kernelPages[i].pageCount4KB % 1024 == 0){
+            size_t pageCount4MB = kernelPages[i].pageCount4KB / 1024;
+            for(size_t j = 0; j < pageCount4MB; j++){
+                PagingTableEntry pageTablePageEntry __attribute__((aligned(16)))= {
+                    .physicalAddress = kernelPages[i].physicalPageIndex4KB * SIZE_4KB + j * SIZE_4MB,
+                    .readWrite = 1,
+                    .userSupervisor = 0,
+                    .pageWriteThrough = 1,
+                    .pageCahceDisable = 1,
+                    .Use4MBPageSize = 1,
+                    .isGlobal = 0,
+                    .pageAttributeTable = 0,
+                };
 
-    result->data = data;
-
-    
-    PagingTableEntry pageTablePageEntry __attribute__((aligned(16)))= {
-        .physicalAddress = pageTablePageAddress,
-        .readWrite = 1,
-        .userSupervisor = 0,
-        .pageWriteThrough = 1,
-        .pageCahceDisable = 1,
-        .Use4MBPageSize = 1,
-        .isGlobal = 0,
-        .pageAttributeTable = 0,
-    };
-
-
-    add32BitPagingEntry(data, pageTablePageEntry, pageTablePageAddress);
+                add32BitPagingEntry(data, pageTablePageEntry, kernelPages[i].virtualPageIndex4KB * SIZE_4KB + j * SIZE_4MB);
+            }
+        }
+        else{
+            for(size_t j = 0; j < kernelPages[i].pageCount4KB; j++){
+                PagingTableEntry pageTablePageEntry __attribute__((aligned(16)))= {
+                    .physicalAddress = kernelPages[i].physicalPageIndex4KB * SIZE_4KB + j * SIZE_4KB,
+                    .readWrite = 1,
+                    .userSupervisor = 0,
+                    .pageWriteThrough = 1,
+                    .pageCahceDisable = 1,
+                    .Use4MBPageSize = 0,
+                    .isGlobal = 0,
+                    .pageAttributeTable = 0,
+                };
+                add32BitPagingEntry(data, pageTablePageEntry, kernelPages[i].virtualPageIndex4KB * SIZE_4KB + j * SIZE_4KB);
+            }
+        }
+    }
 
     config = clearUnsuported32BitFeatures(config);
     result->config32Bit = config;

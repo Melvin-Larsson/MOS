@@ -19,6 +19,7 @@ OBJS = ${TESTS_BIN}/timer-test.o \
 	   ${TESTS_BIN}/binary-map-test.o \
 	   ${TESTS_BIN}/buffered-storage-test.o \
 	   ${TESTS_BIN}/fat-test.o \
+	   ${TESTS_BIN}/memory-allocator-test.o \
 
 all : ${TESTS_BIN} ${TEST_LISTS} ${OBJS}
 
@@ -30,8 +31,8 @@ ${TEST_LISTS}/timer-test-list.c : ${TESTS}/kernel/timer-test.c
 	${TESTS}/test.sh ${TESTS}/kernel/timer-test.c
 
 # # Allocator test
-${TESTS_BIN}/allocator-test.o : testrunner.c ${TEST_LISTS}/allocator-test-list.c ${TESTS}/kernel/allocator-test.c ${KERNEL}/allocator.c ${MOCKS}/memory-mock.c
-	gcc ${CFLAGS} ${INCLUDE} testrunner.c ${TEST_LISTS}/allocator-test-list.c ${TESTS}/kernel/allocator-test.c ${MOCKS}/memory-mock.c ${KERNEL}/allocator.c  -o ${TESTS_BIN}/allocator-test.o
+${TESTS_BIN}/allocator-test.o : testrunner.c ${TEST_LISTS}/allocator-test-list.c ${TESTS}/kernel/allocator-test.c ${KERNEL}/allocator.c ${KERNEL}/memory-allocator.c ${MOCKS}/logging-mock.c ${MOCKS}/memory-mock.c
+	gcc ${CFLAGS} ${INCLUDE} testrunner.c ${TEST_LISTS}/allocator-test-list.c ${TESTS}/kernel/allocator-test.c ${MOCKS}/memory-mock.c ${KERNEL}/allocator.c ${KERNEL}/memory-allocator.c ${MOCKS}/logging-mock.c -o ${TESTS_BIN}/allocator-test.o
 
 ${TEST_LISTS}/allocator-test-list.c : ${TESTS}/kernel/allocator-test.c
 	${TESTS}/test.sh ${TESTS}/kernel/allocator-test.c
@@ -64,6 +65,13 @@ ${TESTS_BIN}/fat-test.o : testrunner.c ${TEST_LISTS}/fat-test-list.c ${TESTS}/ke
 
 ${TEST_LISTS}/fat-test-list.c : ${TESTS}/kernel/fat-test.c
 	${TESTS}/test.sh ${TESTS}/kernel/fat-test.c
+
+# Memory allocator test
+${TESTS_BIN}/memory-allocator-test.o : testrunner.c ${TEST_LISTS}/memory-allocator-test-list.c ${TESTS}/kernel/memory-allocator-test.c ${KERNEL}/memory-allocator.c ${MOCKS}/logging-mock.c
+	gcc ${CFLAGS} ${INCLUDE} -I ${KERNEL} testrunner.c ${TEST_LISTS}/memory-allocator-test-list.c ${TESTS}/kernel/memory-allocator-test.c ${KERNEL}/memory-allocator.c ${MOCKS}/logging-mock.c -o ${TESTS_BIN}/memory-allocator-test.o
+
+${TEST_LISTS}/memory-allocator-test-list.c : ${TESTS}/kernel/memory-allocator-test.c
+	${TESTS}/test.sh ${TESTS}/kernel/memory-allocator-test.c
 
 #Ignoring phsypage # FIXME: Remove tests for physpage? New implementation that uses allocator, might not need testing? Or rewrite tests.
 # test.o : testrunner.c ${TESTS}/kernel/physpage-test.c ${MOCKS}/memory-mock.c
