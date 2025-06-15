@@ -23,6 +23,7 @@ typedef struct{
    uint64_t *dcBaseAddressArray;
    uint32_t dcBaseAddressArraySize;
 
+   size_t scratchpadSize;;
    void **scratchpadPointers;
    uint64_t *scratchpadArray;
 

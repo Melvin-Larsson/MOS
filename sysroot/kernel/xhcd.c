@@ -242,8 +242,7 @@ XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
       if((status = initDCAddressArray(xhcd)) != XhcOk){
          goto cleanup_xhcd;
       }
-      status = initScratchPad(xhcd);
-      if(status != XhcOk){
+      if((status = initScratchPad(xhcd))!= XhcOk){
          goto cleanup_xhcd;
       }
 
@@ -300,16 +299,18 @@ void xhcd_free(Xhci *xhci){
 
    if(xhcd->scratchpadArray){
       kfree(xhcd->scratchpadArray);
+      xhcd->scratchpadArray = 0;
    }
    if(xhcd->scratchpadPointers){
-      size_t scratchpadSize = getScratchpadSize(xhcd);
-      for(size_t i = 0; i < scratchpadSize; i++){
+      for(size_t i = 0; i < xhcd->scratchpadSize; i++){
          if(xhcd->scratchpadPointers[i]){
             kfree(xhcd->scratchpadPointers[i]);
          }
       }
       kfree(xhcd->scratchpadPointers);
+      xhcd->scratchpadPointers = 0;
    }
+   xhcd->scratchpadSize = 0;
 
    XhcdRing **ringArray = (XhcdRing **)xhcd->transferRing;
    for(size_t i = 0; i < sizeof(xhcd->transferRing) / sizeof(XhcdRing *); i++){
@@ -1111,21 +1112,21 @@ static XhcStatus initScratchPad(Xhcd *xhcd){
    assert(xhcd->scratchpadArray == 0);
    assert(xhcd->scratchpadPointers == 0);
 
-   size_t scratchpadSize = getScratchpadSize(xhcd);
+   xhcd->scratchpadSize = getScratchpadSize(xhcd);
    size_t pageSize = getPageSize(xhcd);
-   loggDebug("Required scratchpad size %d", scratchpadSize);
+   loggDebug("Required scratchpad size %d", xhcd->scratchpadSize);
    loggDebug("Page size: %d", pageSize);
 
-   xhcd->scratchpadArray = dma_kmallocco(scratchpadSize * sizeof(uint64_t), 64, pageSize);
-   xhcd->scratchpadPointers = kmalloc(scratchpadSize * sizeof(void *));
+   xhcd->scratchpadArray = dma_kmallocco(xhcd->scratchpadSize * sizeof(uint64_t), 64, pageSize);
+   xhcd->scratchpadPointers = kmalloc(xhcd->scratchpadSize * sizeof(void *));
    if(!xhcd->scratchpadArray || !xhcd->scratchpadPointers){
       return XhcUnableToAllocateMemory;
    }
 
-   memset(xhcd->scratchpadArray, 0, scratchpadSize * sizeof(uint64_t));
-   memset(xhcd->scratchpadPointers, 0, scratchpadSize * sizeof(void *));
+   memset(xhcd->scratchpadArray, 0, xhcd->scratchpadSize * sizeof(uint64_t));
+   memset(xhcd->scratchpadPointers, 0, xhcd->scratchpadSize * sizeof(void *));
 
-   for(size_t i = 0; i < scratchpadSize; i++){
+   for(size_t i = 0; i < xhcd->scratchpadSize; i++){
       void* scratchpadStart = dma_kmallocco(pageSize, 1, pageSize);
       if(!scratchpadStart){
          return XhcUnableToAllocateMemory;
