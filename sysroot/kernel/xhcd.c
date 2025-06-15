@@ -301,11 +301,14 @@ void xhcd_free(Xhci *xhci){
    if(xhcd->scratchpadArray){
       kfree(xhcd->scratchpadArray);
    }
-   size_t scratchpadSize = getScratchpadSize(xhcd);
-   for(size_t i = 0; i < scratchpadSize; i++){
-      if(xhcd->scratchpadPointers[i]){
-         kfree(xhcd->scratchpadPointers[i]);
+   if(xhcd->scratchpadPointers){
+      size_t scratchpadSize = getScratchpadSize(xhcd);
+      for(size_t i = 0; i < scratchpadSize; i++){
+         if(xhcd->scratchpadPointers[i]){
+            kfree(xhcd->scratchpadPointers[i]);
+         }
       }
+      kfree(xhcd->scratchpadPointers);
    }
 
    XhcdRing **ringArray = (XhcdRing **)xhcd->transferRing;
