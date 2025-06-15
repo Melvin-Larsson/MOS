@@ -23,6 +23,9 @@ typedef struct{
    uint64_t *dcBaseAddressArray;
    uint32_t dcBaseAddressArraySize;
 
+   void **scratchpadPointers;
+   uint64_t *scratchpadArray;
+
    XhcdRing *transferRing[16 + 1][31]; //indexed from 1 //FIXME
    XhcEventRing *eventRing;
    XhcdRing *commandRing;

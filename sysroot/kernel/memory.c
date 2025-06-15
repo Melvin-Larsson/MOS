@@ -56,6 +56,12 @@ void *kmalloc(int size){
     }
     return 0;
 }
+
+//FIXME
+void *dma_kmalloc(size_t size){
+    return kmalloc(size);
+}
+
 void *kmallocco(int size, int alignment, int boundary){
     if(!isValidConstraint(size, alignment, boundary)){
         loggError("Invalid constraint %d %d %d", size, alignment, boundary);
@@ -85,6 +91,10 @@ void *kmallocco(int size, int alignment, int boundary){
     loggWarning("Out of memory");
     return 0;
 }
+void *dma_kmallocco(size_t size, size_t alignment, size_t boundary){
+    return kmallocco(size, alignment, boundary);
+}
+
 void kfree(void *ptr){
     MemoryDescriptor *last = 0;
     for(MemoryDescriptor *desc = memoryDescriptor; desc != 0; desc = desc->next){

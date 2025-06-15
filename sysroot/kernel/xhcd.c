@@ -239,8 +239,7 @@ XhcStatus xhcd_init(const PciDescriptor descriptor, Xhci *xhci){
       }
       memset(xhcd->handlers, 0, devices * 32 * sizeof(XhcInterruptHandler));
 
-      status = initDCAddressArray(xhcd);
-      if(status != XhcOk){
+      if((status = initDCAddressArray(xhcd)) != XhcOk){
          goto cleanup_xhcd;
       }
       status = initScratchPad(xhcd);
@@ -289,26 +288,24 @@ void xhcd_free(Xhci *xhci){
    if(xhcd->dcBaseAddressArray){
       uint64_t *array = xhcd->dcBaseAddressArray;
 
-      size_t scratchpadSize = getScratchpadSize(xhcd);
-      uintptr_t address = (uintptr_t)array[0];
-      uint64_t *scrachpadPointerArray = (uint64_t *)address;
-      if(scrachpadPointerArray){
-         for(size_t i = 0; i < scratchpadSize; i++){
-            if(scrachpadPointerArray[i]){
-               uintptr_t scrachpadPointer = scrachpadPointerArray[i];
-               kfree((void*)scrachpadPointer);
-            }
-         }
-      }
-      kfree(scrachpadPointerArray);
 
       for(size_t i = 1; i < xhcd->dcBaseAddressArraySize; i++){
          if(array[i]){
             loggWarning("Free device context %X not implemented", array[i]);
          }
       }
-
       kfree(array);
+
+   }
+
+   if(xhcd->scratchpadArray){
+      kfree(xhcd->scratchpadArray);
+   }
+   size_t scratchpadSize = getScratchpadSize(xhcd);
+   for(size_t i = 0; i < scratchpadSize; i++){
+      if(xhcd->scratchpadPointers[i]){
+         kfree(xhcd->scratchpadPointers[i]);
+      }
    }
 
    XhcdRing **ringArray = (XhcdRing **)xhcd->transferRing;
@@ -1082,7 +1079,7 @@ static XhcStatus setMaxEnabledDeviceSlots(Xhcd *xhcd, uint8_t maxSlots){
    return XhcOk;
 }
 static uint32_t getPageSize(Xhcd *xhcd){
-   return xhcd_readRegister(xhcd->hardware, PAGESIZE) << 12;
+   return (xhcd_readRegister(xhcd->hardware, PAGESIZE) & 0xFF) << 12;
 }
 static XhcStatus initDCAddressArray(Xhcd *xhcd){
    assert((xhcd_readRegister(xhcd->hardware, USBCommand) & USBCMD_RUN_STOP_BIT) == 0);
@@ -1091,7 +1088,7 @@ static XhcStatus initDCAddressArray(Xhcd *xhcd){
    uint8_t maxSlots = config.enabledDeviceSlots;
    uint32_t pageSize = getPageSize(xhcd);
    uint32_t arraySize = (maxSlots + 1) * sizeof(uint64_t);
-   xhcd->dcBaseAddressArray = kmallocco(arraySize, 64, pageSize);
+   xhcd->dcBaseAddressArray = dma_kmallocco(arraySize, 64, pageSize);
    xhcd->dcBaseAddressArraySize = maxSlots + 1;
    if(!xhcd->dcBaseAddressArray){
       return XhcUnableToAllocateMemory;
@@ -1107,37 +1104,41 @@ static XhcStatus initDCAddressArray(Xhcd *xhcd){
 static XhcStatus initScratchPad(Xhcd *xhcd){
    loggDebug("Init scrachpad");
    assert((xhcd_readRegister(xhcd->hardware, USBCommand) & USBCMD_RUN_STOP_BIT) == 0);
+   assert(xhcd->dcBaseAddressArray != 0);
+   assert(xhcd->scratchpadArray == 0);
+   assert(xhcd->scratchpadPointers == 0);
 
-   uint32_t scratchpadSize = getScratchpadSize(xhcd);
+   size_t scratchpadSize = getScratchpadSize(xhcd);
+   size_t pageSize = getPageSize(xhcd);
    loggDebug("Required scratchpad size %d", scratchpadSize);
-
-   uint32_t pageSize = getPageSize(xhcd);
    loggDebug("Page size: %d", pageSize);
-   uint64_t *scratchpadPointers = kmallocco(scratchpadSize * sizeof(uint64_t), 64, pageSize);
-   if(!scratchpadPointers){
+
+   xhcd->scratchpadArray = dma_kmallocco(scratchpadSize * sizeof(uint64_t), 64, pageSize);
+   xhcd->scratchpadPointers = kmalloc(scratchpadSize * sizeof(void *));
+   if(!xhcd->scratchpadArray || !xhcd->scratchpadPointers){
       return XhcUnableToAllocateMemory;
    }
-   memset(scratchpadPointers, 0, scratchpadSize * sizeof(uint64_t));
-   assert_physical_continguous((uintptr_t)scratchpadPointers, scratchpadSize * sizeof(uint64_t));
 
-   for(uint32_t i = 0; i < scratchpadSize; i++){
-      void* scratchpadStart = kmallocco(pageSize, 1, pageSize);
+   memset(xhcd->scratchpadArray, 0, scratchpadSize * sizeof(uint64_t));
+   memset(xhcd->scratchpadPointers, 0, scratchpadSize * sizeof(void *));
+
+   for(size_t i = 0; i < scratchpadSize; i++){
+      void* scratchpadStart = dma_kmallocco(pageSize, 1, pageSize);
       if(!scratchpadStart){
-         for(uint32_t j = 0; j < i; j++){
-            uintptr_t address = scratchpadPointers[j];
-            kfree((void *)address);
-         }
-         kfree((void*)scratchpadPointers);
          return XhcUnableToAllocateMemory;
       }
+
       memset(scratchpadStart, 0, pageSize);
-      scratchpadPointers[i] = (uintptr_t)paging_getPhysicalAddress((uintptr_t)scratchpadStart);
 
-      assert_physical_continguous((uintptr_t)scratchpadStart, pageSize);
+      xhcd->scratchpadArray[i] = (uintptr_t)paging_getPhysicalAddress((uintptr_t)scratchpadStart);
+      xhcd->scratchpadPointers[i] = scratchpadStart;
    }
-   xhcd->dcBaseAddressArray[0] = (uint64_t)paging_getPhysicalAddress((uintptr_t)scratchpadPointers);
 
-   loggInfo("Initialized scratchpad (%X)", scratchpadPointers);
+   xhcd->dcBaseAddressArray[0] = (uint64_t)paging_getPhysicalAddress((uintptr_t)xhcd->scratchpadArray);
+
+   loggInfo("Initialized xHCI scratchpad array: virt=%X phys=%X",
+         xhcd->scratchpadArray,
+         paging_getPhysicalAddress((uintptr_t)xhcd->scratchpadArray));
 
    return XhcOk;
 }
