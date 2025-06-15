@@ -6,7 +6,7 @@ The following features have been worked on, enough to get them running on my mac
 
 - Usb drivers (using xHCI controller)
   - Keyboard
-  - Usb mass storage devices using SCSI (currently, this only works in qemu)
+  - Usb mass storage devices using SCSI
 - Multithreading
 - Serial
 - FAT32 filesystem (At least the most important parts. Only FAT32 is tested)
